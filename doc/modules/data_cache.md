@@ -4,7 +4,7 @@
 
 GPU memory management and ephemeral reductions for `forward.cpp`. Loads preprocessed data from `database.h5`, computes only the reduced arrays needed for the current run, and caches reduced data on GPU.
 
-`setup.jl` owns persistent preprocessing in `database.h5` (filtering, trimming, and any stored reduced datasets). `DataCache` owns non-persistent GPU reductions and may reuse reduced datasets already stored in `database.h5`.
+`input.jl` owns persistent preprocessing in `database.h5` (filtering, trimming, and any stored reduced datasets). `DataCache` owns non-persistent GPU reductions and may reuse reduced datasets already stored in `database.h5`.
 
 ## Used By
 

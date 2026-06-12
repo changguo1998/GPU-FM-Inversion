@@ -6,7 +6,7 @@ Compile final solution from converged pipeline results: best-fit parameters, unc
 
 ## Used By
 
-- `export.jl`
+- `output.jl`
 
 ## Operations
 

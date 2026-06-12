@@ -6,7 +6,7 @@ Generate trials from strategy parameters (grid expansion). Cartesian product of 
 
 ## Used By
 
-- `setup.jl` (all runs)
+- `preprocess.jl` (all runs — each loop iteration)
 
 ## Input
 

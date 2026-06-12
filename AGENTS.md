@@ -10,9 +10,9 @@ The original Julia implementation lives in `old_codes/` for reference but is not
 
 | Doc | Purpose |
 |-----|---------|
-| `doc/design.md` | Pipeline architecture: 4-stage loop, per-iteration files, design principles |
+| `doc/design.md` | Pipeline architecture: 5-stage pipeline, per-iteration files, design principles |
 | `doc/schema.md` | HDF5 schemas for all 4 files: datasets, types, shapes |
-| `doc/stages/` | Virtual stage docs: driver, setup, forward, assess, export — role, I/O, responsibilities |
+| `doc/stages/` | Virtual stage docs: driver, input, preprocess, forward, assess, output — role, I/O, responsibilities |
 | `doc/modules/` | Implementation module docs: kernel specs, interfaces, design decisions |
 | `doc/plan.md` | Phased implementation and testing plan |
 | `doc/old/architecture.md` | Old Julia code data flow and module hierarchy |
@@ -20,18 +20,19 @@ The original Julia implementation lives in `old_codes/` for reference but is not
 | `doc/old/parallelism.md` | Old code parallelism analysis for CUDA rewrite |
 | `doc/old/dependencies.md` | Old package roles, binary formats, data paths |
 
-## Pipeline (4 stages)
+## Pipeline (5 stages)
 
 ```
-driver.sh loops: setup → forward → assess → [repeat on status_{N}.h5] → export
+driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat]] → output
 ```
 
 | Stage | Language | Role |
 |-------|----------|------|
-| `setup.jl` | Julia | Import `raw.h5`, preprocess all data → `database.h5`; generate trials → `status_{N}.h5` |
+| `input.jl` | Julia | Import `raw.h5`, preprocess all data → `database.h5`; initial strategy → `status_0.h5` |
+| `preprocess.jl` | Julia | Generate trials from strategy → `status_{N}.h5` |
 | `forward.cpp` | C++/Kokkos | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation |
 | `assess.jl` | Julia | Apply weights, aggregate, refine grid, prompt operator → `status_{N+1}.h5` |
-| `export.jl` | Julia | Compile final solution → `output.h5` |
+| `output.jl` | Julia | Compile final solution → `output.h5` |
 
 ## HDF5 files (4)
 
@@ -55,9 +56,9 @@ driver.sh loops: setup → forward → assess → [repeat on status_{N}.h5] → 
 
 1. `forward.cpp` is stateless — reads preprocessed data + trial params, writes raw misfits
 2. `assess.jl` owns all strategy: weights, channel selection, grid refinement, and prompts operator for continue/break
-3. All frequency-band variants precomputed upfront in `database.h5`
+3. All frequency-band variants precomputed upfront in `database.h5` by `input.jl`
 4. Misfits are unweighted, per-module shapes: XCorr `[N_ph × N_tr]`, Polarity `[N_st × N_tr]`, PSR `[N_st × N_tr]`. Weights applied in assess.
-5. Green's functions pre-computed externally, loaded by `setup.jl`
+5. Green's functions pre-computed externally, loaded by `input.jl`
 
 ## Old code (reference only)
 

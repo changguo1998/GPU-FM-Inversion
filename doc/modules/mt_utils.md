@@ -8,26 +8,26 @@ Double-couple SDR (strike, dip, rake) to 6-component moment tensor conversion. M
 
 | Stage | Language |
 |-------|----------|
-| `setup.jl` | Julia (generating trials) |
+| `input.jl` | Julia (preprocessing; initial strategy) |
+| `preprocess.jl` | Julia (generating trials) |
 | `forward.cpp` | C++ (SDR → MT on GPU, per trial) |
-| `export.jl` | Julia (recomputing best-fit MT) |
+| `output.jl` | Julia (recomputing best-fit MT) |
 
 ## Algorithm
 
 ```
 Input: strike ∈ [0,360), dip ∈ [0,90], rake ∈ [-90,90]  (degrees)
 
-Convert to radians, compute:
-    s = sin(strike), c = cos(strike)
-    d = sin(dip),   d' = cos(dip)
-    r = sin(rake),  r' = cos(rake)
+Convert to radians. Verified reference formulas (from old Julia code mathematics.jl):
 
-Mxx = -(s·d·r' + c·s·d·r + c·d'·r + s·d'·r)
-Myy =  (c·d·r' - s·s·d·r - s·d'·r + c·d'·r)
-Mzz =  d·r
-Mxy = -(c·d·r' - s·s·d·r + c·d'·r - s·d'·r)
-Mxz = -(c·d'·r' - c·d·r - s·d'·r' + s·d·r)
-Myz =  s·d'·r' - c·d'·r' - c·d·r - s·d·r
+    s = strike(rad), d = dip(rad), r = rake(rad)
+
+Mxx = -[sin(2s)·sin(d)·cos(r) + sin²(s)·sin(2d)·sin(r)]
+Myy =  sin(2s)·sin(d)·cos(r) - cos²(s)·sin(2d)·sin(r)
+Mzz =  sin(2d)·sin(r)
+Mxy =  cos(2s)·sin(d)·cos(r) + 0.5·sin(2s)·sin(2d)·sin(r)
+Mxz = -[cos(s)·cos(d)·cos(r) + sin(s)·cos(2d)·sin(r)]
+Myz = -[sin(s)·cos(d)·cos(r) - cos(s)·cos(2d)·sin(r)]
 ```
 
 Output: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` in NED coordinate system.

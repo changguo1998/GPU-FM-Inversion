@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Apply per-module masks, weight, and aggregate raw misfits into per-trial total scores. Used by assess.jl (primary) and export.jl (verification).
+Apply per-module masks, weight, and aggregate raw misfits into per-trial total scores. Used by assess.jl (primary) and output.jl (verification).
 
 ## Used By
 
 - `assess.jl` — per-iteration aggregation
-- `export.jl` — independent verification of best trial
+- `output.jl` — independent verification of best trial
 
 ## Input
 
@@ -46,4 +46,4 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 - Verify aggregation matches hand-computed examples
 - NaN handling: masked phases don't affect trial totals
 - Weight=0: module contributes nothing
-- Cross-validate: assess.jl and export.jl produce same best_idx
+- Cross-validate: assess.jl and output.jl produce same best_idx

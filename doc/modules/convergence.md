@@ -18,8 +18,8 @@ Current grid: strike=45.0±10.0°, dip=30.0±8.0°, rake=90.0±8.0°
 Continue? [y/N]
 ```
 
-- **y** → writes `status_{N+1}.h5` with `/strategy/converged=0`. Driver loops to setup for next iteration.
-- **N** (any other) → writes `status_{N+1}.h5` with `/strategy/converged=1`, `convergence_reason="user"`. Driver detects converged=1 and breaks to export.
+- **y** → writes `status_{N+1}.h5` with `/strategy/converged=0`. Driver loops to preprocess for next iteration.
+- **N** (any other) → writes `status_{N+1}.h5` with `/strategy/converged=1`, `convergence_reason="user"`. Driver detects converged=1 and breaks to output.
 
 ## Grid Refinement
 

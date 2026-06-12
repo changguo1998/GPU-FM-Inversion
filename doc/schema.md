@@ -245,7 +245,7 @@ Present only when waveform synthesis is enabled. One dataset per phase:
 ### Convergence Signal
 
 `assess.jl` signals convergence in `status_{N+1}.h5`:
-- `/strategy/converged = 1` — pipeline should stop, proceed to export
+- `/strategy/converged = 1` — pipeline should stop, proceed to output
 - `/strategy/convergence_reason` — `"user"` (operator chose break)
 
 Driver detects convergence by reading `/strategy/converged` from the latest status file.
@@ -254,12 +254,12 @@ Driver detects convergence by reading `/strategy/converged` from the latest stat
 
 | File State | Action |
 |-----------|--------|
-| No `database.h5` | Run `setup.jl` (first run, with config) |
-| `status_{N}.h5` exists, no `/trials` | Run `setup.jl` (write trials from strategy) |
+| No `database.h5` | Run `input.jl` (once, with config) |
+| `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
 | `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
 | `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
-| `status_{N+1}.h5` exists, `/strategy/converged == 1` | Run `export.jl` |
+| `status_{N+1}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
 
 ### Config Bootstrap
 
-`config.toml` is a bootstrap-only input read by `setup.jl` on the first run. All configuration is written to `database.h5` and `status_0.h5`. Subsequent stages read from HDF5 only.
+`config.toml` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5` and `status_0.h5`. Subsequent stages read from HDF5 only.

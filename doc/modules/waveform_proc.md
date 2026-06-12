@@ -6,7 +6,7 @@ Filter, trim, and preprocess observed waveforms and Green's functions for each f
 
 ## Used By
 
-- `setup.jl` (first run only — writes to `database.h5`)
+- `input.jl` (first run only — writes to `database.h5`)
 
 ## Operations
 
@@ -34,7 +34,7 @@ Filter, trim, and preprocess observed waveforms and Green's functions for each f
 | RelShift | Spatial component concatenation | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 | CAP | Cut-and-paste waveform fitting | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 
-Persistent preprocessing belongs to `setup.jl` and `database.h5`; non-persistent GPU reductions belong to `forward.cpp`'s DataCache.
+Persistent preprocessing belongs to `input.jl` and `database.h5`; non-persistent GPU reductions belong to `forward.cpp`'s DataCache.
 
 ## Testing Strategy
 

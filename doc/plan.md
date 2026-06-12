@@ -4,7 +4,7 @@
 
 ### 1.1. Schema & Infrastructure
 - [ ] Finalize all HDF5 schemas (validate against schema.md)
-- [ ] Create Julia projects: `setup/`, `assess/`, `export/` with `Project.toml`
+- [ ] Create Julia projects: `input/`, `preprocess/`, `assess/`, `output/` with `Project.toml`
 - [ ] Create C++ project: `forward/` with `CMakeLists.txt`
 - [ ] Create shared Julia packages: `MTUtils.jl/`, `AssessUtils.jl/`
 - [ ] Write `driver.sh` skeleton (state detection + stage invocation)
@@ -23,7 +23,9 @@
 
 ---
 
-## Phase 2: Setup Stage
+## Phase 2: Input + Preprocess Stages
+
+### 2.1. Input Stage — Data Ingestion (runs once)
 
 ### 2.1. Waveform Preprocessing
 - [ ] Bandpass filtering (Butterworth, zero-phase)
@@ -37,15 +39,15 @@
 - [ ] Write `/data` group (preprocessed waveform variants)
 - [ ] Write `/index` group (phase index, distance, azimuth)
 
-### 2.3. Trial Generation
+### 2.3. Preprocess Stage — Trial Generation (runs each loop)
 - [ ] Grid expansion from strategy (Cartesian product)
 - [ ] Write `/trials` group to `status_0.h5`
 - [ ] Write `/strategy` group to `status_0.h5`
 - [ ] Test: trial count, trial values, axis-varying logic
 
 ### 2.4. Integration
-- [ ] First run: raw.h5 → database.h5 + status_0.h5
-- [ ] Subsequent run: status_{N}.h5 (read strategy) → status_{N}.h5 (write trials)
+- [ ] First run: raw.h5 + config.toml → database.h5 + status_0.h5 (strategy only, no trials)
+- [ ] Loop run: status_{N}.h5 (read strategy) → status_{N}.h5 (write trials)
 - [ ] Test: minimal synthetic event end-to-end
 
 ---
@@ -111,7 +113,7 @@
 
 ---
 
-## Phase 5: Export Stage
+## Phase 5: Output Stage
 
 ### 5.1. Solution Compilation
 - [ ] Recompute best fit (verify against assess result)
@@ -136,7 +138,7 @@
 ### 6.1. Driver Script
 - [ ] State detection (HDF5 introspection + file existence)
 - [ ] Stage invocation in correct order
-- [ ] Loop control: read `/strategy/converged`, break to export on converged=1
+- [ ] Loop control: read `/strategy/converged`, break to output on converged=1
 - [ ] Error reporting
 
 ### 6.2. End-to-End Testing

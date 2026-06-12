@@ -48,5 +48,5 @@ Each module aggregates independently, then weighted sum across modules.
 ## What It Does NOT Do
 
 - Does NOT compute misfits (that's `forward.cpp`)
-- Does NOT generate trials (that's `setup.jl`)
+- Does NOT generate trials (that's `preprocess.jl`)
 - Does NOT modify `database.h5`
