@@ -1,1 +1,5 @@
 .sisyphus
+*.h5
+*.jld2
+build/
+Manifest.toml
