@@ -1,25 +1,28 @@
 # Implementation & Testing Plan
 
-## Phase 1: Foundations
+> **Status:** Phase 1 (Foundation) ✅ COMPLETE — committed as `2975075`
+> **Next:** Phase 2-6 not yet implemented — see `.sisyphus/plans/` for detailed task breakdowns
+
+## Phase 1: Foundations (✅ COMPLETE)
 
 ### 1.1. Schema & Infrastructure
-- [ ] Finalize all HDF5 schemas (validate against schema.md)
-- [ ] Create Julia projects: `input/`, `preprocess/`, `assess/`, `output/` with `Project.toml`
-- [ ] Create C++ project: `forward/` with `CMakeLists.txt`
-- [ ] Create shared Julia packages: `MTUtils.jl/`, `AssessUtils.jl/`
-- [ ] Write `driver.sh` skeleton (state detection + stage invocation)
+- [x] Finalize all HDF5 schemas (validate against schema.md)
+- [x] Create Julia projects: `input/`, `preprocess/`, `assess/`, `output/` with `Project.toml`
+- [x] Create C++ project: `forward/` with `CMakeLists.txt`
+- [x] Create shared Julia packages: `MTUtils.jl/`, `AssessUtils.jl/`
+- [ ] Write `driver.sh` skeleton (state detection + stage invocation) *(deferred to Phase 6)*
 
 ### 1.2. MT Conversion (Cross-Language)
-- [ ] Implement `MTUtils.jl` — SDR → MT (Julia)
-- [ ] Implement `mt_convert.h` — SDR → MT (C++)
-- [ ] Test: cross-language consistency (6 decimal place match)
-- [ ] Test: boundary conditions (strike=0/360, dip=0/90, rake=-90/90)
+- [x] Implement `MTUtils.jl` — SDR → MT (Julia)
+- [x] Implement `mt_utils.h` — SDR → MT (C++)
+- [x] Test: cross-language consistency (6 decimal place match)
+- [x] Test: boundary conditions (strike=0/360, dip=0/90, rake=-90/90)
 
 ### 1.3. HDF5 I/O
-- [ ] Julia HDF5 reader/writer (for all stages)
-- [ ] C++ HDF5 reader (forward.cpp — C API)
-- [ ] C++ HDF5 writer (forward.cpp — C API)
-- [ ] Test: write in Julia, read in C++ and vice versa
+- [x] Julia HDF5 reader/writer (for all stages)
+- [x] C++ HDF5 reader (forward.cpp — C API)
+- [x] C++ HDF5 writer (forward.cpp — C API)
+- [x] Test: write in Julia, read in C++ and vice versa
 
 ---
 
@@ -27,7 +30,7 @@
 
 ### 2.1. Input Stage — Data Ingestion (runs once)
 
-### 2.1. Waveform Preprocessing
+### 2.1. Waveform Preprocessing (NOT YET IMPLEMENTED)
 - [ ] Bandpass filtering (Butterworth, zero-phase)
 - [ ] Time-window trimming (wavelength-normalized)
 - [ ] Per-module preprocessing: XCorr (synamp), Polarity (gf_pol), PSR (amp matrices)
