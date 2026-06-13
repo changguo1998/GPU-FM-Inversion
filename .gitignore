@@ -1,5 +1,7 @@
 .sisyphus
 *.h5
 *.jld2
+*.o
 build/
 Manifest.toml
+forward/tests/test_mt_to_csv
