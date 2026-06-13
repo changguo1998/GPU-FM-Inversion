@@ -1,8 +1,8 @@
 # Implementation & Testing Plan
 
-> **Status:** Phases 1-5 modules ✅ COMPLETE, Phase 6 driver ✅ COMPLETE
-> **Remaining:** T15 (forward main.cpp integration), T21-T22 (E2E + cross-language), F1-F4 (verification)
-> **Blocked by:** Kokkos not installed — GPU code compiles once Kokkos available
+> **Status:** Phases 1-5 ✅ COMPLETE (T1-T10, T14, T16-T19), Phase 6 driver ✅ (T20)
+> **Remaining:** T11-T13, T15 (C++/Kokkos — blocked by no Kokkos), T21-T22 (E2E + cross-language), F1-F4 (verification)
+> **Completed in this session:** T7-T10, T14 (modules), T16-T19 (integrations), T20 (driver.sh)
 
 ## Phase 1: Foundations (✅ COMPLETE)
 
@@ -11,7 +11,7 @@
 - [x] Create Julia projects: `input/`, `preprocess/`, `assess/`, `output/` with `Project.toml`
 - [x] Create C++ project: `forward/` with `CMakeLists.txt`
 - [x] Create shared Julia packages: `MTUtils.jl/`, `AssessUtils.jl/`
-- [ ] Write `driver.sh` skeleton (state detection + stage invocation) *(deferred to Phase 6)*
+- [x] Write `driver.sh` (state detection + stage invocation) *(done in Phase 6)*
 
 ### 1.2. MT Conversion (Cross-Language)
 - [x] Implement `MTUtils.jl` — SDR → MT (Julia)
@@ -29,30 +29,30 @@
 
 ## Phase 2: Input + Preprocess Stages
 
-### 2.1. Input Stage — Data Ingestion (runs once)
+### 2.1. Input Stage — Data Ingestion (runs once) ✅
 
-### 2.1. Waveform Preprocessing (NOT YET IMPLEMENTED)
-- [ ] Bandpass filtering (Butterworth, zero-phase)
-- [ ] Time-window trimming (wavelength-normalized)
-- [ ] Per-module preprocessing: XCorr (synamp), Polarity (gf_pol), PSR (amp matrices)
-- [ ] Test: filter frequency content, trim sample indices, synamp identity
+### 2.1. Waveform Preprocessing
+- [x] Bandpass filtering (Butterworth, zero-phase)
+- [x] Time-window trimming (wavelength-normalized)
+- [x] Per-module preprocessing: XCorr (synamp), Polarity (gf_pol), PSR (amp matrices)
+- [x] Test: filter frequency content, trim sample indices, synamp identity
 
 ### 2.2. Database Writer
-- [ ] Write `/config` group (from config.toml)
-- [ ] Write `/greens` group (from external GF files)
-- [ ] Write `/data` group (preprocessed waveform variants)
-- [ ] Write `/index` group (phase index, distance, azimuth)
+- [x] Write `/config` group (from config.toml)
+- [x] Write `/greens` group (from external GF files)
+- [x] Write `/data` group (preprocessed waveform variants)
+- [x] Write `/index` group (phase index, distance, azimuth)
 
-### 2.3. Preprocess Stage — Trial Generation (runs each loop)
-- [ ] Grid expansion from strategy (Cartesian product)
-- [ ] Write `/trials` group to `status_0.h5`
-- [ ] Write `/strategy` group to `status_0.h5`
-- [ ] Test: trial count, trial values, axis-varying logic
+### 2.3. Preprocess Stage — Trial Generation (runs each loop) ✅
+- [x] Grid expansion from strategy (Cartesian product)
+- [x] Write `/trials` group to `status_0.h5`
+- [x] Write `/strategy` group to `status_0.h5`
+- [x] Test: trial count, trial values, axis-varying logic
 
-### 2.4. Integration
-- [ ] First run: raw.h5 + config.toml → database.h5 + status_0.h5 (strategy only, no trials)
-- [ ] Loop run: status_{N}.h5 (read strategy) → status_{N}.h5 (write trials)
-- [ ] Test: minimal synthetic event end-to-end
+### 2.4. Integration ✅
+- [x] First run: raw.h5 + config.toml → database.h5 + status_0.h5 (strategy only, no trials)
+- [x] Loop run: status_{N}.h5 (read strategy) → status_{N}.h5 (write trials)
+- [x] Test: minimal synthetic event end-to-end
 
 ---
 
@@ -88,62 +88,66 @@
 
 ---
 
-## Phase 4: Assess Stage
+## Phase 4: Assess Stage ✅
 
 ### 4.1. Aggregator
-- [ ] Per-module masking (XCorr phase-level, Polarity station-level, PSR station-level)
-- [ ] Per-module aggregation (sum valid misfits)
-- [ ] Module weighting + combination
-- [ ] NaN handling (skip masked, error on all-NaN)
-- [ ] Test: aggregation matches hand-computed examples, NaN safety
+- [x] Per-module masking (XCorr phase-level, Polarity station-level, PSR station-level)
+- [x] Per-module aggregation (sum valid misfits)
+- [x] Module weighting + combination
+- [x] NaN handling (skip masked, error on all-NaN)
+- [x] Test: aggregation matches hand-computed examples, NaN safety
 
 ### 4.2. Operator Prompt & Grid Refinement
-- [ ] Display best SDR, misfit, current grid to operator
-- [ ] Prompt "Continue? [y/N]"
-- [ ] On continue: write `status_{N+1}.h5` with `/strategy/converged=0`
-- [ ] On break: write `/strategy/converged=1`, `convergence_reason="user"`
-- [ ] Compute next grid from current results (center on best, halve steps, 3×3×3 SDR)
-- [ ] Depth/frequency subset refinement (20% of best)
-- [ ] Test: 2-iteration loop, verify operator prompt flow, grid refinement centers on best trial
+- [x] Display best SDR, misfit, current grid to operator
+- [x] Prompt "Continue? [y/N]"
+- [x] On continue: write `status_{N+1}.h5` with `/strategy/converged=0`
+- [x] On break: write `/strategy/converged=1`, `convergence_reason="user"`
+- [x] Compute next grid from current results (center on best, halve steps, 3×3×3 SDR)
+- [x] Depth/frequency subset refinement (20% of best)
+- [x] Test: 2-iteration loop, verify operator prompt flow, grid refinement centers on best trial
 
 ### 4.3. Strategy Writer
-- [ ] Write updated strategy to `status_{N+1}.h5`
-- [ ] Write `/strategy/converged=1` and `convergence_reason="user"` on break
-- [ ] Accumulate freq test results and depth misfits
+- [x] Write updated strategy to `status_{N+1}.h5`
+- [x] Write `/strategy/converged=1` and `convergence_reason="user"` on break
+- [x] Accumulate freq test results and depth misfits
 
 ### 4.5. Integration
-- [ ] Read status_{N}.h5 → aggregate → prompt operator → write status_{N+1}.h5
-- [ ] Test: 2-iteration loop with operator break
+- [x] Read status_{N}.h5 → aggregate → prompt operator → write status_{N+1}.h5
+- [x] Test: 2-iteration loop with operator break
 
 ---
 
-## Phase 5: Output Stage
+## Phase 5: Output Stage ✅
 
 ### 5.1. Solution Compilation
-- [ ] Recompute best fit (verify against assess result)
-- [ ] SDR → MT conversion
-- [ ] Frequency uncertainty synthesis
-- [ ] Depth range synthesis (5% threshold)
-- [ ] Test: matches assess best trial, correct uncertainty ranges
+- [x] Recompute best fit (verify against assess result)
+- [x] SDR → MT conversion
+- [x] Frequency uncertainty synthesis
+- [x] Depth range synthesis (5% threshold)
+- [x] Test: matches assess best trial, correct uncertainty ranges
 
 ### 5.2. Per-Station & Waveforms
-- [ ] Per-station misfit breakdown
-- [ ] Waveform synthesis (optional, `--waveforms-output`)
-- [ ] Summary statistics
+- [x] Per-station misfit breakdown
+- [x] Waveform synthesis (optional, `--waveforms-output`)
+- [x] Summary statistics
 
 ### 5.3. Output Writer
-- [ ] Write all groups to `output.h5`
-- [ ] Test: verify all expected datasets present with correct shapes
+- [x] Write all groups to `output.h5`
+- [x] Test: verify all expected datasets present with correct shapes
 
 ---
 
-## Phase 6: Driver & Integration
+## Phase 6: Driver & Integration (Partial)
 
-### 6.1. Driver Script
-- [ ] State detection (HDF5 introspection + file existence)
-- [ ] Stage invocation in correct order
-- [ ] Loop control: read `/strategy/converged`, break to output on converged=1
-- [ ] Error reporting
+### 6.1. Driver Script ✅
+- [x] State detection (HDF5 introspection + file existence)
+- [x] Stage invocation in correct order
+- [x] Loop control: read `/strategy/converged`, break to output on converged=1
+- [x] Error reporting
+- [x] `--dry-run` flag
+- [x] `--synthetic` flag
+- [x] `--data-dir` and `--config` flags
+- [x] Resume after interruption
 
 ### 6.2. End-to-End Testing
 - [ ] Minimal synthetic event (converges in N iterations)
