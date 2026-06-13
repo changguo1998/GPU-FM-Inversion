@@ -53,3 +53,12 @@ target_link_libraries(test_xcorr Kokkos::kokkos)
 add_executable(test_misfit_kernels tests/test_misfit_kernels.cpp)
 target_include_directories(test_misfit_kernels PRIVATE src)
 target_link_libraries(test_misfit_kernels Kokkos::kokkos)
+
+# ── Test: Cross‑language verification (Task 22) ────────────────────────────
+add_executable(test_cross_lang
+    tests/test_cross_lang.cpp
+    src/mt_utils.cpp
+    src/hdf5_io.cpp
+)
+target_include_directories(test_cross_lang PRIVATE src)
+target_link_libraries(test_cross_lang hdf5)
