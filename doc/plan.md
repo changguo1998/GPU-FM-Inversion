@@ -1,7 +1,8 @@
 # Implementation & Testing Plan
 
-> **Status:** Phase 1 (Foundation) ✅ COMPLETE — committed as `2975075`
-> **Next:** Phase 2-6 not yet implemented — see `.sisyphus/plans/` for detailed task breakdowns
+> **Status:** Phases 1-5 modules ✅ COMPLETE, Phase 6 driver ✅ COMPLETE
+> **Remaining:** T15 (forward main.cpp integration), T21-T22 (E2E + cross-language), F1-F4 (verification)
+> **Blocked by:** Kokkos not installed — GPU code compiles once Kokkos available
 
 ## Phase 1: Foundations (✅ COMPLETE)
 
