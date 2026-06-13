@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+# driver.sh — Pipeline Orchestration for Focal Mechanism Inversion
+#
+# Stages:
+#   input.jl      (once) → database.h5 + status_0.h5
+#   preprocess.jl (loop) → adds /trials to status_{N}.h5
+#   forward.cpp   (loop) → adds /misfits to status_{N}.h5
+#   assess.jl     (loop) → writes status_{N+1}.h5 (refined strategy)
+#   output.jl     (once) → output.h5
+#
+# Usage:
+#   bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]
+# ==============================================================================
+
+# ── Defaults ───────────────────────────────────────────────────────────────────
+DATA_DIR="."
+CONFIG_FILE="$DATA_DIR/config.toml"
+DRY_RUN=false
+SYNTHETIC=false
+RAW_H5="$DATA_DIR/raw.h5"
+DATABASE_H5="$DATA_DIR/database.h5"
+
+# Project root (directory containing this script)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FORWARD_BIN="$SCRIPT_DIR/build/forward/forward"
+
+# ── Parse CLI ──────────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --data-dir)
+            DATA_DIR="$2"
+            CONFIG_FILE="$DATA_DIR/config.toml"
+            RAW_H5="$DATA_DIR/raw.h5"
+            DATABASE_H5="$DATA_DIR/database.h5"
+            shift 2
+            ;;
+        --config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --synthetic)
+            SYNTHETIC=true
+            shift
+            ;;
+        *)
+            echo "[driver] ERROR: Unknown argument: $1" >&2
+            echo "Usage: bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ── Ensure data directory exists ───────────────────────────────────────────────
+mkdir -p "$DATA_DIR"
+
+# ==============================================================================
+# Helper functions
+# ==============================================================================
+
+# Find the latest status_{N}.h5 file and return N (or -1 if none found)
+find_latest_n() {
+    local max_n=-1
+    for f in "$DATA_DIR"/status_*.h5; do
+        [[ -f "$f" ]] || continue
+        local basename_f
+        basename_f=$(basename "$f")
+        if [[ "$basename_f" =~ ^status_([0-9]+)\.h5$ ]]; then
+            local n="${BASH_REMATCH[1]}"
+            if (( n > max_n )); then
+                max_n=$n
+            fi
+        fi
+    done
+    echo "$max_n"
+}
+
+# Check whether an HDF5 group exists via Julia
+h5_group_exists() {
+    local file="$1"
+    local path="$2"
+    julia --project="$SCRIPT_DIR/shared/HDF5IO.jl" -e "
+        using HDF5
+        function hasgroup(fname, p)
+            if !isfile(fname); println(\"false\"); return; end
+            h5open(fname, \"r\") do f
+                try
+                    parts = split(p, '/'; keepempty=false)
+                    node = f
+                    for part in parts
+                        if !haskey(node, part)
+                            println(\"false\")
+                            return
+                        end
+                        node = node[part]
+                    end
+                    println(\"true\")
+                catch
+                    println(\"false\")
+                end
+            end
+        end
+        hasgroup(\"$file\", \"$path\")
+    "
+}
+
+# Read /strategy/converged value from an HDF5 file
+h5_read_converged() {
+    local file="$1"
+    julia --project="$SCRIPT_DIR/shared/HDF5IO.jl" -e "
+        using HDF5
+        if !isfile(\"$file\"); println(\"notfound\"); return; end
+        h5open(\"$file\", \"r\") do f
+            try
+                val = read(f[\"strategy/converged\"])
+                println(val)
+            catch
+                println(\"notfound\")
+            end
+        end
+    "
+}
+
+# Run a stage; if DRY_RUN, just echo the label
+run_stage() {
+    local label="$1"
+    shift
+    if $DRY_RUN; then
+        echo "[DRY-RUN] $label"
+        return 0
+    fi
+    echo "[driver] Running $label ..."
+    "$@"
+    local ret=$?
+    if [[ $ret -ne 0 ]]; then
+        echo "[driver] ERROR: $label failed (exit code $ret)" >&2
+        exit $ret
+    fi
+    echo "[driver] $label complete."
+}
+
+# ==============================================================================
+# Synthetic data generation
+# ==============================================================================
+
+if $SYNTHETIC; then
+    echo "[driver] Generating synthetic test data in $DATA_DIR ..."
+    julia "$SCRIPT_DIR/tests/synthetic_data.jl" "$DATA_DIR"
+    echo "[driver] Synthetic data ready: $RAW_H5, $CONFIG_FILE"
+fi
+
+# ==============================================================================
+# Main state detection and stage dispatch (loop until converged)
+#
+# State machine:
+#   no database.h5                → input.jl (once)
+#   status_N, converged=1         → output.jl (done)
+#   status_N, has /misfits        → assess.jl
+#   status_N, has /trials         → forward.cpp
+#   status_N, has /strategy       → preprocess.jl
+#
+# After assess writes status_{N+1} with converged=1, that becomes latest
+# and triggers output. With converged=0, next loop preprocesses it.
+# ==============================================================================
+
+while true; do
+
+    # ── Stage 1: input.jl (once, no database.h5) ──────────────────────────────
+    if [[ ! -f "$DATABASE_H5" ]]; then
+        run_stage "input.jl → database.h5 + status_0.h5" \
+            julia --project="$SCRIPT_DIR/input" \
+                "$SCRIPT_DIR/input/src/input.jl" \
+                "$RAW_H5" "$CONFIG_FILE"
+        if $DRY_RUN; then break; fi
+        continue
+    fi
+
+    # Find the latest status_{N}.h5
+    N=$(find_latest_n)
+    if [[ $N -lt 0 ]]; then
+        echo "[driver] ERROR: database.h5 exists but no status_N.h5 found." >&2
+        exit 1
+    fi
+    SRC_STATUS="$DATA_DIR/status_${N}.h5"
+
+    # ── Check converged flag on LATEST status file ────────────────────────────
+    # After assess writes status_{N+1} with converged=1, it becomes the latest.
+    converged_val=$(h5_read_converged "$SRC_STATUS")
+    if [[ "$converged_val" =~ ^1 ]]; then
+        echo "[driver] Converged=1 detected in status_${N}.h5"
+        run_stage "output.jl → output.h5" \
+            julia --project="$SCRIPT_DIR/output" \
+                "$SCRIPT_DIR/output/src/output.jl" \
+                "$DATABASE_H5" --status-dir "$DATA_DIR"
+        break
+    fi
+
+    # ── Stage 4: assess.jl (has /misfits) ─────────────────────────────────────
+    has_misfits=$(h5_group_exists "$SRC_STATUS" "misfits")
+    if [[ "$has_misfits" == "true" ]]; then
+        NEXT_N=$((N + 1))
+        run_stage "assess.jl → status_${NEXT_N}.h5" \
+            julia --project="$SCRIPT_DIR/assess" \
+                "$SCRIPT_DIR/assess/src/assess.jl" \
+                "$SRC_STATUS" "$DATABASE_H5"
+        if $DRY_RUN; then
+            echo "[DRY-RUN] Would loop to preprocess for status_${NEXT_N}.h5"
+            break
+        fi
+        continue
+    fi
+
+    # ── Stage 3: forward.cpp (has /trials, no /misfits) ───────────────────────
+    has_trials=$(h5_group_exists "$SRC_STATUS" "trials")
+    if [[ "$has_trials" == "true" ]]; then
+        run_stage "forward.cpp → /misfits into status_${N}.h5" \
+            "$FORWARD_BIN" "$DATABASE_H5" "$SRC_STATUS"
+        if $DRY_RUN; then break; fi
+        continue
+    fi
+
+    # ── Stage 2: preprocess.jl (has /strategy, no /trials) ────────────────────
+    run_stage "preprocess.jl → /trials into status_${N}.h5" \
+        julia --project="$SCRIPT_DIR/preprocess" \
+            "$SCRIPT_DIR/preprocess/src/preprocess.jl" \
+            "$SRC_STATUS" "$DATABASE_H5"
+    if $DRY_RUN; then break; fi
+
+done
+
+echo "[driver] Pipeline complete."
