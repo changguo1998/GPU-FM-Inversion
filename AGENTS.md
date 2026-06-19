@@ -4,7 +4,7 @@
 
 A CUDA-accelerated focal mechanism inversion pipeline. Julia for preprocessing and strategy, C++ with custom OpenMP/CUDA backend for GPU misfit computation, HDF5 for data exchange between stages.
 
-The original Julia implementation lives in `old_codes/` for reference but is not part of the new build. The current rewrite has a CMake build for `forward/`, stage-local Julia projects, and focused unit/integration tests; CI is not set up yet.
+The original Julia implementation has been removed from the working tree. Historical structure and behavior notes are preserved under `doc/old/`. The current rewrite has a CMake build for `forward/`, stage-local Julia projects, and focused unit/integration tests; CI is not set up yet.
 
 ## Documentation map
 
@@ -62,7 +62,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 
 ## Old code (reference only)
 
-The original Julia pipeline is in `old_codes/`. It's a set of scripts (`fminv/`) plus three packages (`JuliaSourceMechanism.jl/`, `DWN.jl/`, `SeisTools.jl/`). Run via `julia old_codes/fminv/preprocess.jl <event>` then `inverse.jl <event>`.
+The original Julia pipeline is no longer kept in-tree. Its former layout was a set of scripts (`fminv/`) plus packages such as `JuliaSourceMechanism.jl/`, `DWN.jl/`, and `SeisTools.jl/`; relevant historical notes are preserved in `doc/old/`.
 
 Key data structures from old code that inform the new schema:
 - Event: `longitude, latitude, depth, magnitude, origintime`

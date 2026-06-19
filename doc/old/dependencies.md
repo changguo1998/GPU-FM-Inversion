@@ -76,4 +76,4 @@ using Pkg
 Pkg.activate("/home/ustc/app"; io=devnull)
 ```
 
-Local packages (JuliaSourceMechanism, DWN, SeisTools, SeismicRayTrace) are installed from gitee.com mirrors but local copies exist in `old_codes/` for reference.
+Local packages (JuliaSourceMechanism, DWN, SeisTools, SeismicRayTrace) were historically mirrored locally for reference; those in-tree copies are no longer kept in this repository.

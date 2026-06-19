@@ -2,7 +2,7 @@
 #define MT_UTILS_H
 
 // Moment tensor double-couple SDR → 6-component conversion.
-// Formulas match old_codes/JuliaSourceMechanism.jl/src/mathematics.jl dc2ts().
+// Formulas match the legacy JuliaSourceMechanism.jl dc2ts() implementation.
 // All angles in RADIANS. Uses double precision throughout.
 
 // GPU-compatible attributes — no Kokkos dependency required.
