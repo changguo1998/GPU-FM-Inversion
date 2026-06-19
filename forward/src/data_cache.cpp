@@ -6,14 +6,14 @@
 #include <sstream>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 
 // ──────────────────────────────────────────────────────────────────────────
 // DataCache construction
 // ──────────────────────────────────────────────────────────────────────────
 
 DataCache::DataCache(int maxlag)
-    : exec_space_(Kokkos::DefaultExecutionSpace())
-    , maxlag_(maxlag)
+    : maxlag_(maxlag)
 {}
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -54,8 +54,10 @@ std::vector<std::string> DataCache::read_phase_ids(hid_t file_id, const char* pa
 
     std::vector<std::string> result;
     for (hsize_t i = 0; i < dims[0]; ++i) {
-        result.push_back(std::string(buf[i]));
-        std::free(buf[i]);
+        if (buf[i]) {
+            result.push_back(std::string(buf[i]));
+            std::free(buf[i]);
+        }
     }
     H5Tclose(memtype);
     H5Sclose(space);
@@ -231,54 +233,44 @@ CacheEntry DataCache::load_combo(const std::string& database_path,
 
     h5.close();
 
-    // ── Allocate GPU views ────────────────────────────────────────────────
+    // ── Allocate flat arrays ──────────────────────────────────────────────
 
     if (has_xcorr) {
-        entry.xcorr.cc = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>(
-            "xcorr_cc", 2 * maxlag_ + 1, 6);
-        entry.xcorr.synamp = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>(
-            "xcorr_synamp", 6, 6);
-        entry.xcorr.obs_norm2 = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>(
-            "xcorr_obs_norm2", n_ph);
+        entry.xcorr.cc_rows = n_ph * (2 * maxlag_ + 1);  // cc: [cc_rows × 6]
+        entry.xcorr.cc = new double[static_cast<size_t>(entry.xcorr.cc_rows * 6)];
+        entry.xcorr.n_syn_phases = n_ph * 6;             // synamp: [n_ph*6 × 6]
+        entry.xcorr.synamp = new double[static_cast<size_t>(entry.xcorr.n_syn_phases * 6)];
+        entry.xcorr.n_phases = n_ph;
+        entry.xcorr.obs_norm2 = new double[n_ph];
     }
 
     if (has_polarity) {
-        entry.polarity.pol_vec = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>(
-            "polarity_pol_vec", n_ph);  // pol_vec[6] flattened across phases
-        entry.polarity.obs_pol = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>(
-            "polarity_obs_pol", n_ph);
+        entry.polarity.n_phases = n_ph;
+        entry.polarity.pol_vec = new double[static_cast<size_t>(n_ph * 6)];
+        entry.polarity.obs_pol = new double[n_ph];
     }
 
     if (has_psr) {
-        entry.psr.amp_P = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>(
-            "psr_amp_P", n_ph * 6, 6);
-        entry.psr.amp_S = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>(
-            "psr_amp_S", n_ph * 6, 6);
-        entry.psr.obs_psr = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>(
-            "psr_obs_psr", n_ph);
+        entry.psr.n_phases = n_ph;
+        entry.psr.amp_P = new double[static_cast<size_t>(n_ph * 6 * 6)];
+        entry.psr.amp_S = new double[static_cast<size_t>(n_ph * 6 * 6)];
+        entry.psr.obs_psr = new double[n_ph];
     }
 
-    // ── Perform Kokkos reductions per phase ───────────────────────────────
-    // Note: In a full implementation, we'd batch these across phases.
-    // For correctness, we process each phase sequentially.
+    // ── Compute reductions per phase (directly into flat arrays) ──────────
 
     // XCorr — per phase: compute CC, synamp, obs_norm2
     if (has_xcorr) {
-        // Accumulate views for all phases into one flat layout
-        // cc_total: [n_ph * (2*maxlag+1), 6]
-        Kokkos::View<double**, Kokkos::DefaultExecutionSpace> cc_total(
-            "xcorr_cc_total", n_ph * (2 * maxlag_ + 1), 6);
-        Kokkos::View<double**, Kokkos::DefaultExecutionSpace> synamp_total(
-            "xcorr_synamp_total", n_ph * 6, 6);
-
-        auto cc_total_h = Kokkos::create_mirror_view(cc_total);
-        auto synamp_total_h = Kokkos::create_mirror_view(synamp_total);
-        auto obs_norm2_h = Kokkos::create_mirror_view(entry.xcorr.obs_norm2);
+        double* cc_total   = entry.xcorr.cc;
+        double* synamp_tot = entry.xcorr.synamp;
+        double* obs_norm2  = entry.xcorr.obs_norm2;
+        int cc_rows = 2 * maxlag_ + 1;
+        int n_ph_big = n_ph;  // column stride for synamp: [n_ph × 36]
 
         for (int i = 0; i < n_ph; ++i) {
             auto& hd = host_data[i];
             if (hd.n_xcorr == 0) {
-                obs_norm2_h(i) = 0.0;
+                obs_norm2[i] = 0.0;
                 continue;
             }
 
@@ -287,9 +279,10 @@ CacheEntry DataCache::load_combo(const std::string& database_path,
             for (int j = 0; j < hd.n_xcorr; ++j) {
                 norm2 += hd.obs[j] * hd.obs[j];
             }
-            obs_norm2_h(i) = norm2;
+            obs_norm2[i] = norm2;
 
             // synamp[6][6] = gf^T * gf
+            // stored as [n_ph*6 × 6] column-major: synamp_tot[i*6 + a + b * (n_ph*6)]
             int N = hd.n_xcorr;
             for (int a = 0; a < 6; ++a) {
                 for (int b = a; b < 6; ++b) {
@@ -297,14 +290,14 @@ CacheEntry DataCache::load_combo(const std::string& database_path,
                     for (int t = 0; t < N; ++t) {
                         sum += hd.gf[t * 6 + a] * hd.gf[t * 6 + b];
                     }
-                    synamp_total_h(i * 6 + a, b) = sum;
-                    synamp_total_h(i * 6 + b, a) = sum;  // symmetric
+                    synamp_tot[i * 6 + a + b * (n_ph * 6)] = sum;
+                    synamp_tot[i * 6 + b + a * (n_ph * 6)] = sum;  // symmetric
                 }
             }
 
             // CC[2*maxlag+1][6] — time-domain cross-correlation
+            // stored as [n_ph*(2*maxlag+1) × 6] column-major
             int maxlag = maxlag_;
-            int cc_rows = 2 * maxlag + 1;
             for (int lag = -maxlag; lag <= maxlag; ++lag) {
                 int lag_idx = lag + maxlag;
                 for (int comp = 0; comp < 6; ++comp) {
@@ -315,59 +308,45 @@ CacheEntry DataCache::load_combo(const std::string& database_path,
                             sum += hd.obs[t_shift] * hd.gf[t * 6 + comp];
                         }
                     }
-                    cc_total_h(i * cc_rows + lag_idx, comp) = sum;
+                    // column-major: row = i * cc_rows + lag_idx, col = comp
+                    cc_total[i * cc_rows + lag_idx + comp * (n_ph * cc_rows)] = sum;
                 }
             }
         }
-
-        Kokkos::deep_copy(cc_total, cc_total_h);
-        Kokkos::deep_copy(synamp_total, synamp_total_h);
-        Kokkos::deep_copy(entry.xcorr.obs_norm2, obs_norm2_h);
-
-        entry.xcorr.cc = cc_total;
-        entry.xcorr.synamp = synamp_total;
     }
 
     // Polarity — per phase: sum gf_pol over time → pol_vec[6]
     if (has_polarity) {
-        // pol_vec layout: [n_ph * 6] flattened
-        Kokkos::View<double*, Kokkos::DefaultExecutionSpace> pol_vec_total(
-            "polarity_pol_vec_total", n_ph * 6);
-
-        auto pol_vec_h = Kokkos::create_mirror_view(pol_vec_total);
-        auto obs_pol_h = Kokkos::create_mirror_view(entry.polarity.obs_pol);
+        double* pol_vec_flat = entry.polarity.pol_vec;
+        double* obs_pol_flat = entry.polarity.obs_pol;
 
         for (int i = 0; i < n_ph; ++i) {
             auto& hd = host_data[i];
             if (hd.n_pol == 0) {
-                for (int c = 0; c < 6; ++c) pol_vec_h(i * 6 + c) = 0.0;
-                obs_pol_h(i) = 0.0;
+                for (int c = 0; c < 6; ++c) pol_vec_flat[i + c * n_ph] = 0.0;
+                obs_pol_flat[i] = 0.0;
                 continue;
             }
 
             // Sum gf_pol over time axis for each component
+            // Layout: pol_vec[phase + comp * n_ph] (column-major [n_ph × 6])
             for (int c = 0; c < 6; ++c) {
                 double sum = 0.0;
                 for (int t = 0; t < hd.n_pol; ++t) {
                     sum += hd.gf_pol[t * 6 + c];
                 }
-                pol_vec_h(i * 6 + c) = sum;
+                pol_vec_flat[i + c * n_ph] = sum;
             }
 
-            obs_pol_h(i) = static_cast<double>(hd.obs_pol);
+            obs_pol_flat[i] = static_cast<double>(hd.obs_pol);
         }
-
-        Kokkos::deep_copy(pol_vec_total, pol_vec_h);
-        Kokkos::deep_copy(entry.polarity.obs_pol, obs_pol_h);
-
-        entry.polarity.pol_vec = pol_vec_total;
     }
 
-    // PSR — per phase: copy precomputed amp_P, amp_S, obs_psr to GPU
+    // PSR — per phase: copy precomputed amp_P, amp_S, obs_psr
     if (has_psr) {
-        auto ampP_h = Kokkos::create_mirror_view(entry.psr.amp_P);
-        auto ampS_h = Kokkos::create_mirror_view(entry.psr.amp_S);
-        auto obs_psr_h = Kokkos::create_mirror_view(entry.psr.obs_psr);
+        double* ampP_f = entry.psr.amp_P;
+        double* ampS_f = entry.psr.amp_S;
+        double* obs_f  = entry.psr.obs_psr;
 
         for (int i = 0; i < n_ph; ++i) {
             auto& hd = host_data[i];
@@ -375,16 +354,13 @@ CacheEntry DataCache::load_combo(const std::string& database_path,
                 for (int b = 0; b < 6; ++b) {
                     double valP = (!hd.ampP.empty()) ? hd.ampP[a * 6 + b] : 0.0;
                     double valS = (!hd.ampS.empty()) ? hd.ampS[a * 6 + b] : 0.0;
-                    ampP_h(i * 6 + a, b) = valP;
-                    ampS_h(i * 6 + a, b) = valS;
+                    // Layout: amp[phase + a*n_ph + b*(n_ph*6)]
+                    ampP_f[i + a * n_ph + b * (n_ph * 6)] = valP;
+                    ampS_f[i + a * n_ph + b * (n_ph * 6)] = valS;
                 }
             }
-            obs_psr_h(i) = hd.obs_psr;
+            obs_f[i] = hd.obs_psr;
         }
-
-        Kokkos::deep_copy(entry.psr.amp_P, ampP_h);
-        Kokkos::deep_copy(entry.psr.amp_S, ampS_h);
-        Kokkos::deep_copy(entry.psr.obs_psr, obs_psr_h);
     }
 
     return entry;
@@ -417,7 +393,7 @@ void DataCache::release_all() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Static reduction helpers (for documentation; actual reductions inline above)
+// Static reduction helpers (stubs — actual reductions are inline above)
 // ──────────────────────────────────────────────────────────────────────────
 
 void DataCache::compute_xcorr_reduction(CacheEntry& /*entry*/,
@@ -425,7 +401,6 @@ void DataCache::compute_xcorr_reduction(CacheEntry& /*entry*/,
                                          const std::vector<double>& /*gf*/,
                                          int /*n_samples*/) {
     // Reductions are performed inline in load_combo().
-    // This method is reserved for future refactoring into a Kokkos parallel_reduce.
 }
 
 void DataCache::compute_polarity_reduction(CacheEntry& /*entry*/,
@@ -438,5 +413,5 @@ void DataCache::compute_psr_reduction(CacheEntry& /*entry*/,
                                        const std::vector<double>& /*ampP_host*/,
                                        const std::vector<double>& /*ampS_host*/,
                                        const std::vector<double>& /*obs_psr_host*/) {
-    // See load_combo() — PSR data is precomputed in database.h5, just copied to GPU.
+    // See load_combo() — PSR data is precomputed in database.h5, copied directly.
 }

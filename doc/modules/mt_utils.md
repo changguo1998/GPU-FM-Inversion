@@ -44,25 +44,29 @@ function sdr_to_mt_batch(strikes::Vector{Float64}, dips::Vector{Float64}, rakes:
 
 **C++ (header only, shared):**
 ```cpp
-// src/mt_utils.h — includes in both trial_reader.cpp and kernels/
+// forward/src/mt_utils.h
 struct MomentTensor {
-    float Mxx, Myy, Mzz, Mxy, Mxz, Myz;
+    double Mxx, Myy, Mzz, Mxy, Mxz, Myz;
 };
 
-MomentTensor sdr_to_mt(float strike_rad, float dip_rad, float rake_rad);
+// Host function (declared in header, defined in .cpp)
+MomentTensor sdr_to_mt(double strike_rad, double dip_rad, double rake_rad);
 
-// Batch version for GPU — called with RangePolicy
-__host__ __device__ MomentTensor sdr_to_mt_device(float strike, float dip, float rake);
+// GPU-compatible device function (also callable from host)
+MT_HOST_DEVICE MomentTensor sdr_to_mt_device(double strike_rad, double dip_rad, double rake_rad);
 ```
+
+Angles are in **radians**. No batch interface in C++ — the Julia side generates arrays and the C++ side iterates per trial.
 
 ## Verification
 
-- Both implementations verified against each other on 100 random SDR inputs.
-- Maximum absolute difference across all 6 components: < 1e-6.
+- Both implementations verified against each other on multiple random SDR inputs via cross-language CSV roundtrip (`test_mt_to_csv.cpp` + `test_cross_lang.cpp` `--mode mt-csv`).
+- Maximum absolute difference across all 6 components: < 1e-12 (double precision).
 - Unit test: compare Julia and C++ output on canonical cases (strike=0/dip=90/rake=0 for pure double-couple).
 
-## GPU Notes
+## GPU/CPU Notes
 
-- `sdr_to_mt_device` is marked `__host__ __device__` for inline Kokkos kernel use.
-- Per-trial conversion happens during kernel launch — no separate pre-conversion step needed.
-- Alternatively, pre-convert all trials to `mt[6 × N_trials]` on host/GPU before kernel launch (used by DataCache).
+- `sdr_to_mt_device` is marked `MT_HOST_DEVICE` (expands to `__host__ __device__` under `__CUDACC__`, empty otherwise) for use in both CUDA kernel launches and OpenMP parallel loops (single source, dual-compile).
+- Per-trial SDR→MT conversion may happen during kernel launch or in a separate pre-conversion pass.
+- When pre-converting all trials to `mt[N_trials × 6]`, the conversion runs on device via `Device<Backend>::parallel_for` — same dispatch pattern as the misfit kernels.
+- Flat arrays with explicit strides replace `Kokkos::View`. All data is column-major `double*` with manual index computation.

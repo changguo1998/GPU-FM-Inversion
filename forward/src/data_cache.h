@@ -1,12 +1,14 @@
 #ifndef DATA_CACHE_H
 #define DATA_CACHE_H
 
-#include <Kokkos_Core.hpp>
+#include "backends/device.h"
+#include <hdf5.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <utility>
 #include <stdexcept>
+#include <cstdint>
 
 // ──────────────────────────────────────────────────────────────────────────
 // Trial struct — replicated here for self-contained header.
@@ -23,36 +25,34 @@ struct Trial {
 };
 
 // ──────────────────────────────────────────────────────────────────────────
-// Per-module cache storage types
+// Per-module cache storage types (flat double* arrays — no Kokkos::View)
 // ──────────────────────────────────────────────────────────────────────────
 
 struct XCorrCache {
-    // cc[k][i]  — cross-correlation, shape [2*maxlag+1] × 6
-    Kokkos::View<double**, Kokkos::DefaultExecutionSpace> cc;
-    // synamp — GF auto-correlation matrix [6][6]
-    Kokkos::View<double**, Kokkos::DefaultExecutionSpace> synamp;
-    // obs_norm2 — ‖obs‖² per phase [N_phases]
-    Kokkos::View<double*, Kokkos::DefaultExecutionSpace> obs_norm2;
+    double* cc = nullptr;         // [cc_rows × 6]  (flattened across phases)
+    double* synamp = nullptr;     // [n_syn_phases × 6 × 6]  (same layout as Kokkos LayoutLeft)
+    double* obs_norm2 = nullptr;  // [n_phases]
+    int cc_rows = 0;             // total rows in cc = n_phases * (2*maxlag+1)
+    int n_syn_phases = 0;        // rows in synamp = n_phases * 6
+    int n_phases = 0;            // length of obs_norm2
 };
 
 struct PolarityCache {
-    // pol_vec[6] per station — sum of gf_pol over time
-    Kokkos::View<double*, Kokkos::DefaultExecutionSpace> pol_vec;
-    // obs_pol — int8 converted to double: -1, 0, +1
-    Kokkos::View<double*, Kokkos::DefaultExecutionSpace> obs_pol;
+    double* pol_vec = nullptr;    // [n_phases × 6]  (pol_vec[phase + comp * n_phases])
+    double* obs_pol = nullptr;    // [n_phases]
+    int n_phases = 0;
 };
 
 struct PSRCache {
-    // amp_P[6][6], amp_S[6][6] per station
-    Kokkos::View<double**, Kokkos::DefaultExecutionSpace> amp_P;
-    Kokkos::View<double**, Kokkos::DefaultExecutionSpace> amp_S;
-    // obs_psr per station
-    Kokkos::View<double*, Kokkos::DefaultExecutionSpace> obs_psr;
+    double* amp_P = nullptr;      // [n_phases × 6 × 6]  (amp_P[phase + i*n_phases + j*(n_phases*6)])
+    double* amp_S = nullptr;      // [n_phases × 6 × 6]
+    double* obs_psr = nullptr;    // [n_phases]
+    int n_phases = 0;
 };
 
 // ──────────────────────────────────────────────────────────────────────────
 // Single cache entry for a (freq_idx, depth_idx) key.
-// Contains GPU-resident reduced data for all phases/stations.
+// Contains host-resident reduced data for all phases/stations.
 // ──────────────────────────────────────────────────────────────────────────
 
 struct CacheEntry {
@@ -70,19 +70,22 @@ struct CacheEntry {
 
     bool valid() const { return freq_idx >= 0; }
     void release() {
-        xcorr.cc = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>();
-        xcorr.synamp = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>();
-        xcorr.obs_norm2 = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>();
-        polarity.pol_vec = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>();
-        polarity.obs_pol = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>();
-        psr.amp_P = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>();
-        psr.amp_S = Kokkos::View<double**, Kokkos::DefaultExecutionSpace>();
-        psr.obs_psr = Kokkos::View<double*, Kokkos::DefaultExecutionSpace>();
+        delete[] xcorr.cc;
+        delete[] xcorr.synamp;
+        delete[] xcorr.obs_norm2;
+        delete[] polarity.pol_vec;
+        delete[] polarity.obs_pol;
+        delete[] psr.amp_P;
+        delete[] psr.amp_S;
+        delete[] psr.obs_psr;
+        xcorr = XCorrCache();
+        polarity = PolarityCache();
+        psr = PSRCache();
     }
 };
 
 // ──────────────────────────────────────────────────────────────────────────
-// DataCache — GPU data cache for forward.cpp
+// DataCache — host-side data cache for forward.cpp
 // ──────────────────────────────────────────────────────────────────────────
 
 class DataCache {
@@ -97,10 +100,10 @@ public:
                             const std::vector<Trial>& trials);
 
     /// Retrieve or compute cached entry.
-    /// Returns a const pointer — caller must not modify GPU data.
+    /// Returns a const pointer — caller must not modify cached data.
     const CacheEntry* get_or_compute(int freq_idx, int depth_idx);
 
-    /// Free all GPU memory held by the cache.
+    /// Free all memory held by the cache.
     void release_all();
 
     /// Number of cached entries.
@@ -110,9 +113,6 @@ public:
     int maxlag() const { return maxlag_; }
 
 private:
-    // Kokkos execution space
-    Kokkos::DefaultExecutionSpace exec_space_;
-
     // Cache: (freq_idx, depth_idx) → CacheEntry
     // Using pair of ints as key with a simple hash.
     struct PairHash {
@@ -130,31 +130,30 @@ private:
     static std::vector<std::pair<int,int>> unique_combos(const std::vector<Trial>& trials);
 
     /// Read all preprocessed data for one (freq_idx, depth_idx) combo
-    /// from database.h5 and compute GPU reductions.
+    /// from database.h5 and compute reductions.
     CacheEntry load_combo(const std::string& database_path,
                           int freq_idx, int depth_idx,
                           const std::vector<std::string>& phase_ids,
                           int n_stations);
 
-    /// XCorr GPU reduction: compute CC, synamp, obs_norm2.
+    /// XCorr reduction: compute CC, synamp, obs_norm2.
     static void compute_xcorr_reduction(CacheEntry& entry,
                                         const std::vector<double>& obs,
                                         const std::vector<double>& gf,
                                         int n_samples);
 
-    /// Polarity GPU reduction: sum gf_pol over time into pol_vec.
+    /// Polarity reduction: sum gf_pol over time into pol_vec.
     static void compute_polarity_reduction(CacheEntry& entry,
                                            const std::vector<double>& gf_pol,
                                            int n_pol_samples);
 
-    /// PSR GPU reduction: compute amp_P, amp_S from GF matrices.
+    /// PSR reduction: compute amp_P, amp_S from GF matrices.
     static void compute_psr_reduction(CacheEntry& entry,
                                       const std::vector<double>& ampP_host,
                                       const std::vector<double>& ampS_host,
                                       const std::vector<double>& obs_psr_host);
 
     /// Read string 1D dataset from HDF5 (phase_ids).
-    /// This needs HDF5 C API directly since Hdf5Handle doesn't have string read.
     static std::vector<std::string> read_phase_ids(hid_t file_id, const char* path);
 
     /// Read vector of int 1D from HDF5 (station_idx).
