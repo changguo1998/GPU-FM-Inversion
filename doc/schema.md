@@ -16,7 +16,7 @@
 | `N_trials` | Trials per iteration | 10–100000 |
 | `N_components` | MT components | 6 |
 
-All datasets use `Float64` unless noted. Scalars are `Float64` attributes, not datasets.
+All datasets use `Float64` unless noted. Scalars are stored as scalar datasets unless noted otherwise.
 
 Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
@@ -162,7 +162,7 @@ Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar`
 | `freq_misfit_curve` | Float64 | `[N_frequencies, N_freq_test_mechs]` | Misfit vs frequency vs mechanism |
 | `depth_misfit_accumulated` | Float64 | `[N_depths]` | Best misfit per depth |
 
-Total trials: `nstrike × ndip × nrake × len(depth_indices) × len(freq_indices)`.
+Total trials: `max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1)`.
 
 ### `/trials`
 

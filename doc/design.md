@@ -14,7 +14,7 @@ input (once) ──→ loop: [preprocess → forward → assess → [repeat]] �
 |-------|----------|------|----------------|
 | `input.jl` | Julia | Once (before loop) | Data ingestion → `database.h5`; initial strategy → `status_0.h5` |
 | `preprocess.jl` | Julia | Each loop | Trial generation from strategy → `status_{N}.h5` |
-| `forward.cpp` | C++/Kokkos | Each loop | GPU misfit computation: per-module, per-phase, per-trial. Stateless. No weights. |
+| `forward.cpp` | C++ (OpenMP/CUDA) | Each loop | GPU misfit computation: per-module, per-phase, per-trial. Stateless. No weights. |
 | `assess.jl` | Julia | Each loop | Weighting, aggregation, grid refinement, operator prompt → `status_{N+1}.h5` |
 | `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
 | `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
@@ -45,7 +45,7 @@ driver.sh:
 ```
 raw.h5 (external) ──┐
                      │
-config.toml ────► input.jl (once) ──► database.h5 (static, all preprocessed data)
+config.toml ─────────► input.jl (once) ──► database.h5 (static, all preprocessed data)
                                          status_0.h5 (initial strategy, no trials yet)
                                               │
                         ◄─────────────────────┘

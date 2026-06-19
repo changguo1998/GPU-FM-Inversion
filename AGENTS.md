@@ -2,9 +2,9 @@
 
 ## Project identity
 
-A CUDA-accelerated focal mechanism inversion pipeline. Julia for preprocessing and strategy, C++/Kokkos for GPU misfit computation, HDF5 for data exchange between stages.
+A CUDA-accelerated focal mechanism inversion pipeline. Julia for preprocessing and strategy, C++ with custom OpenMP/CUDA backend for GPU misfit computation, HDF5 for data exchange between stages.
 
-The original Julia implementation lives in `old_codes/` for reference but is not part of the new build. No build system, no CI, no tests yet — greenfield from here.
+The original Julia implementation lives in `old_codes/` for reference but is not part of the new build. The current rewrite has a CMake build for `forward/`, stage-local Julia projects, and focused unit/integration tests; CI is not set up yet.
 
 ## Documentation map
 
@@ -30,7 +30,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 |-------|----------|------|
 | `input.jl` | Julia | Import `raw.h5`, preprocess all data → `database.h5`; initial strategy → `status_0.h5` |
 | `preprocess.jl` | Julia | Generate trials from strategy → `status_{N}.h5` |
-| `forward.cpp` | C++/Kokkos | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation |
+| `forward.cpp` | C++ (OpenMP/CUDA) | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation |
 | `assess.jl` | Julia | Apply weights, aggregate, refine grid, prompt operator → `status_{N+1}.h5` |
 | `output.jl` | Julia | Compile final solution → `output.h5` |
 
@@ -54,7 +54,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 
 ## Key design rules
 
-1. `forward.cpp` is stateless — reads preprocessed data + trial params, writes raw misfits
+1. `forward.cpp` is stateless — reads preprocessed data + trial params, writes raw misfits. Uses custom backend dispatch (OpenMP for CPU, CUDA for GPU) rather than Kokkos.
 2. `assess.jl` owns all strategy: weights, channel selection, grid refinement, and prompts operator for continue/break
 3. All frequency-band variants precomputed upfront in `database.h5` by `input.jl`
 4. Misfits are unweighted, per-module shapes: XCorr `[N_ph × N_tr]`, Polarity `[N_st × N_tr]`, PSR `[N_st × N_tr]`. Weights applied in assess.

@@ -9,7 +9,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 | Source | Purpose |
 |--------|---------|
 | `raw.h5` | Input data (passed to `input.jl` once) |
-| `config.toml` | Bootstrap config (passed to `input.jl` only) |
+| `config.toml` | Bootstrap config (passed to `input.jl` only; default path is `<data-dir>/config.toml`, override with `--config`) |
 | `database.h5` | Preprocessed data (path known to all stages) |
 | `status_{N}.h5` | Iteration snapshots (discovered by file inspection) |
 
@@ -45,9 +45,20 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 - Compiled `forward` binary
 - HDF5 introspection via `julia -e "using HDF5; ..."`
 
+## CLI
+
+```
+bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]
+```
+
+- `--data-dir <dir>`: directory for `raw.h5`, `database.h5`, status files (default: `.`)
+- `--config <path>`: TOML config file path (default: `<data-dir>/config.toml`)
+- `--dry-run`: print stages without executing
+- `--synthetic`: generate synthetic data via input.jl before running pipeline
+
 ## Key Decisions
 
-- **Bootstrapping**: `config.toml` passed only to `input.jl`. Subsequent runs read strategy from `status_{N}.h5`.
+- **Bootstrapping**: Config passed only to `input.jl`. Subsequent runs read strategy from `status_{N}.h5`.
 - **Resume**: Re-running driver picks up from current state based on file/group existence.
 - **Convergence**: `assess.jl` prompts operator; on break, sets `/strategy/converged=1` in `status_{N+1}.h5`. Driver checks this flag to break to output.
 
