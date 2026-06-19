@@ -18,6 +18,8 @@ const TEST_DIR = mktempdir()
 const DATABASE_FILE = joinpath(TEST_DIR, "database.h5")
 const STATUS_0_FILE = joinpath(TEST_DIR, "status_0.h5")
 const STATUS_1_FILE = joinpath(TEST_DIR, "status_1.h5")
+const ASSESS_PROJECT = normpath(joinpath(@__DIR__, ".."))
+const ASSESS_SCRIPT = joinpath(ASSESS_PROJECT, "src", "assess.jl")
 
 # ── Constants for fake data ──────────────────────────
 const N_PHASES = 6    # 3 stations × 2 phases
@@ -164,7 +166,7 @@ end
     rm(STATUS_1_FILE; force=true)
     open(pipeline(
         `echo "y"`,
-        `julia --project=assess assess/src/assess.jl $STATUS_0_FILE $DATABASE_FILE`
+        `julia --project=$ASSESS_PROJECT $ASSESS_SCRIPT $STATUS_0_FILE $DATABASE_FILE`
     )) do out
         output = read(out, String)
         @test contains(output, "status_1.h5")
@@ -199,7 +201,7 @@ end
     rm(STATUS_1_FILE; force=true)
     open(pipeline(
         `echo "N"`,
-        `julia --project=assess assess/src/assess.jl $STATUS_0_FILE $DATABASE_FILE`
+        `julia --project=$ASSESS_PROJECT $ASSESS_SCRIPT $STATUS_0_FILE $DATABASE_FILE`
     )) do out
         output = read(out, String)
         @test contains(output, "status_1.h5")
@@ -220,12 +222,12 @@ end
 # ═══════════════════════════════════════════════════════════
 @testset "assess.jl — error handling" begin
     # No arguments
-    proc = run(`julia --project=assess assess/src/assess.jl`; wait=false)
+    proc = run(`julia --project=$ASSESS_PROJECT $ASSESS_SCRIPT`; wait=false)
     wait(proc)
     @test proc.exitcode != 0
 
     # Non-existent file
-    proc = run(pipeline(`julia --project=assess assess/src/assess.jl /nonexistent /also_fake`; stderr="/dev/null"); wait=false)
+    proc = run(pipeline(`julia --project=$ASSESS_PROJECT $ASSESS_SCRIPT /nonexistent /also_fake`; stderr="/dev/null"); wait=false)
     wait(proc)
     @test proc.exitcode != 0
 end
