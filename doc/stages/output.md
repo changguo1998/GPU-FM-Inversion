@@ -14,14 +14,14 @@ This stage was renamed from `export.jl`.
 
 | Source | Description |
 |--------|-------------|
-| `status_{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` (final + history) |
+| `status_{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` from all completed status files (including the converged file) |
 | `database.h5` | Reads `/index`, `/greens`, `/data`, `/config` |
 
 ## Outputs
 
 | Source | Description |
 |--------|-------------|
-| `output.h5` | Best-fit parameters, uncertainties, per-station breakdown, synthetic waveforms, summary |
+| `output.h5` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms, summary |
 
 ## Responsibilities
 
@@ -29,8 +29,8 @@ This stage was renamed from `export.jl`.
 2. **SDR → MT conversion**: compute final moment tensor
 3. **Synthesize frequency uncertainty**: read accumulated freq results from strategy → std of SDR across bands
 4. **Synthesize depth range**: apply 5% tolerance to `depth_misfit_accumulated` → depth bounds
-5. **Per-station breakdown**: extract per-module misfit at best trial
-6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC
+5. **Per-phase breakdown**: extract per-module misfit at best trial for each phase
+6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC. Raw waveforms remain in `raw.h5`.
 7. **Write output**: compile all results into `output.h5`
 
 ## Tool Stack

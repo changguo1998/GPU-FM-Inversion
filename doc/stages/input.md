@@ -24,9 +24,9 @@ This stage replaces the first-run responsibilities of the former `setup.jl`. It 
 
 1. **Preprocess raw data**: filter waveforms to frequency bands, trim time windows, extract module-specific preprocessing output, store in `database.h5`
 2. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
-3. **Write algorithm config**: parse `config.toml`, write into `database.h5` and `status_0.h5`
+3. **Write algorithm config**: parse `config.toml`, write into `database.h5`
 4. **Write initial strategy**: initial search grid from config → `/strategy` in `status_0.h5`
-5. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated, ready for `preprocess.jl` to add `/trials`
+5. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated, ready for `preprocess.jl` to add `/trials`. No config is written to status files — config lives only in `database.h5`.
 
 ## Tool Stack
 

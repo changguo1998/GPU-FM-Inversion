@@ -29,9 +29,9 @@ Apply 5% tolerance to `depth_misfit_accumulated`:
 - Include all depths within 5% of minimum
 - Return `[min_depth, max_depth]`
 
-### 5. Per-Station Breakdown
+### 5. Per-Phase Breakdown
 
-Extract per-module misfit at best trial for each phase, with station identification.
+Extract per-module misfit at best trial for each phase, with station and channel identification.
 
 ### 6. Waveform Synthesis (Optional)
 
@@ -42,7 +42,8 @@ Compute `synthetic = GF × best_MT` for visual QC.
 All groups in `output.h5`:
 - `/solution`: best-fit SDR, MT, misfit
 - `/uncertainty`: SDR std, depth range, freq misfit curve
-- `/per_station`: misfit per module per phase, selection mask, CC values
+- `/per_phase`: misfit per module per phase, selection mask, CC values
+- `/per_station_summary`: station-level aggregates (mean CC, polarity match count, total misfit)
 - `/summary`: total iterations, total trials, convergence reason
 - `/waveforms` (optional): synthetic seismograms
 

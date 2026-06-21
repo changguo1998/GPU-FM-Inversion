@@ -14,16 +14,16 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 | Source | Shape | Level |
 |--------|-------|-------|
 | `xcorr` | `[N_phases × N_trials]` | phase |
-| `polarity` | `[N_stations × N_trials]` | station P-polarity |
-| `psr` | `[N_stations × N_trials]` | station |
+| `polarity` | `[N_channels × N_trials]` | channel P-polarity |
+| `psr` | `[N_channels × N_trials]` | channel P/S ratio |
 | `xcorr_phase_mask` | `[N_phases]` | XCorr mask |
-| `polarity_station_mask` | `[N_stations]` | Polarity mask |
-| `psr_station_mask` | `[N_stations]` | PSR mask |
+| `polarity_channel_mask` | `[N_channels]` | Polarity mask |
+| `psr_channel_mask` | `[N_channels]` | PSR mask |
 | `module_weights` | `[N_modules]` | scalar per module |
 
 ## Processing Steps
 
-1. **Per-module masking**: set masked phases/stations to NaN using the module-specific mask for each input shape
+1. **Per-module masking**: set masked phases/channels to NaN using the module-specific mask for each input shape
 2. **Per-module aggregation**: sum valid misfits → per-trial score per module
 3. **Apply module weight**: multiply by `module_weights[m]`
 4. **Combine modules**: sum weighted scores → `[N_trials]`

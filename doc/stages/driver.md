@@ -18,7 +18,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 | Output | Producer |
 |--------|----------|
 | `database.h5` | `input.jl` (once) |
-| `status_{N}.h5` | `input.jl` (strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (strategy for N+1) |
+| `status_{N}.h5` | `input.jl` (strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence on break; creates `status_{N+1}.h5` on continue) |
 | `output.h5` | `output.jl` |
 
 ## Responsibilities
@@ -36,7 +36,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 | `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
 | `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
 | `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
-| `status_{N+1}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
+| `status_{N}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
 
 ## Tool Stack
 
@@ -60,7 +60,7 @@ bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]
 
 - **Bootstrapping**: Config passed only to `input.jl`. Subsequent runs read strategy from `status_{N}.h5`.
 - **Resume**: Re-running driver picks up from current state based on file/group existence.
-- **Convergence**: `assess.jl` prompts operator; on break, sets `/strategy/converged=1` in `status_{N+1}.h5`. Driver checks this flag to break to output.
+- **Convergence**: `assess.jl` prompts operator; on continue, creates `status_{N+1}.h5` with refined strategy (converged=0). On break, sets `/strategy/converged=1` on the **current** `status_{N}.h5` — no new file is created. Driver checks the latest status file for the converged flag to break to output.
 
 ## What It Does NOT Do
 

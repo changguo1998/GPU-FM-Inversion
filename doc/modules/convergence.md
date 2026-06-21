@@ -18,8 +18,8 @@ Current grid: strike=45.0±10.0°, dip=30.0±8.0°, rake=90.0±8.0°
 Continue? [y/N]
 ```
 
-- **y** → writes `status_{N+1}.h5` with `/strategy/converged=0`. Driver loops to preprocess for next iteration.
-- **N** (any other) → writes `status_{N+1}.h5` with `/strategy/converged=1`, `convergence_reason="user"`. Driver detects converged=1 and breaks to output.
+- **y** → creates `status_{N+1}.h5` with `/strategy/converged=0`. Driver loops to preprocess for next iteration.
+- **N** (any other) → sets `/strategy/converged=1`, `convergence_reason="user"` on the **current** `status_{N}.h5` (no new file created). Driver detects converged=1 and breaks to output.
 
 ## Grid Refinement
 
@@ -27,9 +27,9 @@ Computes next iteration's grid parameters from current best trial:
 
 | Parameter | Source | Rule |
 |-----------|--------|------|
-| `strike0`, `dip0`, `rake0` | Current best trial SDR | New grid center |
+| `strike0`, `dip0`, `rake0` | Current best trial SDR | New grid **start** values (not center) |
 | `dstrike`, `ddip`, `drake` | Current step sizes | Halved: `new_step = current_step / 2` |
-| `nstrike`, `ndip`, `nrake` | Fixed | Always `[3, 3, 3]` (3×3×3 SDR grid around best) |
+| `nstrike`, `ndip`, `nrake` | Fixed | Always `[3, 3, 3]` (3 values per SDR axis around best) |
 | `depth_indices` | `depth_misfit_accumulated` | Indices of depths within 20% of best depth misfit |
 | `freq_indices` | `freq_misfit_curve` | Indices of frequencies within 20% of best frequency misfit |
 
@@ -45,7 +45,7 @@ Computes next iteration's grid parameters from current best trial:
 
 ## Output
 
-Updated strategy for `status_{N+1}.h5`:
+Updated strategy for `status_{N+1}.h5` (on continue):
 - `strike0`, `dstrike`, `nstrike`
 - `dip0`, `ddip`, `ndip`
 - `rake0`, `drake`, `nrake`

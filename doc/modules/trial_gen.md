@@ -25,11 +25,11 @@ Strategy from `status_{N}.h5`:
 - `depth_idx[N]` (indices into database)
 - `freq_idx[N]` (frequency band indices)
 
-Where `N = nstrike × ndip × nrake × len(depth_indices) × len(freq_indices)`.
+Where `N = max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1)`.
 
 ## Rules
 
-- Axis with `n=0` → not varying, use `var0` only
+- Axis with `n=0` → not varying, contributes 1 value (uses `var0` only)
 - Empty `depth_indices` → no depth variation, use `best_depth_index` from strategy
 - Empty `freq_indices` → no frequency variation, single frequency band
 - Trial order: deterministic (same Cartesian product order every time)

@@ -21,13 +21,13 @@ GPU-accelerated core. Stateless misfit computation: reads preprocessed data + tr
 
 1. **Read inputs**: load trials and preprocessed data from HDF5
 2. **Transfer to device**: move all needed data to GPU (or keep on host for OpenMP)
-3. **Precompute on device**: module-specific reduction (e.g., time-domain CC for XCorr, summed GF for Polarity, amplitude covariances for PSR)
+3. **Precompute on host (CPU)**: module-specific reduction via `DataCache` (time-domain CC for XCorr, summed GF for Polarity, amplitude covariances for PSR). All reductions run on the CPU.
 4. **Launch kernels**: for each enabled module, launch misfit kernel (trial × phase grid) via backend dispatch
 5. **Write results**: copy misfits back to host, write to `status_{N}.h5`
 
 ## Execution Model
 
-- Load all data once → precompute → launch kernels back-to-back → write
+- Load all data once → precompute on CPU (DataCache) → transfer reduced data to device → launch kernels back-to-back → write
 - No data movement between modules (all reduction data fits in GPU memory)
 - Linear decomposition: precompute `CC(obs, GF[:,i])` per phase; per-trial: weighted sum of precomputed CCs
 

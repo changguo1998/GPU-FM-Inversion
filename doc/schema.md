@@ -5,7 +5,8 @@
 | Symbol | Description | Typical Value |
 |--------|-------------|---------------|
 | `N_stations` | Stations | 10–30 |
-| `N_phases` | Phase-station pairs (P+S) | 20–60 |
+| `N_channels` | Unique (station, component) pairs (one station may have 1–3 channels) | 10–90 |
+| `N_phases` | Phase entries per channel + wave type (P/S) | 20–60 |
 | `N_samples_raw` | Raw waveform samples per phase before filtering/trimming | input-dependent |
 | `N_samples` | Waveform samples per phase | 200–20000 |
 | `N_polarity_samples` | Polarity window samples | 50–200 |
@@ -38,16 +39,17 @@ Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `station_ids` | String | `[N_stations]` | `"NET.STA"` |
-| `P_time` | String | `[N_stations]` | P-wave arrival ISO 8601 (empty if none) |
-| `S_time` | String | `[N_stations]` | S-wave arrival ISO 8601 (empty if none) |
-| `P_polarity` | Int8 | `[N_stations]` | -1, 0, +1, or -128 (not available) |
+| `channel_ids` | String | `[N_channels]` | `"NET.STA.COMP"` for channels with phase picks |
+| `P_time` | String | `[N_channels]` | P-wave arrival ISO 8601 (empty if none) |
+| `S_time` | String | `[N_channels]` | S-wave arrival ISO 8601 (empty if none) |
+| `P_polarity` | Int8 | `[N_channels]` | -1, 0, +1, or -128 (not available) |
 
 ### `/stations`
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `id` | String | `[N_phases]` | `"NET.STA.COMP.TYPE"` |
+| `id` | String | `[N_phases]` | `"NET.STA.COMP.TYPE"` (channel + wave type) |
+| `channel_id` | String | `[N_phases]` | `"NET.STA.COMP"` (channel identifier) |
 | `network` | String | `[N_phases]` | Network code |
 | `station` | String | `[N_phases]` | Station code |
 | `component` | String | `[N_phases]` | Channel component (single char) |
@@ -127,30 +129,30 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 
 ---
 
-## 3. `status_{N}.h5` — Per-Iteration Snapshot
+## 3. `status_{N}.h5` — Per-Iteration Workflow File
 
-One file per iteration. Self-contained: strategy, trials, and misfits.
+One file per iteration. Built up incrementally during each loop: starts with `/strategy` only from `input.jl`, then `/trials` from `preprocess.jl`, then `/misfits` from `forward.cpp`. Assess reads the completed file and either creates `status_{N+1}.h5` (continue) or sets `/strategy/converged=1` on the current file (break).
 
 ### `/strategy`
 
-Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar`.
+Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar` for i = 0..n-1 (start model).
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `strike0` | Float64 | scalar | Strike center (°) |
+| `strike0` | Float64 | scalar | Strike start (°) |
 | `dstrike` | Float64 | scalar | Strike step (°) |
-| `nstrike` | Int32 | scalar | Strike steps (0 = fixed) |
-| `dip0` | Float64 | scalar | Dip center (°) |
+| `nstrike` | Int32 | scalar | Strike value count (0 = fixed) |
+| `dip0` | Float64 | scalar | Dip start (°) |
 | `ddip` | Float64 | scalar | Dip step (°) |
-| `ndip` | Int32 | scalar | Dip steps (0 = fixed) |
-| `rake0` | Float64 | scalar | Rake center (°) |
+| `ndip` | Int32 | scalar | Dip value count (0 = fixed) |
+| `rake0` | Float64 | scalar | Rake start (°) |
 | `drake` | Float64 | scalar | Rake step (°) |
-| `nrake` | Int32 | scalar | Rake steps (0 = fixed) |
+| `nrake` | Int32 | scalar | Rake value count (0 = fixed) |
 | `depth_indices` | Int32 | `[n]` | Depth indices to search (missing = fixed) |
 | `freq_indices` | Int32 | `[n]` | Freq band indices to search (missing = fixed) |
 | `xcorr_phase_mask` | Int32 | `[N_phases]` | XCorr phase selection (1=active, 0=skip) |
-| `polarity_station_mask` | Int32 | `[N_stations]` | Polarity station selection (1=active, 0=skip) |
-| `psr_station_mask` | Int32 | `[N_stations]` | PSR station selection (1=active, 0=skip) |
+| `polarity_channel_mask` | Int32 | `[N_channels]` | Polarity channel selection (1=active, 0=skip) |
+| `psr_channel_mask` | Int32 | `[N_channels]` | PSR channel selection (1=active, 0=skip) |
 | `module_weights` | Float64 | `[N_modules]` | Current module weights |
 | `best_sdr` | Float64 | `[3]` | Best (strike, dip, rake) |
 | `best_depth_index` | Int32 | scalar | Best depth index into `/config/depth_vals` |
@@ -182,8 +184,8 @@ Raw per-module misfits (no weighting, no aggregation). Each module has a shape n
 | Dataset | Type | Shape | Level |
 |---------|------|-------|-------|
 | `xcorr` | Float64 | `[N_phases × N_trials]` | phase |
-| `polarity` | Float64 | `[N_stations × N_trials]` | station P-polarity |
-| `psr` | Float64 | `[N_stations × N_trials]` | station |
+| `polarity` | Float64 | `[N_channels × N_trials]` | channel P-polarity |
+| `psr` | Float64 | `[N_channels × N_trials]` | channel P/S ratio |
 
 Future: `absshift`, `relshift`, `cap` under `/misfits/`.
 
@@ -212,19 +214,36 @@ Future: `absshift`, `relshift`, `cap` under `/misfits/`.
 | `depth_range` | Float64 | `[2]` | Depth bounds [min, max] |
 | `freq_test_misfit_curve` | Float64 | `[N_frequencies, N_freq_test_mechs]` | Misfit vs frequency |
 
-### `/per_station`
+### `/per_phase`
+
+Phase-level misfit breakdown for the best trial.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `station_id` | String | `[N_phases]` | Station identifiers |
+| `phase_id` | String | `[N_phases]` | Phase identifiers (`NET.STA.COMP.TYPE`) |
+| `channel_id` | String | `[N_phases]` | Channel identifier (`NET.STA.COMP`) |
+| `station_id` | String | `[N_phases]` | Station identifier (`NET.STA`) |
 | `phase_type` | String | `[N_phases]` | `"P"` or `"S"` |
 | `misfit_per_module` | Float64 | `[N_modules × N_phases]` | Final misfit per module per phase |
 | `selected` | Int32 | `[N_phases]` | Phase selected in final solution |
 | `cross_correlation` | Float64 | `[N_phases]` | Best XCorr per phase |
 
+### `/per_station_summary`
+
+Station-level summary across all of a station's channels.
+
+| Dataset | Type | Shape | Description |
+|---------|------|-------|-------------|
+| `station_id` | String | `[N_stations]` | Station identifiers |
+| `n_channels` | Int32 | `[N_stations]` | Number of channels per station |
+| `n_phases` | Int32 | `[N_stations]` | Number of phases per station |
+| `mean_cross_correlation` | Float64 | `[N_stations]` | Mean XCorr across station phases |
+| `polarity_match` | Int32 | `[N_stations]` | Number of polarity-matching channels |
+| `misfit_total` | Float64 | `[N_stations]` | Aggregate misfit per station |
+
 ### `/waveforms` (optional)
 
-Present only when waveform synthesis is enabled. One dataset per phase:
+Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag). Synthesized from Greens in `database.h5`; raw waveforms remain in `raw.h5`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
@@ -244,9 +263,9 @@ Present only when waveform synthesis is enabled. One dataset per phase:
 
 ### Convergence Signal
 
-`assess.jl` signals convergence in `status_{N+1}.h5`:
-- `/strategy/converged = 1` — pipeline should stop, proceed to output
-- `/strategy/convergence_reason` — `"user"` (operator chose break)
+`assess.jl` signals convergence:
+- **Continue**: creates `status_{N+1}.h5` with `/strategy/converged=0` and refined grid parameters.
+- **Break**: sets `/strategy/converged=1` and `convergence_reason="user"` on the **current** `status_{N}.h5` (no new file is created).
 
 Driver detects convergence by reading `/strategy/converged` from the latest status file.
 
@@ -258,8 +277,8 @@ Driver detects convergence by reading `/strategy/converged` from the latest stat
 | `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
 | `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
 | `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
-| `status_{N+1}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
+| `status_{N}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
 
 ### Config Bootstrap
 
-`config.toml` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5` and `status_0.h5`. Subsequent stages read from HDF5 only.
+`config.toml` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5`. Subsequent stages read config from HDF5 only.

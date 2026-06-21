@@ -2,7 +2,7 @@
 
 ## Description
 
-Parallel kernels for computing per-module misfits. Each kernel operates on a flat grid over `(phase × trial)` work items (XCorr) or `(station × trial)` work items (Polarity/PSR). Kernels are templated on `Backend` and dispatched via `Device<B>::parallel_for` — single source compiles to both OpenMP (`#pragma omp parallel for`) and CUDA (`__global__` kernel). No external GPU framework dependency.
+Parallel kernels for computing per-module misfits. Each kernel operates on a flat grid over `(phase × trial)` work items (XCorr) or `(channel × trial)` work items (Polarity/PSR). Kernels are templated on `Backend` and dispatched via `Device<B>::parallel_for` — single source compiles to both OpenMP (`#pragma omp parallel for`) and CUDA (`__global__` kernel). No external GPU framework dependency.
 
 All kernel functions live in the `fm` namespace and are header-only (`forward/src/kernels/`).
 
@@ -64,10 +64,10 @@ namespace fm {
 template <Backend B>
 void launch_polarity_kernel(
     const double* mt,       // N_trials × 6, column-major
-    const double* pol_vec,  // N_stations × 6, column-major
-    const double* obs_pol,  // N_stations
-    double* misfit,         // N_stations × N_trials, column-major
-    int N_stations, int N_trials);
+    const double* pol_vec,  // N_channels × 6, column-major
+    const double* obs_pol,  // N_channels
+    double* misfit,         // N_channels × N_trials, column-major
+    int N_channels, int N_trials);
 }
 ```
 
@@ -86,11 +86,11 @@ namespace fm {
 template <Backend B>
 void launch_psr_kernel(
     const double* mt,       // N_trials × 6, column-major
-    const double* amp_P,    // N_stations × 6 × 6, column-major
-    const double* amp_S,    // N_stations × 6 × 6, column-major
-    const double* obs_psr,  // N_stations
-    double* misfit,         // N_stations × N_trials, column-major
-    int N_stations, int N_trials);
+    const double* amp_P,    // N_channels × 6 × 6, column-major
+    const double* amp_S,    // N_channels × 6 × 6, column-major
+    const double* obs_psr,  // N_channels
+    double* misfit,         // N_channels × N_trials, column-major
+    int N_channels, int N_trials);
 }
 ```
 
@@ -102,8 +102,8 @@ All three kernels launched back-to-back from `main.cpp`:
 
 ```cpp
 fm::launch_xcorr_misfit<Backend::OpenMP>(mt, cc, synamp, obs_n2, mis_xcorr, Nph, Ntr, cc_pp);
-fm::launch_polarity_kernel<Backend::OpenMP>(mt, pol_vec, obs_pol, mis_pol, Nst, Ntr);
-fm::launch_psr_kernel<Backend::OpenMP>(mt, ampP, ampS, obs_psr, mis_psr, Nst, Ntr);
+fm::launch_polarity_kernel<Backend::OpenMP>(mt, pol_vec, obs_pol, mis_pol, Nch, Ntr);
+fm::launch_psr_kernel<Backend::OpenMP>(mt, ampP, ampS, obs_psr, mis_psr, Nch, Ntr);
 ```
 
 With CUDA, substitute `Backend::CUDA`. OpenMP has implicit barriers after each `parallel_for`; CUDA requires explicit `cudaDeviceSynchronize()` between dissimilar kernel types.

@@ -29,10 +29,10 @@ The cache is a `std::unordered_map<std::pair<int,int>, CacheEntry>` keyed by `(f
 
 ```cpp
 struct CacheEntry {
-    int freq_idx, depth_idx, maxlag, n_phases, n_stations;
+    int freq_idx, depth_idx, maxlag, n_phases, n_channels;
     XCorrCache   xcorr;    // cc[N_ph·cc_pp × 6], synamp[N_ph × 36], obs_norm2[N_ph]
-    PolarityCache polarity; // pol_vec[N_ph × 6], obs_pol[N_ph]
-    PSRCache     psr;       // amp_P[N_ph × 36], amp_S[N_ph × 36], obs_psr[N_ph]
+    PolarityCache polarity; // pol_vec[N_ch × 6], obs_pol[N_ch]
+    PSRCache     psr;       // amp_P[N_ch × 36], amp_S[N_ch × 36], obs_psr[N_ch]
 };
 ```
 
@@ -40,15 +40,15 @@ All fields are flat `double*` arrays allocated with `new[]` and freed by `CacheE
 
 ## Reduction by Module
 
-| Module | Input from HDF5 | Output (host-resident) | Size/phase |
-|--------|-----------------|------------------------|------------|
-| XCorr | `obs [N_samples]`, `gf [N_samples × 6]` | `cc [cc_pp × 6]`, `synamp [36]`, `obs_norm2` | ~0.5 KB |
-| Polarity | `gf_pol [N_pol_samples × 6]`, `obs_pol` | `pol_vec [6]`, `obs_pol` | ~56 B |
-| PSR | `amp_P [36]`, `amp_S [36]`, `obs_psr` | `amp_P [36]`, `amp_S [36]`, `obs_psr` | ~584 B |
+| Module | Input from HDF5 | Output (host-resident) | Size per unit | Unit |
+|--------|-----------------|------------------------|---------------|------|
+| XCorr | `obs [N_samples]`, `gf [N_samples × 6]` | `cc [cc_pp × 6]`, `synamp [36]`, `obs_norm2` | ~0.5 KB | phase |
+| Polarity | `gf_pol [N_pol_samples × 6]`, `obs_pol` | `pol_vec [6]`, `obs_pol` | ~56 B | channel |
+| PSR | `amp_P [36]`, `amp_S [36]`, `obs_psr` | `amp_P [36]`, `amp_S [36]`, `obs_psr` | ~584 B | channel |
 
 **Note:** PSR `amp_P` and `amp_S` are read directly from `database.h5` (already precomputed by input.jl) — no further reduction is needed; they're copied through unchanged.
 
-**Memory budget** (typical event: 40 phases, 2 combos): ~4 MB total.
+**Memory budget** (typical event: 40 phases, 20 channels, 2 combos): ~4 MB total.
 
 ## Execution Flow
 

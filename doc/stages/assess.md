@@ -2,9 +2,9 @@
 
 ## Role
 
-Reads raw misfits from `status_{N}.h5`, applies module weights and phase masks, aggregates into per-trial scores, refines the search grid, and prompts the operator whether to continue or break. Writes updated strategy to `status_{N+1}.h5`.
+Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase masks, aggregates into per-trial scores, refines the search grid, and prompts the operator whether to continue or break.
 
-**Owns all strategy decisions**: module weights, phase selection, grid refinement. `forward.cpp` never applies weights.
+**Owns all strategy decisions**: module weights, phase/channel selection, grid refinement. `forward.cpp` never applies weights.
 
 ## Inputs
 
@@ -17,16 +17,19 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and phase masks, 
 
 | Source | Description |
 |--------|-------------|
-| `status_{N+1}.h5` | Writes `/strategy` (refined grid, masks, weights, best result, converged flag) |
+| `status_{N}.h5` (on break) | Sets `/strategy/converged=1`, `convergence_reason="user"` — no new file created |
+| `status_{N+1}.h5` (on continue) | New file with `/strategy` (refined grid, masks, weights, best result, converged=0) |
 
 ## Responsibilities
 
-1. **Apply per-module masks**: each module has its own phase/station mask
+1. **Apply per-module masks**: each module has its own mask (XCorr: phase, Polarity: channel, PSR: channel)
 2. **Weight and aggregate**: sum masked misfits per module, apply module weights, combine → per-trial total
 3. **Find best trial**: argmin of aggregated misfit
 4. **Refine grid**: compute next search grid from current best SDR (halve step sizes, 3×3×3 fixed)
 5. **Prompt operator**: display current results, ask "Continue? [y/N]"
-6. **Write strategy**: save refined grid to `status_{N+1}.h5`; set `/strategy/converged=1` if operator chose break
+6. **Write strategy**:
+   - On continue: create `status_{N+1}.h5` with `/strategy` (refined grid, converged=0)
+   - On break: set `/strategy/converged=1`, `convergence_reason="user"` on current `status_{N}.h5` (no new file)
 7. **Accumulate**: frequency test results, per-depth misfit history
 
 ## Tool Stack
@@ -39,8 +42,8 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and phase masks, 
 
 ```
 phase → trial          (XCorr: one value per phase per trial)
-station → trial        (Polarity: one P-polarity value per station per trial)
-station → trial        (PSR: one value per station per trial)
+channel → trial        (Polarity: one P-polarity value per channel per trial)
+channel → trial        (PSR: one P/S ratio value per channel per trial)
 ```
 
 Each module aggregates independently, then weighted sum across modules.

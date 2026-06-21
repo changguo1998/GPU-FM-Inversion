@@ -1,7 +1,7 @@
 # Implementation & Testing Plan
 
-> **Status:** 🎉 ALL PHASES COMPLETE — implementation + full build + tests passing
-> **C++ compilation:** ✅ Forward stage compiles with custom OpenMP/CUDA backend (Kokkos dropped in favor of lightweight template dispatch).
+> **Status:** All core phases (1–5) complete. Phase 6 driver done; some end-to-end testing and deferred features remain.
+> **C++ compilation:** ✅ Forward stage compiles with custom OpenMP/CUDA backend.
 > **Build:** `forward`, `test_hdf5_roundtrip`, `test_mt_utils`, `test_xcorr`, `test_misfit_kernels`, `test_data_cache`, `test_cross_lang` all compile and link successfully.
 
 ## Phase 1: Foundations (✅ COMPLETE)
@@ -91,7 +91,7 @@
 ## Phase 4: Assess Stage ✅
 
 ### 4.1. Aggregator
-- [x] Per-module masking (XCorr phase-level, Polarity station-level, PSR station-level)
+- [x] Per-module masking (XCorr phase-level, Polarity channel-level, PSR channel-level)
 - [x] Per-module aggregation (sum valid misfits)
 - [x] Module weighting + combination
 - [x] NaN handling (skip masked, error on all-NaN)
@@ -137,7 +137,7 @@
 
 ---
 
-## Phase 6: Driver & Integration (Partial)
+## Phase 6: Driver & Integration (In Progress)
 
 ### 6.1. Driver Script ✅
 - [x] State detection (HDF5 introspection + file existence)
