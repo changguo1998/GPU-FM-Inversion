@@ -57,7 +57,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 1. `forward.cpp` is stateless — reads preprocessed data + trial params, writes raw misfits. Uses custom backend dispatch (OpenMP for CPU, CUDA for GPU) rather than Kokkos.
 2. `assess.jl` owns all strategy: weights, channel selection, grid refinement, and prompts operator for continue/break
 3. All frequency-band variants precomputed upfront in `database.h5` by `input.jl`
-4. Misfits are unweighted, per-module shapes: XCorr `[N_ph × N_tr]`, Polarity `[N_st × N_tr]`, PSR `[N_st × N_tr]`. Weights applied in assess.
+4. Misfits are unweighted, per-module shapes: XCorr `[N_ph × N_tr]` (phase-level), Polarity `[N_ch × N_tr]` (channel-level P-polarity), PSR `[N_ch × N_tr]` (channel-level P/S ratio). Weights applied in assess.
 5. Green's functions pre-computed externally, loaded by `input.jl`
 
 ## Old code (reference only)
