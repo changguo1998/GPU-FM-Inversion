@@ -160,12 +160,23 @@ function make_synthetic_output()
         "freq_test_misfit_curve" => rand(2, 3),
     )
 
-    per_station = Dict(
+    per_phase = Dict(
+        "phase_id" => ["NET.STA1.Z.P", "NET.STA2.Z.P", "NET.STA3.Z.S"],
+        "channel_id" => ["NET.STA1.Z", "NET.STA2.Z", "NET.STA3.Z"],
         "station_id" => ["NET.STA1", "NET.STA2", "NET.STA3"],
         "phase_type" => ["P", "P", "S"],
         "misfit_per_module" => rand(3, 3),
         "selected" => Int32[1, 1, 0],
         "cross_correlation" => [0.85, 0.72, 0.0],
+    )
+
+    per_station_summary = Dict(
+        "station_id" => ["NET.STA1", "NET.STA2", "NET.STA3"],
+        "n_channels" => Int32[1, 1, 1],
+        "n_phases" => Int32[1, 1, 1],
+        "mean_cross_correlation" => [0.85, 0.72, 0.0],
+        "polarity_match" => Int32[0, 0, 0],
+        "misfit_total" => [0.1, 0.2, 0.3],
     )
 
     summary = Dict(
@@ -174,8 +185,8 @@ function make_synthetic_output()
         "convergence_reason" => "user",
     )
 
-    HDF5IO.write_output(fn, solution, uncertainty, per_station, summary)
-    return (; solution, uncertainty, per_station, summary)
+    HDF5IO.write_output(fn, solution, uncertainty, per_phase, per_station_summary, summary)
+    return (; solution, uncertainty, per_phase, per_station_summary, summary)
 end
 
 # ─────────────────────────────
@@ -325,7 +336,7 @@ end
             @test read(unc, "strike_std") ≈ 5.0
             @test length(read(unc, "depth_range")) == 2
 
-            per = f["per_station"]
+            per = f["per_phase"]
             @test length(read(per, "station_id")) == 3
             @test read(per, "selected") == Int32[1, 1, 0]
 

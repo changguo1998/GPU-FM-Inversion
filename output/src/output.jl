@@ -141,33 +141,40 @@ function main(args::Vector{String})
     println("[output] Writing $out_path ...")
 
     if waveforms !== nothing
-        solution_with_wf = copy(result.solution)
-        uncertainty_with_wf = copy(result.uncertainty)
-        per_station_with_wf = copy(result.per_station)
-        summary_with_wf = copy(result.summary)
+        solution_wf = copy(result.solution)
+        uncertainty_wf = copy(result.uncertainty)
+        per_phase_wf = copy(result.per_phase)
+        per_station_summary_wf = copy(result.per_station_summary)
+        summary_wf = copy(result.summary)
 
         h5open(out_path, "cw") do f
             # /solution
             solgr = HDF5.create_group(f, "solution")
-            for (k, v) in solution_with_wf
+            for (k, v) in solution_wf
                 HDF5.write(solgr, k isa Symbol ? string(k) : k, v)
             end
 
             # /uncertainty
             ungr = HDF5.create_group(f, "uncertainty")
-            for (k, v) in uncertainty_with_wf
+            for (k, v) in uncertainty_wf
                 HDF5.write(ungr, k isa Symbol ? string(k) : k, v)
             end
 
-            # /per_station
-            pstgr = HDF5.create_group(f, "per_station")
-            for (k, v) in per_station_with_wf
+            # /per_phase
+            pphgr = HDF5.create_group(f, "per_phase")
+            for (k, v) in per_phase_wf
+                HDF5.write(pphgr, k isa Symbol ? string(k) : k, v)
+            end
+
+            # /per_station_summary
+            pstgr = HDF5.create_group(f, "per_station_summary")
+            for (k, v) in per_station_summary_wf
                 HDF5.write(pstgr, k isa Symbol ? string(k) : k, v)
             end
 
             # /summary
             smgr = HDF5.create_group(f, "summary")
-            for (k, v) in summary_with_wf
+            for (k, v) in summary_wf
                 HDF5.write(smgr, k isa Symbol ? string(k) : k, v)
             end
 
@@ -178,7 +185,8 @@ function main(args::Vector{String})
             end
         end
     else
-        write_output(out_path, result.solution, result.uncertainty, result.per_station, result.summary)
+        write_output(out_path, result.solution, result.uncertainty,
+                     result.per_phase, result.per_station_summary, result.summary)
     end
 
     # 6. Summary

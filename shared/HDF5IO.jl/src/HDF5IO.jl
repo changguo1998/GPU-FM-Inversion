@@ -429,7 +429,7 @@ function write_strategy(h5file, strategy::Strategy)
     end
 end
 
-function write_output(h5file, solution, uncertainty, per_station, summary)
+function write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)
     h5open(h5file, "w") do f
         # /solution
         solgr = HDF5.create_group(f, "solution")
@@ -443,9 +443,15 @@ function write_output(h5file, solution, uncertainty, per_station, summary)
             write(ungr, k, v)
         end
 
-        # /per_station
-        pstgr = HDF5.create_group(f, "per_station")
-        for (k, v) in per_station
+        # /per_phase
+        pphgr = HDF5.create_group(f, "per_phase")
+        for (k, v) in per_phase
+            write(pphgr, k, v)
+        end
+
+        # /per_station_summary
+        pstgr = HDF5.create_group(f, "per_station_summary")
+        for (k, v) in per_station_summary
             write(pstgr, k, v)
         end
 

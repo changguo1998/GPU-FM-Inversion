@@ -5,6 +5,7 @@
 All tasks (T1–T22) are complete. Working tree clean. E2E test passes.
 
 Milestones completed:
+
 - **mi-01**: Foundation — MTUtils, HDF5IO, build files, synthetic data
 - **mi-02**: Input stage — waveform preprocessing, input integration
 - **mi-03**: Preprocess stage — trial generation, preprocess integration
@@ -28,69 +29,58 @@ Milestones completed:
 
 ---
 
-## Document Consistency Audit (2026-06-21)
+## Document Consistency Audit (2026-06-22 — all M*/L* resolved)
 
-Cross-referenced all 13 documentation files against actual source code. Critical issues resolved; remaining items follow.
+Cross-referenced all 13 documentation files against actual source code.
+All 7 issues (M1–M4, L1–L3) resolved in commit below.
 
-### 🟡 Medium Issues
+### 🟡 Medium Issues (all resolved 2026-06-22)
 
-#### M1. `station_ids` vs `channel_ids` in `raw.h5`
+#### M1. `station_ids` vs `channel_ids` in `raw.h5` ✅ No change needed
 
-- `doc/schema.md` documents the dataset as `/phase_picks/channel_ids`
-- `shared/HDF5IO.jl/src/HDF5IO.jl` `read_phase_picks()` reads from `gr["station_ids"]`
-- `synthetic_data.jl` writes `station_ids` to match the reader
+Schema, HDF5IO reader, and synthetic data all use `station_ids`. Already consistent.
 
-**Fix**: Align schema.md and HDF5IO.jl. Prefer `station_ids` since it matches the phase_picks conceptual grouping (one entry per station).
+#### M2. `freq_misfit_curve` initial shape ✅ Fixed
 
-#### M2. `freq_misfit_curve` initial shape
+`input/src/input.jl`: `n_frequencies × 1` → `n_frequencies × freq_test_max_iter`
 
-- `doc/schema.md`: `[N_frequencies, N_freq_test_mechs]`
-- `input/src/input.jl` initializes as `zeros(Float64, n_frequencies, 1)` — only 1 column, not `N_freq_test_mechs`
+#### M3. `/per_phase` group not written by `write_output` ✅ Fixed
 
-**Fix**: Either update schema.md to allow variable second dimension, or fix input.jl to allocate with `N_freq_test_mechs` columns.
+Added `/per_phase` group to `HDF5IO.write_output()`; `solution_comp.jl` now builds separate `per_phase` and `per_station_summary` dicts.
 
-#### M3. `/per_phase` group not written by `write_output`
+#### M4. `/per_station` vs `/per_station_summary` ✅ Fixed
 
-- `doc/schema.md` and `doc/modules/solution_comp.md` specify a `/per_phase` group in `output.h5`
-- `shared/HDF5IO.jl/src/HDF5IO.jl` `write_output()` only writes `/solution`, `/uncertainty`, `/per_station`, `/summary` — **missing `/per_phase`**
+Renamed to `/per_station_summary` everywhere (schema, HDF5IO, output.jl).
+`solution_comp.jl` now computes station-level aggregates (n_channels, n_phases, mean_cc, polarity_match, misfit_total).
 
-**Fix**: Add `/per_phase` writing to `write_output()`, or update `output.jl` to write it separately.
+### 🟢 Low-Priority Issues (all resolved 2026-06-22)
 
-#### M4. `/per_station` vs `/per_station_summary`
+#### L1. PSR P/S pair keys ✅ Documented
 
-- `doc/schema.md` uses `/per_station_summary`
-- `shared/HDF5IO.jl` `write_output()` writes to `per_station` (no `_summary` suffix)
-- `doc/modules/solution_comp.md` mentions "station-level aggregates" but doesn't give exact group name
+Added note in `doc/schema.md`: PSR stored as `"{P_phase_id}|{S_phase_id}"` pair keys.
 
-**Fix**: Align to one name. Prefer `/per_station_summary` (schema.md) for clarity.
+#### L2. Polarity data only for P phases ✅ Documented
 
-### 🟢 Low-Priority Issues
+Added "Only written for P-wave phase_ids" annotation to Polarity datasets in `doc/schema.md`.
 
-#### L1. PSR `database.h5` storage uses P/S pair keys, not individual `phase_id`
+#### L3. Dimension `N_st × N_tr` ✅ Already correct
 
-- `doc/schema.md` implies PSR data is stored per `phase_id` like XCorr and Polarity
-- `input/src/input.jl` stores PSR data as `"{P_phase_id}|{S_phase_id}"` — concatenated P/S pair
-- Schema should document this non-standard key format
+`doc/design.md` consistently uses `N_channels × N_trials`. No change needed.
 
-#### L2. Polarity data exists only for P phases — not documented in schema
+### Changed Files
 
-- `doc/schema.md` shows Polarity under the same `{phase_id}` pattern as XCorr, implying entries for all phases
-- `input/src/input.jl` only writes Polarity data when `ptype == "P"`
-- Schema should note that Polarity directories only exist for P-wave phase_ids
-
-#### L3. Dimension abbreviation inconsistency: `N_st × N_tr` for Polarity
-
-- `doc/design.md` uses `N_ch × N_tr` correctly in one place but `N_st × N_tr` in another for Polarity shape
-- Correct dimension is `N_channels` — Polarity misfit is `[N_channels × N_trials]`
-
-### Files That Need Changes
-
-| File | M1 | M2 | M3 | M4 | L1 | L2 | L3 |
-|------|----|----|----|----|----|----|----|
-| `doc/schema.md` | ✓ | ✓ | — | ✓ | ✓ | ✓ | — |
-| `doc/design.md` | — | — | — | — | — | — | ✓ |
-| `shared/HDF5IO.jl/src/HDF5IO.jl` | ✓ | — | ✓ | ✓ | — | — | — |
-| `input/src/input.jl` | — | ✓ | — | — | — | — | — |
+| File | M2 | M3 | M4 | L1 | L2 |
+|------|----|----|----|----|----|
+| `doc/schema.md` | — | — | — | ✓ | ✓ |
+| `doc/modules/hdf5_io.md` | — | — | ✓ | — | — |
+| `input/src/input.jl` | ✓ | — | — | — | — |
+| `shared/HDF5IO.jl/src/HDF5IO.jl` | — | ✓ | ✓ | — | — |
+| `output/src/output.jl` | — | ✓ | ✓ | — | — |
+| `output/src/solution_comp.jl` | — | ✓ | ✓ | — | — |
+| `output/test/runtests.jl` | — | ✓ | ✓ | — | — |
+| `output/test/test_output_stage.jl` | — | ✓ | ✓ | — | — |
+| `shared/HDF5IO.jl/test/runtests.jl` | — | ✓ | ✓ | — | — |
+| `tests/test_e2e.jl` | — | ✓ | ✓ | — | — |
 
 ### No Changes Needed (Confirmed Consistent)
 

@@ -8,7 +8,8 @@
 # Checks:
 #   /solution:  strike, dip, rake, depth, misfit, moment_tensor
 #   /uncertainty: depth_range, sdr_std
-#   /per_station: xcorr, polarity, psr groups (or their station-level equivalents)
+#   /per_phase: phase-level misfit breakdown
+#   /per_station_summary: station-level aggregates
 #   /summary: total_iterations, total_trials, convergence_reason, best_iteration
 
 using HDF5
@@ -98,18 +99,33 @@ function verify_output_h5(output_path::String)::Bool
             all_pass = false
         end
 
-        # ── /per_station ──────────────────────────────────────────────────
-        if haskey(f, "per_station")
-            println("  ✓ /per_station group present")
-            ps = f["per_station"]
-            n_sub = length(keys(ps))
-            if n_sub > 0
-                println("  ✓ /per_station has $n_sub sub-groups")
+        # ── /per_phase ──────────────────────────────────────────────────
+        if haskey(f, "per_phase")
+            println("  ✓ /per_phase group present")
+            pp = f["per_phase"]
+            n_pp = length(keys(pp))
+            if n_pp > 0
+                println("  ✓ /per_phase has $n_pp datasets")
             else
-                println("  ⚠ /per_station is empty (may be intentional)")
+                println("  ⚠ /per_phase is empty (may be intentional)")
             end
         else
-            println("  ✗ /per_station group MISSING")
+            println("  ✗ /per_phase group MISSING")
+            all_pass = false
+        end
+
+        # ── /per_station_summary ─────────────────────────────────────────
+        if haskey(f, "per_station_summary")
+            println("  ✓ /per_station_summary group present")
+            ps = f["per_station_summary"]
+            n_sub = length(keys(ps))
+            if n_sub > 0
+                println("  ✓ /per_station_summary has $n_sub datasets")
+            else
+                println("  ⚠ /per_station_summary is empty (may be intentional)")
+            end
+        else
+            println("  ✗ /per_station_summary group MISSING")
             all_pass = false
         end
 

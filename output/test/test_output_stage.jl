@@ -194,7 +194,8 @@ test_dir = mktempdir(prefix = "output-stage-test-")
         h5open(out_path, "r") do f
             @test haskey(f, "solution")
             @test haskey(f, "uncertainty")
-            @test haskey(f, "per_station")
+            @test haskey(f, "per_phase")
+            @test haskey(f, "per_station_summary")
             @test haskey(f, "summary")
 
             sol = f["solution"]
@@ -226,14 +227,24 @@ test_dir = mktempdir(prefix = "output-stage-test-")
             dr = read(unc["depth_range"])
             @test length(dr) == 2
 
-            pst = f["per_station"]
-            @test haskey(pst, "station_id")
-            @test haskey(pst, "phase_type")
-            @test haskey(pst, "misfit_per_module")
-            @test haskey(pst, "selected")
-            @test haskey(pst, "cross_correlation")
+            pp = f["per_phase"]
+            @test haskey(pp, "phase_id")
+            @test haskey(pp, "channel_id")
+            @test haskey(pp, "station_id")
+            @test haskey(pp, "phase_type")
+            @test haskey(pp, "misfit_per_module")
+            @test haskey(pp, "selected")
+            @test haskey(pp, "cross_correlation")
 
-            station_ids = read(pst["station_id"])
+            pss = f["per_station_summary"]
+            @test haskey(pss, "station_id")
+            @test haskey(pss, "n_channels")
+            @test haskey(pss, "n_phases")
+            @test haskey(pss, "mean_cross_correlation")
+            @test haskey(pss, "polarity_match")
+            @test haskey(pss, "misfit_total")
+
+            station_ids = read(pss["station_id"])
             @test length(station_ids) >= 1
 
             sm = f["summary"]

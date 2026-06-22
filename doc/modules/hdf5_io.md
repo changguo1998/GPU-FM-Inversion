@@ -35,7 +35,7 @@ write_database(file, greens, data, index, config)
 write_trials(file, trials::TrialSet)
 write_misfits(file, module::Symbol, data::AbstractArray)
 write_strategy(file, strategy::Strategy)
-write_output(file, solution, uncertainty, per_station, summary)
+write_output(file, solution, uncertainty, per_phase, per_station_summary, summary)
 
 # Structure helpers
 h5create_group(file, path)

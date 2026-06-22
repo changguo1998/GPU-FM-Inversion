@@ -87,7 +87,7 @@ Compile final focal mechanism solution from converged pipeline results.
 - `synthesize_waveforms`: if true, compute synthetic seismograms
 
 # Returns
-- `(solution, uncertainty, per_station, summary)` NamedTuple of Dicts
+- `(solution, uncertainty, per_phase, per_station_summary, summary)` NamedTuple of Dicts
 """
 function compile_solution(
     strategy,
@@ -193,14 +193,15 @@ function compile_solution(
         "freq_test_misfit_curve" => freq_misfit_curve,
     )
 
-    # ── 5. Per-station breakdown ──
+    # ── 5. Per-phase breakdown ──
     phase_ids = index.phase_ids
     phase_types = index.phase_type
     station_indices = index.station_idx
     n_stations = length(unique(station_indices))
 
-    # Build station-level identifiers from phase-ids, resolving station_idx
+    # Build station and channel identifiers from phase_ids
     station_ids = [split(pid, ".")[1] * "." * split(pid, ".")[2] for pid in phase_ids]
+    channel_ids = [join(split(pid, ".")[1:3], ".") for pid in phase_ids]
 
     # Extract per-phase misfits at best trial
     misfit_per_module = zeros(Float64, 3, n_phases)
@@ -231,7 +232,9 @@ function compile_solution(
     # Cross-correlation values: use XCorr misfit at best trial (1.0 - misfit → CC)
     cross_correlation = [1.0 - misfit_per_module[1, ph] for ph in 1:n_phases]
 
-    per_station = Dict{String, Any}(
+    per_phase = Dict{String, Any}(
+        "phase_id" => phase_ids,
+        "channel_id" => channel_ids,
         "station_id" => station_ids,
         "phase_type" => phase_types,
         "misfit_per_module" => misfit_per_module,
@@ -239,7 +242,69 @@ function compile_solution(
         "cross_correlation" => cross_correlation,
     )
 
-    # ── 6. Summary ──
+    # ── 6. Per-station summary ───────────────────────────────────────────────────
+    # Group by station_id to compute station-level aggregates
+    unique_stations = unique(station_ids)
+    n_unique = length(unique_stations)
+
+    sta_summary_station_ids = String[]
+    sta_summary_n_channels = Int32[]
+    sta_summary_n_phases = Int32[]
+    sta_summary_mean_cc = Float64[]
+    sta_summary_pol_match = Int32[]
+    sta_summary_misfit_total = Float64[]
+
+    for sta in unique_stations
+        # Find phases belonging to this station
+        idx_in_sta = findall(s -> s == sta, station_ids)
+        n_ph_in_sta = length(idx_in_sta)
+
+        # Unique channels for this station
+        channels_in_sta = unique([channel_ids[i] for i in idx_in_sta])
+        n_ch = length(channels_in_sta)
+
+        # Mean cross-correlation across this station's phases
+        cc_vals = [cross_correlation[i] for i in idx_in_sta]
+        mean_cc = sum(cc_vals) / length(cc_vals)
+
+        # Polarity match count: count phases where polarity misfit == 0
+        pol_match = 0
+        for i in idx_in_sta
+            si = station_indices[i]
+            if 1 <= si <= size(pol, 1) && pol[si, best_idx] == 0.0
+                pol_match += 1
+            end
+        end
+
+        # Misfit total: sum of all module misfits at best trial for this station's phases
+        total_misfit = 0.0
+        for i in idx_in_sta
+            for m in 1:3
+                v = misfit_per_module[m, i]
+                if !isnan(v)
+                    total_misfit += v
+                end
+            end
+        end
+
+        push!(sta_summary_station_ids, sta)
+        push!(sta_summary_n_channels, Int32(n_ch))
+        push!(sta_summary_n_phases, Int32(n_ph_in_sta))
+        push!(sta_summary_mean_cc, mean_cc)
+        push!(sta_summary_pol_match, Int32(pol_match))
+        push!(sta_summary_misfit_total, total_misfit)
+    end
+
+    per_station_summary = Dict{String, Any}(
+        "station_id" => sta_summary_station_ids,
+        "n_channels" => sta_summary_n_channels,
+        "n_phases" => sta_summary_n_phases,
+        "mean_cross_correlation" => sta_summary_mean_cc,
+        "polarity_match" => sta_summary_pol_match,
+        "misfit_total" => sta_summary_misfit_total,
+    )
+
+    # ── 7. Summary ──
     convergence_reason = getfield(strategy, :convergence_reason)
     total_iterations = getfield(strategy, :iteration)
 
@@ -250,7 +315,7 @@ function compile_solution(
     )
 
     return (solution = solution, uncertainty = uncertainty,
-            per_station = per_station, summary = summary)
+            per_phase = per_phase, per_station_summary = per_station_summary, summary = summary)
 end
 
 # ─── Fallback aggregator (when AssessUtils not loaded) ───

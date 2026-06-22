@@ -454,7 +454,7 @@ function main()
         Int32(0),                      # converged
         "",                            # convergence_reason
         zeros(Float64, n_frequencies, 3),  # freq_accumulated
-        zeros(Float64, n_frequencies, 1),  # freq_misfit_curve
+        zeros(Float64, n_frequencies, get(config["freq_test"], "max_iter", 3)),  # freq_misfit_curve
         zeros(Float64, n_depths),      # depth_misfit_accumulated
     )
 

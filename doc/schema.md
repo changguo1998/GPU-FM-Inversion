@@ -104,11 +104,13 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 | XCorr | `obs` | `[N_samples]` | Filtered + trimmed observed waveform | active |
 | | `gf` | `[N_samples × 6]` | Filtered + trimmed Green's function | |
 | | `synamp` | `[6 × 6]` | GF auto-correlation matrix | |
-| Polarity | `gf_pol` | `[N_polarity_samples × 6]` | GF within polarity window | active |
-| | `obs_pol` | Float64 | Observed polarity (-1.0, 0.0, +1.0, NaN = unavailable) | |
+| Polarity | `gf_pol` | `[N_polarity_samples × 6]` | GF within polarity window. **Only written for P-wave phase_ids.** | active |
+| | `obs_pol` | Float64 | Observed polarity (-1.0, 0.0, +1.0, NaN = unavailable). **Only written for P-wave phase_ids.** | |
 | PSR | `amp_P` | `[6 × 6]` | P-wave amplitude covariance matrix | active |
 | | `amp_S` | `[6 × 6]` | S-wave amplitude covariance matrix | |
 | | `obs_psr` | Float64 | Observed log10(P/S) ratio | |
+
+**Note**: PSR data is stored per P/S phase-pair using key `"{P_phase_id}|{S_phase_id}"` (e.g., `"NET.STA.Z.P|NET.STA.Z.S"`), not under a single `phase_id`.
 | AbsShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
 | | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
 | RelShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
@@ -264,6 +266,7 @@ Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag
 ### Convergence Signal
 
 `assess.jl` signals convergence:
+
 - **Continue**: creates `status_{N+1}.h5` with `/strategy/converged=0` and refined grid parameters.
 - **Break**: writes `/strategy/converged=1` and `convergence_reason="user"` to the **current** `status_{N}.h5` in-place (no new file is created).
 

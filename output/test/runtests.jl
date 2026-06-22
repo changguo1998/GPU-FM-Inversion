@@ -169,13 +169,24 @@ end
     @test !isnan(unc["rake_std"])
     @test length(unc["depth_range"]) == 2
 
-    # Verify per_station
-    ps = result.per_station
-    @test length(ps["station_id"]) == n_phases
-    @test length(ps["phase_type"]) == n_phases
-    @test size(ps["misfit_per_module"]) == (3, n_phases)
-    @test length(ps["selected"]) == n_phases
-    @test length(ps["cross_correlation"]) == n_phases
+    # Verify per_phase
+    pp = result.per_phase
+    @test length(pp["phase_id"]) == n_phases
+    @test length(pp["channel_id"]) == n_phases
+    @test length(pp["station_id"]) == n_phases
+    @test length(pp["phase_type"]) == n_phases
+    @test size(pp["misfit_per_module"]) == (3, n_phases)
+    @test length(pp["selected"]) == n_phases
+    @test length(pp["cross_correlation"]) == n_phases
+
+    # Verify per_station_summary
+    pss = result.per_station_summary
+    @test length(pss["station_id"]) >= 1
+    @test length(pss["n_channels"]) == length(pss["station_id"])
+    @test length(pss["n_phases"]) == length(pss["station_id"])
+    @test length(pss["mean_cross_correlation"]) == length(pss["station_id"])
+    @test length(pss["polarity_match"]) == length(pss["station_id"])
+    @test length(pss["misfit_total"]) == length(pss["station_id"])
 
     # Verify summary
     sm = result.summary
@@ -198,7 +209,7 @@ end
         [0.0, 90.0, 0.0],
         1, 0.0, 1, 1, "user",
         [0.0 90.0 0.0],
-        zeros(Float64, 1, 1),
+        zeros(Float64, 1, 3),
         [0.0],
     )
 
@@ -263,7 +274,7 @@ end
         [0.0, 90.0, 0.0],
         1, 0.0, 1, 1, "user",
         [0.0 90.0 0.0],
-        zeros(Float64, 1, 1),
+        zeros(Float64, 1, 3),
         [0.0],
     )
 
@@ -290,12 +301,17 @@ end
     config = Dict("depth_vals" => [10.0])
 
     result = SolutionComp.compile_solution(strategy, trials, misfits, idx, config)
-    ps = result.per_station
+    pp = result.per_phase
 
     # Verify per-phase misfits at best trial (trial 1, the one with lowest total)
-    @test size(ps["misfit_per_module"], 2) == 2  # 2 phases
-    @test length(ps["station_id"]) == 2
-    @test length(ps["cross_correlation"]) == 2
+    @test size(pp["misfit_per_module"], 2) == 2  # 2 phases
+    @test length(pp["phase_id"]) == 2
+    @test length(pp["station_id"]) == 2
+    @test length(pp["cross_correlation"]) == 2
+
+    # Verify per_station_summary is also present
+    pss = result.per_station_summary
+    @test length(pss["station_id"]) >= 1
 end
 
 println("All solution compilation tests passed!")
