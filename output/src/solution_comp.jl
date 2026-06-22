@@ -115,11 +115,11 @@ function compile_solution(
     if length(xcorr_mask) < n_phases
         xcorr_mask = ones(Int32, n_phases)
     end
-    pol_mask = strategy.polarity_station_mask
+    pol_mask = strategy.polarity_channel_mask
     if length(pol_mask) < n_stations
         pol_mask = ones(Int32, n_stations)
     end
-    psr_mask = strategy.psr_station_mask
+    psr_mask = strategy.psr_channel_mask
     if length(psr_mask) < n_stations
         psr_mask = ones(Int32, n_stations)
     end
@@ -259,8 +259,8 @@ function _fallback_aggregate(
     polarity::AbstractMatrix{Float64},
     psr::AbstractMatrix{Float64},
     xcorr_phase_mask::AbstractVector{<:Integer},
-    polarity_station_mask::AbstractVector{<:Integer},
-    psr_station_mask::AbstractVector{<:Integer},
+    polarity_channel_mask::AbstractVector{<:Integer},
+    psr_channel_mask::AbstractVector{<:Integer},
     weights::AbstractVector{Float64},
 )
     n_trials = size(xcorr, 2)
@@ -283,8 +283,8 @@ function _fallback_aggregate(
     end
 
     xc = masked_sum(xcorr, xcorr_phase_mask) .* weights[1]
-    pl = masked_sum(polarity, polarity_station_mask) .* weights[2]
-    pr = masked_sum(psr, psr_station_mask) .* weights[3]
+    pl = masked_sum(polarity, polarity_channel_mask) .* weights[2]
+    pr = masked_sum(psr, psr_channel_mask) .* weights[3]
     total = xc .+ pl .+ pr
 
     if all(isnan, total)

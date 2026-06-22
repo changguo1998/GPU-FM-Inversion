@@ -81,8 +81,8 @@ end
         Int32[1, 2, 3],                            # depth_indices
         Int32[1],                                   # freq_indices
         ones(Int32, N_PHASES),                      # xcorr_phase_mask
-        ones(Int32, N_STATIONS),                    # polarity_station_mask
-        ones(Int32, N_STATIONS),                    # psr_station_mask
+        ones(Int32, N_STATIONS),                    # polarity_channel_mask
+        ones(Int32, N_STATIONS),                    # psr_channel_mask
         [1.0, 1.0, 1.0],                           # module_weights
         [0.0, 0.0, 0.0],                           # best_sdr (unknown yet)
         Int32(1),                                   # best_depth_index

@@ -444,8 +444,8 @@ function main()
         Int32.(1:n_depths),            # depth_indices (all depths initially)
         Int32.(1:n_frequencies),       # freq_indices (all freq bands initially)
         ones(Int32, n_phases),         # xcorr_phase_mask (all active)
-        ones(Int32, n_stations_for_mask),  # polarity_station_mask (all active)
-        ones(Int32, n_stations_for_mask),  # psr_station_mask (all active)
+        ones(Int32, n_stations_for_mask),  # polarity_channel_mask (all active)
+        ones(Int32, n_stations_for_mask),  # psr_channel_mask (all active)
         Float64.(module_weights),      # module_weights
         Float64[grid["strike0"], grid["dip0"], grid["rake0"]],  # best_sdr
         Int32(1),                      # best_depth_index

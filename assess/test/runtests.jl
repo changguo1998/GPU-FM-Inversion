@@ -23,8 +23,8 @@ function make_strategy(; iteration=1, kwargs...)
         :depth_indices => Int32[1, 2, 3],
         :freq_indices => Int32[1, 2],
         :xcorr_phase_mask => Int32[1, 1, 1],
-        :polarity_station_mask => Int32[1, 1, 1],
-        :psr_station_mask => Int32[1, 1, 1],
+        :polarity_channel_mask => Int32[1, 1, 1],
+        :psr_channel_mask => Int32[1, 1, 1],
         :module_weights => [0.5, 0.3, 0.2],
         :best_sdr => [45.0, 30.0, 90.0],
         :best_depth_index => Int32(2),
@@ -42,7 +42,7 @@ function make_strategy(; iteration=1, kwargs...)
         params[:dip0], params[:ddip], params[:ndip],
         params[:rake0], params[:drake], params[:nrake],
         params[:depth_indices], params[:freq_indices],
-        params[:xcorr_phase_mask], params[:polarity_station_mask], params[:psr_station_mask],
+        params[:xcorr_phase_mask], params[:polarity_channel_mask], params[:psr_channel_mask],
         params[:module_weights],
         params[:best_sdr], params[:best_depth_index], params[:best_misfit],
         params[:iteration], params[:converged], params[:convergence_reason],
@@ -180,8 +180,8 @@ end
     @testset "Masks and weights preserved through refinement" begin
         strat = make_strategy(
             xcorr_phase_mask=Int32[1, 0, 1, 1, 0],
-            polarity_station_mask=Int32[1, 1, 0],
-            psr_station_mask=Int32[0, 1, 1],
+            polarity_channel_mask=Int32[1, 1, 0],
+            psr_channel_mask=Int32[0, 1, 1],
             module_weights=[0.6, 0.3, 0.1],
         )
         best = TrialResult(
@@ -192,8 +192,8 @@ end
         )
         result = refine_strategy(strat, best)
         @test result.xcorr_phase_mask     == Int32[1, 0, 1, 1, 0]
-        @test result.polarity_station_mask == Int32[1, 1, 0]
-        @test result.psr_station_mask      == Int32[0, 1, 1]
+        @test result.polarity_channel_mask == Int32[1, 1, 0]
+        @test result.psr_channel_mask      == Int32[0, 1, 1]
         @test result.module_weights        == [0.6, 0.3, 0.1]
     end
 

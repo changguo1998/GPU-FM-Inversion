@@ -53,12 +53,12 @@ function main()
         Vector{Bool}(strategy.xcorr_phase_mask[1:N_phases] .== Int32(1)) :
         Vector{Bool}(trues(N_phases))
 
-    polarity_station_mask = length(strategy.polarity_station_mask) >= N_stations ?
-        Vector{Bool}(strategy.polarity_station_mask[1:N_stations] .== Int32(1)) :
+    polarity_channel_mask = length(strategy.polarity_channel_mask) >= N_stations ?
+        Vector{Bool}(strategy.polarity_channel_mask[1:N_stations] .== Int32(1)) :
         Vector{Bool}(trues(N_stations))
 
-    psr_station_mask = length(strategy.psr_station_mask) >= N_stations ?
-        Vector{Bool}(strategy.psr_station_mask[1:N_stations] .== Int32(1)) :
+    psr_channel_mask = length(strategy.psr_channel_mask) >= N_stations ?
+        Vector{Bool}(strategy.psr_channel_mask[1:N_stations] .== Int32(1)) :
         Vector{Bool}(trues(N_stations))
 
     # ── Aggregate misfits ───────────────────────────────
@@ -67,8 +67,8 @@ function main()
         polarity_mat,
         psr_mat,
         xcorr_phase_mask,
-        polarity_station_mask,
-        psr_station_mask,
+        polarity_channel_mask,
+        psr_channel_mask,
         strategy.module_weights,
     )
 
@@ -128,8 +128,8 @@ function main()
             next_strategy.depth_indices,
             next_strategy.freq_indices,
             next_strategy.xcorr_phase_mask,
-            next_strategy.polarity_station_mask,
-            next_strategy.psr_station_mask,
+            next_strategy.polarity_channel_mask,
+            next_strategy.psr_channel_mask,
             next_strategy.module_weights,
             next_strategy.best_sdr,
             next_strategy.best_depth_index,
@@ -150,8 +150,8 @@ function main()
             next_strategy.depth_indices,
             next_strategy.freq_indices,
             next_strategy.xcorr_phase_mask,
-            next_strategy.polarity_station_mask,
-            next_strategy.psr_station_mask,
+            next_strategy.polarity_channel_mask,
+            next_strategy.psr_channel_mask,
             next_strategy.module_weights,
             next_strategy.best_sdr,
             next_strategy.best_depth_index,
@@ -165,11 +165,17 @@ function main()
         )
     end
 
-    # ── Write status_{N+1}.h5 ───────────────────────────
-    cp(status_file, next_status_file; force=true)
-    write_strategy(next_status_file, next_strategy)
-
-    println("Wrote ", next_status_file, " (converged=", Int(next_strategy.converged), ")")
+    # ── Write output ──────────────────────────────────
+    if continue_flag
+        # Continue: create status_{N+1}.h5 with refined strategy
+        cp(status_file, next_status_file; force=true)
+        write_strategy(next_status_file, next_strategy)
+        println("Wrote ", next_status_file, " (converged=", Int(next_strategy.converged), ")")
+    else
+        # Break: set converged=1 on current status_{N}.h5 — no new file
+        write_strategy(status_file, next_strategy)
+        println("Set converged=1 on ", status_file)
+    end
 end
 
 main()

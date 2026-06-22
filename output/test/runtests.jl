@@ -80,8 +80,8 @@ end
         90.0, 10.0, 2,       # rake0, drake, nrake
         Int32[1], Int32[1],  # depth_indices, freq_indices
         Int32[1, 1, 1],      # xcorr_phase_mask (3 phases active)
-        Int32[1],            # polarity_station_mask (1 station)
-        Int32[1],            # psr_station_mask
+        Int32[1],            # polarity_channel_mask (1 channel)
+        Int32[1],            # psr_channel_mask
         [1.0, 0.5, 0.3],    # module_weights
         [45.0, 30.0, 90.0], # best_sdr
         1,                   # best_depth_index

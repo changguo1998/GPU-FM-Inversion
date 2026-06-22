@@ -57,8 +57,8 @@ function make_synthetic_status()
         Int32[0, 1, 2],   # depth_indices
         Int32[0, 3],       # freq_indices
         Int32[1, 1, 1, 0, 0, 1],  # xcorr_phase_mask
-        Int32[1, 1, 0],    # polarity_station_mask
-        Int32[1, 0, 1],    # psr_station_mask
+        Int32[1, 1, 0],    # polarity_channel_mask
+        Int32[1, 0, 1],    # psr_channel_mask
         [0.5, 0.3, 0.2],  # module_weights
         [130.0, 50.0, -80.0],  # best_sdr
         Int32(2),           # best_depth_index

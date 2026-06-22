@@ -5,7 +5,7 @@ export aggregate_misfits
 """
     aggregate_misfits(
         xcorr, polarity, psr,
-        xcorr_phase_mask, polarity_station_mask, psr_station_mask,
+        xcorr_phase_mask, polarity_channel_mask, psr_channel_mask,
         module_weights,
     ) -> (total::Vector{Float64}, best_idx::Int, per_module::Dict{Symbol, Vector{Float64}})
 
@@ -13,11 +13,11 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 
 # Arguments
 - `xcorr`: shape `[N_phases × N_trials]` — raw XCorr misfits
-- `polarity`: shape `[N_stations × N_trials]` — raw Polarity misfits
-- `psr`: shape `[N_stations × N_trials]` — raw PSR misfits
+- `polarity`: shape `[N_channels × N_trials]` — raw Polarity misfits
+- `psr`: shape `[N_channels × N_trials]` — raw PSR misfits
 - `xcorr_phase_mask`: length `N_phases` — `true` = active, `false` = masked (skip)
-- `polarity_station_mask`: length `N_stations` — `true` = active, `false` = masked
-- `psr_station_mask`: length `N_stations` — `true` = active, `false` = masked
+- `polarity_channel_mask`: length `N_channels` — `true` = active, `false` = masked
+- `psr_channel_mask`: length `N_channels` — `true` = active, `false` = masked
 - `module_weights`: `[3]` — weights for `[xcorr, polarity, psr]`
 
 # Returns
@@ -51,8 +51,8 @@ function aggregate_misfits(
     polarity::Matrix{Float64},
     psr::Matrix{Float64},
     xcorr_phase_mask::Vector{Bool},
-    polarity_station_mask::Vector{Bool},
-    psr_station_mask::Vector{Bool},
+    polarity_channel_mask::Vector{Bool},
+    psr_channel_mask::Vector{Bool},
     module_weights::Vector{Float64},
 )
     n_trials = size(xcorr, 2)
@@ -85,8 +85,8 @@ function aggregate_misfits(
     end
 
     xc_per_trial = _masked_sum(xcorr, xcorr_phase_mask)
-    pol_per_trial = _masked_sum(polarity, polarity_station_mask)
-    psr_per_trial = _masked_sum(psr, psr_station_mask)
+    pol_per_trial = _masked_sum(polarity, polarity_channel_mask)
+    psr_per_trial = _masked_sum(psr, psr_channel_mask)
 
     # ── All-NaN check across all modules ──
     all_nan_xc = all(isnan, xc_per_trial)

@@ -39,7 +39,7 @@ Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `channel_ids` | String | `[N_channels]` | `"NET.STA.COMP"` for channels with phase picks |
+| `station_ids` | String | `[N_channels]` | `"NET.STA"` — station identifier for each channel with phase picks |
 | `P_time` | String | `[N_channels]` | P-wave arrival ISO 8601 (empty if none) |
 | `S_time` | String | `[N_channels]` | S-wave arrival ISO 8601 (empty if none) |
 | `P_polarity` | Int8 | `[N_channels]` | -1, 0, +1, or -128 (not available) |
@@ -105,7 +105,7 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 | | `gf` | `[N_samples × 6]` | Filtered + trimmed Green's function | |
 | | `synamp` | `[6 × 6]` | GF auto-correlation matrix | |
 | Polarity | `gf_pol` | `[N_polarity_samples × 6]` | GF within polarity window | active |
-| | `obs_pol` | Int8 | Observed polarity (-1, 0, +1) | |
+| | `obs_pol` | Float64 | Observed polarity (-1.0, 0.0, +1.0, NaN = unavailable) | |
 | PSR | `amp_P` | `[6 × 6]` | P-wave amplitude covariance matrix | active |
 | | `amp_S` | `[6 × 6]` | S-wave amplitude covariance matrix | |
 | | `obs_psr` | Float64 | Observed log10(P/S) ratio | |
@@ -265,7 +265,7 @@ Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag
 
 `assess.jl` signals convergence:
 - **Continue**: creates `status_{N+1}.h5` with `/strategy/converged=0` and refined grid parameters.
-- **Break**: sets `/strategy/converged=1` and `convergence_reason="user"` on the **current** `status_{N}.h5` (no new file is created).
+- **Break**: writes `/strategy/converged=1` and `convergence_reason="user"` to the **current** `status_{N}.h5` in-place (no new file is created).
 
 Driver detects convergence by reading `/strategy/converged` from the latest status file.
 

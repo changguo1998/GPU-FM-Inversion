@@ -56,8 +56,8 @@ struct Strategy
     depth_indices::Vector{Int32}
     freq_indices::Vector{Int32}
     xcorr_phase_mask::Vector{Int32}
-    polarity_station_mask::Vector{Int32}
-    psr_station_mask::Vector{Int32}
+    polarity_channel_mask::Vector{Int32}
+    psr_channel_mask::Vector{Int32}
     module_weights::Vector{Float64}
     best_sdr::Vector{Float64}
     best_depth_index::Int32
@@ -242,8 +242,8 @@ function read_strategy(h5file)::Strategy
             read(gr["depth_indices"]),
             read(gr["freq_indices"]),
             read(gr["xcorr_phase_mask"]),
-            read(gr["polarity_station_mask"]),
-            read(gr["psr_station_mask"]),
+            read(gr["polarity_channel_mask"]),
+            read(gr["psr_channel_mask"]),
             read(gr["module_weights"]),
             read(gr["best_sdr"]),
             read(gr["best_depth_index"]),
@@ -414,8 +414,8 @@ function write_strategy(h5file, strategy::Strategy)
         write(gr, "depth_indices", strategy.depth_indices)
         write(gr, "freq_indices", strategy.freq_indices)
         write(gr, "xcorr_phase_mask", strategy.xcorr_phase_mask)
-        write(gr, "polarity_station_mask", strategy.polarity_station_mask)
-        write(gr, "psr_station_mask", strategy.psr_station_mask)
+        write(gr, "polarity_channel_mask", strategy.polarity_channel_mask)
+        write(gr, "psr_channel_mask", strategy.psr_channel_mask)
         write(gr, "module_weights", strategy.module_weights)
         write(gr, "best_sdr", strategy.best_sdr)
         write(gr, "best_depth_index", strategy.best_depth_index)
