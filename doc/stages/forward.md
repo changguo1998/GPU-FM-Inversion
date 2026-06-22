@@ -69,12 +69,14 @@ struct Device<Backend::CUDA> {
 
 Kernel functions in `namespace fm` are templates parameterized on `Backend B`. Single source, compiled twice (g++ with OpenMP, nvcc for GPU). Flat arrays (`const double*`) with explicit column-major strides replace `Kokkos::View`.
 
+**Note:** CUDA is installed via Spack on the target system. Use `spack load cuda` before building with `-DBACKEND=CUDA`.
+
 ## Implementation Phasing
 
 1. Framework: main(), HDF5 I/O, trial reading + DataCache + misfit writing (all inline in main.cpp)
 2. XCorr kernel (most complex — validates full pipeline)
 3. Polarity + PSR kernels
-4. AbsShift + RelShift + CAP (deferred)
+4. AbsShift + RelShift (deferred). CAP, FFT-based XCorr — cancelled.
 
 ## What It Does NOT Do
 

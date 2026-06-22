@@ -48,7 +48,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 - **Moment tensor**: 6 components in NED: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
 - **Source params**: strike [0,360), dip [0,90], rake [-90,90]
 - **Green's functions**: 6-component waveforms per station, pre-computed externally
-- **Misfit modules**: XCorr, Polarity, PSR (primary). AbsShift, RelShift, CAP — deferred.
+- **Misfit modules**: XCorr, Polarity, PSR (primary). AbsShift, RelShift — deferred. CAP — cancelled.
 - **Trial**: one combination of variable parameters (SDR, depth, frequency, etc.) — indexed into precomputed data slices in `database.h5`
 - **Phase** = station + channel + wave type (P/S) — channels are subsumed by phases
 
@@ -65,6 +65,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 The original Julia pipeline is no longer kept in-tree. Its former layout was a set of scripts (`fminv/`) plus packages such as `JuliaSourceMechanism.jl/`, `DWN.jl/`, and `SeisTools.jl/`; relevant historical notes are preserved in `doc/old/`.
 
 Key data structures from old code that inform the new schema:
+
 - Event: `longitude, latitude, depth, magnitude, origintime`
 - Station: `network, station, component, meta_lon, meta_lat, meta_el, meta_dt, base_distance, base_azimuth`
 - Phase: `type (P/S), at (DateTime), tt (travel time), xcorr_band, xcorr_trim, xcorr_dt`

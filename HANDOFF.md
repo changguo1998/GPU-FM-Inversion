@@ -25,7 +25,7 @@ Milestones completed:
 - All frequency-band variants precomputed in `database.h5` by `input.jl`
 - Misfits unweighted per-module shapes
 - Raw HDF5 C API only (no HighFive)
-- No cuFFT, no CAP/AbsShift/RelShift (deferred)
+- No cuFFT, no CAP, no FFT-based XCorr — cancelled. AbsShift, RelShift — deferred
 
 ---
 

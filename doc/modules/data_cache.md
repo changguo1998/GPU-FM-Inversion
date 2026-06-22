@@ -84,7 +84,7 @@ class DataCache {
 
 - **Host-side only**: All cache data lives on the CPU. Kernels receive raw `const double*` pointers into the cache. GPU offloading happens at the kernel level via `Device<Backend::CUDA>::parallel_for`.
 - **Linear decomposition**: Precompute `CC(obs, GF[:,i])` once per phase. Per-trial: weighted sum of precomputed CCs. Reduces per-trial work by ~4000×.
-- **Time-domain over FFT**: Simple, portable, avoids cuFFT dependency. FFT-based optimization deferred.
+- **Time-domain over FFT**: Simple, portable, avoids cuFFT dependency. FFT-based optimization — cancelled.
 - **Single-pass data load**: All data loaded from HDF5 once → all reductions → all kernels back-to-back. No data movement between modules.
 - **No per-trial GF loading**: GF is preloaded per (freq, depth) combo, not per trial.
 - **v1 assumes all combos fit in host memory** — no eviction policy implemented yet.

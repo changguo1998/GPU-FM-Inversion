@@ -73,7 +73,7 @@ Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `misfit_modules` | String | `[N_modules]` | Active modules: `"XCorr"`, `"Polarity"`, `"PSR"` (AbsShift, RelShift, CAP deferred) |
+| `misfit_modules` | String | `[N_modules]` | Active modules: `"XCorr"`, `"Polarity"`, `"PSR"` (AbsShift, RelShift deferred; CAP cancelled) |
 | `module_weights` | Float64 | `[N_modules]` | Initial module weights |
 | `depth_vals` | Float64 | `[N_depths]` | All depth levels |
 | `freq_bands_low` | Float64 | `[N_frequencies]` | Low-cut corner frequencies (Hz) |
@@ -115,7 +115,7 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 | | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
 | RelShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
 | | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
-| CAP | `obs` | `[3 × N_samples]` | Three-component observed | **deferred** |
+| CAP | `obs` | `[3 × N_samples]` | Three-component observed | **cancelled** |
 | | `gf` | `[3 × N_samples × 6]` | Three-component GF | |
 
 ### `/index`
