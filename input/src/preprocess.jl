@@ -165,21 +165,27 @@ end
 """
     preprocess_polarity!(gf::Matrix{Float64}, dt::Float64, arrival_sample::Int,
                           t_source::Float64, obs_polarity::Int8)
-                          -> (gf_pol::Matrix{Float64}, obs_pol::Int8)
+                          -> (gf_pol::Matrix{Float64}, obs_pol::Float64)
 
 Preprocess for Polarity misfit computation:
 1. Trim GF to polarity window [0, t_source]
-2. Pass through observed polarity
+2. Widen observed polarity from Int8 to Float64, mapping -128 (not available) to NaN
 
 # Returns
 - `gf_pol`: GF within polarity window (N_polarity_samples × 6)
-- `obs_pol`: observed polarity as Int8
+- `obs_pol`: observed polarity as Float64 (-1.0, 0.0, +1.0, or NaN for missing)
 """
 function preprocess_polarity!(gf::Matrix{Float64}, dt::Float64,
                                arrival_sample::Int, t_source::Float64,
                                obs_polarity::Int8)
     gf_pol = trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
-    return gf_pol, obs_polarity
+    # Convert Int8 to Float64: -128 → NaN, others → Float64 value
+    obs_pol_float = if obs_polarity == Int8(-128)
+        NaN
+    else
+        Float64(obs_polarity)
+    end
+    return gf_pol, obs_pol_float
 end
 
 """
