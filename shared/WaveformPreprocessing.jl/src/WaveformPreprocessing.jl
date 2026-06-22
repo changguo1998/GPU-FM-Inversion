@@ -18,13 +18,6 @@ export envelope, rms_amplitude
                      order::Int=4)
 
 Apply zero-phase (forward-backward) Butterworth bandpass filter to `x` in-place.
-
-# Arguments
-- `x`: signal to filter (modified in-place)
-- `dt`: sampling interval (seconds)
-- `low_cut`: low-cut corner frequency (Hz)
-- `high_cut`: high-cut corner frequency (Hz)
-- `order`: Butterworth filter order (default 4)
 """
 function bandpass_filter!(x::AbstractVector{Float64}, dt::Float64,
                            low_cut::Float64, high_cut::Float64;
@@ -32,12 +25,11 @@ function bandpass_filter!(x::AbstractVector{Float64}, dt::Float64,
     fs = 1.0 / dt
     nyquist = fs / 2.0
 
-    # Clamp high_cut below Nyquist to avoid digitalfilter error
     high = min(high_cut, nyquist * 0.999)
     low = max(low_cut, 1e-6)
 
     if low >= high
-        return x  # no feasible passband, leave signal as-is
+        return x
     end
 
     responsetype = Bandpass(low, high)
@@ -56,25 +48,7 @@ end
 """
     trim_time_window!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
                       arrival_sample::Int, window_factor::Float64, band_high::Float64)
-                      -> (obs_trimmed::Vector{Float64}, gf_trimmed::Matrix{Float64})
-
-Trim both observed and Green's function waveforms to a time window around the
-phase arrival. Returns trimmed copies.
-
-The window is centered on the arrival: from `arrival_sample - N` to `arrival_sample + N`
-where `N = round(Int, (window_factor / band_high) / dt)`.
-
-# Arguments
-- `obs`: observed waveform (length N_raw)
-- `gf`: Green's function matrix (N_raw × 6)
-- `dt`: sampling interval (seconds)
-- `arrival_sample`: sample index of the P or S arrival (1-indexed)
-- `window_factor`: wavelength multiplier for window sizing
-- `band_high`: high-cut corner frequency (Hz)
-
-# Returns
-- `obs_trimmed`: trimmed observed waveform
-- `gf_trimmed`: trimmed GF (trim_window_samples × 6)
+                      -> (obs_trimmed, gf_trimmed)
 """
 function trim_time_window!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
                             arrival_sample::Int, window_factor::Float64, band_high::Float64)
@@ -92,12 +66,7 @@ end
 
 """
     trim_to_polarity_window!(gf::Matrix{Float64}, dt::Float64, arrival_sample::Int,
-                              t_source::Float64) -> gf_pol::Matrix{Float64}
-
-Trim GF to the polarity window [0, t_source] relative to the arrival,
-then sum over time to produce the polarity vector.
-
-Returns gf_pol: (N_polarity_samples × 6) — GF within polarity window.
+                              t_source::Float64) -> gf_pol
 """
 function trim_to_polarity_window!(gf::Matrix{Float64}, dt::Float64,
                                    arrival_sample::Int, t_source::Float64)
@@ -114,33 +83,17 @@ end
 # ─────────────────────────────────────────────────────────
 
 """
-    preprocess_xcorr!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
-                      arrival_sample::Int, low_cut::Float64, high_cut::Float64,
-                      window_factor::Float64; filter_order::Int=4)
-                      -> (obs_proc::Vector{Float64}, gf_proc::Matrix{Float64},
-                          synamp::Matrix{Float64}, obs_norm2::Float64)
-
-Preprocess waveforms for XCorr misfit computation:
-1. Bandpass filter both obs and GF columns
-2. Trim to time window around arrival
-3. Compute synamp = GFᵀ · GF (6×6 Gram matrix)
-4. Compute obs_norm² = ‖obs‖²
-
-# Returns
-- `obs_proc`: filtered + trimmed observed waveform
-- `gf_proc`: filtered + trimmed GF (N_samples × 6)
-- `synamp`: 6×6 auto-correlation matrix (GFᵀ · GF)
-- `obs_norm2`: squared L2 norm of observed waveform
+    preprocess_xcorr!(obs, gf, dt, arrival_sample, low_cut, high_cut, window_factor;
+                      filter_order=4)
+                      -> (obs_proc, gf_proc, synamp, obs_norm2)
 """
 function preprocess_xcorr!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
                             arrival_sample::Int, low_cut::Float64, high_cut::Float64,
                             window_factor::Float64; filter_order::Int=4)
-    # Make mutable copies for in-place filtering
     obs_filt = copy(obs)
     n_samples, n_comp = size(gf)
     gf_filt = copy(gf)
 
-    # 1. Bandpass filter
     bandpass_filter!(obs_filt, dt, low_cut, high_cut; order=filter_order)
     for c in 1:n_comp
         col = gf_filt[:, c]
@@ -148,38 +101,24 @@ function preprocess_xcorr!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float6
         gf_filt[:, c] = col
     end
 
-    # 2. Trim to time window
     obs_proc, gf_proc = trim_time_window!(
         obs_filt, gf_filt, dt, arrival_sample, window_factor, high_cut
     )
 
-    # 3. Compute synamp = GFᵀ · GF (6×6)
     synamp = gf_proc' * gf_proc
-
-    # 4. Compute obs_norm²
     obs_norm2 = dot(obs_proc, obs_proc)
 
     return obs_proc, gf_proc, synamp, obs_norm2
 end
 
 """
-    preprocess_polarity!(gf::Matrix{Float64}, dt::Float64, arrival_sample::Int,
-                          t_source::Float64, obs_polarity::Int8)
-                          -> (gf_pol::Matrix{Float64}, obs_pol::Float64)
-
-Preprocess for Polarity misfit computation:
-1. Trim GF to polarity window [0, t_source]
-2. Widen observed polarity from Int8 to Float64, mapping -128 (not available) to NaN
-
-# Returns
-- `gf_pol`: GF within polarity window (N_polarity_samples × 6)
-- `obs_pol`: observed polarity as Float64 (-1.0, 0.0, +1.0, or NaN for missing)
+    preprocess_polarity!(gf, dt, arrival_sample, t_source, obs_polarity)
+                         -> (gf_pol, obs_pol)
 """
 function preprocess_polarity!(gf::Matrix{Float64}, dt::Float64,
                                arrival_sample::Int, t_source::Float64,
                                obs_polarity::Int8)
     gf_pol = trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
-    # Convert Int8 to Float64: -128 → NaN, others → Float64 value
     obs_pol_float = if obs_polarity == Int8(-128)
         NaN
     else
@@ -189,35 +128,18 @@ function preprocess_polarity!(gf::Matrix{Float64}, dt::Float64,
 end
 
 """
-    preprocess_psr!(obs_P::Vector{Float64}, obs_S::Vector{Float64},
-                    gf_P::Matrix{Float64}, gf_S::Matrix{Float64},
-                    dt::Float64, arrival_P::Int, arrival_S::Int,
-                    pre_P_sec::Float64, post_P_sec::Float64,
-                    pre_S_sec::Float64, post_S_sec::Float64)
-                    -> (amp_P::Matrix{Float64}, amp_S::Matrix{Float64}, obs_psr::Float64)
-
-Preprocess for PSR misfit computation:
-1. Compute amp_P = GF_Pᵀ · GF_P (6×6)
-2. Compute amp_S = GF_Sᵀ · GF_S (6×6)
-3. Compute obs_psr = log10(P_amplitude / S_amplitude)
-   where P_amplitude = RMS of obs_P in [arrival_P + pre_P, post_P]
-   and   S_amplitude = RMS of obs_S in [arrival_S + pre_S, post_S]
-
-# Returns
-- `amp_P`: P-wave amplitude covariance matrix (6×6)
-- `amp_S`: S-wave amplitude covariance matrix (6×6)
-- `obs_psr`: log10(P/S) observed amplitude ratio
+    preprocess_psr!(obs_P, obs_S, gf_P, gf_S, dt, arrival_P, arrival_S,
+                    pre_P_sec, post_P_sec, pre_S_sec, post_S_sec)
+                    -> (amp_P, amp_S, obs_psr)
 """
 function preprocess_psr!(obs_P::Vector{Float64}, obs_S::Vector{Float64},
                           gf_P::Matrix{Float64}, gf_S::Matrix{Float64},
                           dt::Float64, arrival_P::Int, arrival_S::Int,
                           pre_P_sec::Float64, post_P_sec::Float64,
                           pre_S_sec::Float64, post_S_sec::Float64)
-    # Compute amplitude covariance matrices
     amp_P = gf_P' * gf_P
     amp_S = gf_S' * gf_S
 
-    # Trim observed waveforms to P and S windows and compute RMS amplitudes
     pre_P_samples = max(0, round(Int, pre_P_sec / dt))
     post_P_samples = max(1, round(Int, post_P_sec / dt))
     pre_S_samples = max(0, round(Int, pre_S_sec / dt))
@@ -245,7 +167,7 @@ end
 # ─────────────────────────────────────────────────────────
 
 """
-    envelope(x::AbstractVector{Float64}) -> Vector{Float64}
+    envelope(x) -> Vector{Float64}
 
 Compute the Hilbert envelope (analytic signal magnitude) of `x`.
 """
@@ -265,7 +187,7 @@ function envelope(x::AbstractVector{Float64})
 end
 
 """
-    rms_amplitude(x::AbstractVector{Float64}) -> Float64
+    rms_amplitude(x) -> Float64
 
 Compute the root-mean-square amplitude of a time series.
 """

@@ -1,5 +1,5 @@
 using Test
-include("../src/trial_gen.jl")
+include(joinpath(@__DIR__, "..", "..", "shared", "TrialGen.jl", "src", "TrialGen.jl"))
 using .TrialGen
 
 # ─────────────────────────────────────────────────────────

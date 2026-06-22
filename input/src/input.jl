@@ -19,7 +19,7 @@ using Random
 # ── Load shared modules ────────────────────────────────────────────────────────
 include(joinpath(@__DIR__, "..", "..", "shared", "HDF5IO.jl", "src", "HDF5IO.jl"))
 using .HDF5IO
-include(joinpath(@__DIR__, "preprocess.jl"))
+include(joinpath(@__DIR__, "..", "..", "shared", "WaveformPreprocessing.jl", "src", "WaveformPreprocessing.jl"))
 using .WaveformPreprocessing
 
 # ═══════════════════════════════════════════════════════════════════════════════

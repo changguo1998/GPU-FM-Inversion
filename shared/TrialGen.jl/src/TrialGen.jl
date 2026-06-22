@@ -2,20 +2,20 @@
 Trial generation from strategy parameters (grid expansion).
 Cartesian product of varying axes: strike × dip × rake × depth × freq.
 
-Used by preprocess.jl on each loop iteration.
+Used by preprocess stage on each loop iteration.
 """
 module TrialGen
 
 export generate_trials, TrialSet, GridStrategy
 
 # ─────────────────────────────────────────────────────────
-# Types (minimal subset for trial generation)
+# Types
 # ─────────────────────────────────────────────────────────
 
 """
     GridStrategy
 
-Grid parameters extracted from the full Strategy struct in HDF5IO.jl.
+Grid parameters extracted from the full Strategy struct in `HDF5IO.jl`.
 Contains only the fields needed for trial generation.
 """
 struct GridStrategy
@@ -73,34 +73,18 @@ end
 
 Generate trials as the Cartesian product of varying axes:
 strike (outermost) → dip → rake → depth → freq (innermost).
-
-# Arguments
-- `strategy::GridStrategy`: grid parameters from status file
-- `depth_vals::Vector{Float64}`: actual depth values from database config, indexed by depth_idx
-
-# Returns
-- `TrialSet` with all trial vectors of length `N = nstrike × ndip × nrake × N_depths × N_freqs`
-
-# Grid expansion rules
-- Axis with `n <= 0` → not varying, single value `var0`
-- Empty `depth_indices` → uses `best_depth_index` from strategy
-- Empty `freq_indices` → no frequency variation, uses `Int32(1)`
-- Trial order is deterministic: strike outermost, freq innermost
 """
 function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::TrialSet
-    # Expand SDR axes
     strikes = expand_axis(strategy.strike0, strategy.dstrike, strategy.nstrike)
     dips = expand_axis(strategy.dip0, strategy.ddip, strategy.ndip)
     rakes = expand_axis(strategy.rake0, strategy.drake, strategy.nrake)
 
-    # Depth axis: empty → use best_depth_index
     if isempty(strategy.depth_indices)
         depth_idxs = Int32[strategy.best_depth_index]
     else
         depth_idxs = strategy.depth_indices
     end
 
-    # Freq axis: empty → no variation, single band
     if isempty(strategy.freq_indices)
         freq_idxs = Int32[1]
     else
@@ -115,7 +99,6 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
 
     n_trials = n_strikes * n_dips * n_rakes * n_depths * n_freqs
 
-    # Pre-allocate
     strikes_out = Vector{Float64}(undef, n_trials)
     dips_out    = Vector{Float64}(undef, n_trials)
     rakes_out   = Vector{Float64}(undef, n_trials)
@@ -124,16 +107,14 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
     freq_idx_out  = Vector{Int32}(undef, n_trials)
 
     idx = 1
-    # strike outermost → dip → rake → depth → freq innermost
     for s in strikes
         for d in dips
             for r in rakes
                 for didx in depth_idxs
-                    # Lookup actual depth value with bounds check
-                    if 1 <= didx <= length(depth_vals)
-                        depth_val = depth_vals[didx]
+                    depth_val = if 1 <= didx <= length(depth_vals)
+                        depth_vals[didx]
                     else
-                        depth_val = NaN
+                        NaN
                     end
                     for fidx in freq_idxs
                         strikes_out[idx]   = s

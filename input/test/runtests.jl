@@ -3,9 +3,7 @@ using LinearAlgebra
 using DSP
 using Statistics
 
-# Add the input/src to LOAD_PATH so we can include the module
-push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
-include(joinpath(@__DIR__, "..", "src", "preprocess.jl"))
+include(joinpath(@__DIR__, "..", "..", "shared", "WaveformPreprocessing.jl", "src", "WaveformPreprocessing.jl"))
 using .WaveformPreprocessing
 
 # ─────────────────────────────────────────────────────────

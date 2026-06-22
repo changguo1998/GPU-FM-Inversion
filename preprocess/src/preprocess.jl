@@ -41,7 +41,7 @@ end
 include(joinpath(@__DIR__, "..", "..", "shared", "HDF5IO.jl", "src", "HDF5IO.jl"))
 using .HDF5IO
 
-include(joinpath(@__DIR__, "trial_gen.jl"))
+include(joinpath(@__DIR__, "..", "..", "shared", "TrialGen.jl", "src", "TrialGen.jl"))
 using .TrialGen
 
 # ─────────────────────────────────────────────────────────
