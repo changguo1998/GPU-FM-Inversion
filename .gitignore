@@ -9,4 +9,5 @@ progress.md
 # Stray test outputs at project root
 /Project.toml
 /config.toml
+input.log
 forward/tests/test_cross_lang
