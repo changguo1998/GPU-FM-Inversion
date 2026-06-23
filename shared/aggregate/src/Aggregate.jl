@@ -1,6 +1,8 @@
 module Aggregate
 
-export aggregate_misfits
+using Statistics: std
+
+export aggregate_misfits, compute_depth_range, compute_sdr_std
 
 """
     aggregate_misfits(
@@ -142,3 +144,60 @@ function aggregate_misfits(
 end
 
 end # module
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Uncertainty computation helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+"""
+    compute_depth_range(
+        depth_vals::AbstractVector{Float64},
+        depth_misfit_vec::AbstractVector{Float64},
+        tolerance::Float64=0.05,
+    ) -> Vector{Float64}
+
+Compute depth range by applying tolerance to per-depth misfit.
+
+# Returns
+- `[min_depth, max_depth]` — depths within `tolerance` fraction of the best misfit,
+  or `[NaN, NaN]` if no valid values.
+"""
+function compute_depth_range(
+    depth_vals::AbstractVector{Float64},
+    depth_misfit_vec::AbstractVector{Float64};
+    tolerance::Float64 = 0.05,
+)
+    if isempty(depth_misfit_vec)
+        return [NaN, NaN]
+    end
+    valid = filter(!isnan, depth_misfit_vec)
+    if isempty(valid)
+        return [NaN, NaN]
+    end
+    best_misfit = minimum(valid)
+    threshold = best_misfit * (1.0 + tolerance)
+
+    valid_depths = Float64[]
+    for i in eachindex(depth_misfit_vec)
+        if !isnan(depth_misfit_vec[i]) && depth_misfit_vec[i] <= threshold
+            push!(valid_depths, depth_vals[i])
+        end
+    end
+    return isempty(valid_depths) ? [NaN, NaN] : [minimum(valid_depths), maximum(valid_depths)]
+end
+
+"""
+    compute_sdr_std(freq_accumulated::AbstractMatrix{Float64}) -> (Float64, Float64, Float64)
+
+Compute standard deviation of strike, dip, rake across frequency bands.
+`freq_accumulated` has shape `[N_frequencies, 3]` (columns: strike, dip, rake).
+
+# Returns
+- `(strike_std, dip_std, rake_std)` or `(NaN, NaN, NaN)` if ≤ 1 frequency.
+"""
+function compute_sdr_std(freq_accumulated::AbstractMatrix{Float64})
+    if size(freq_accumulated, 1) <= 1
+        return (NaN, NaN, NaN)
+    end
+    return (std(freq_accumulated[:, 1]), std(freq_accumulated[:, 2]), std(freq_accumulated[:, 3]))
+end

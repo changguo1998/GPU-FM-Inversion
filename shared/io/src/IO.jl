@@ -90,6 +90,9 @@ export read_waveform, read_trials, read_strategy, read_misfits
 export read_greens, read_index
 export write_database, write_trials, write_misfits, write_strategy, write_output
 export _read_group_recursive, _write_group_recursive
+export parse_time_iso, haversine_distance, compute_azimuth
+export extract_station, extract_phase_type
+export find_latest_status
 
 # ─────────────────────────────────────────────────────────
 # Helpers
@@ -463,4 +466,91 @@ function write_output(h5file, solution, uncertainty, per_phase, per_station_summ
     end
 end
 
+"""
+    parse_time_iso(t_str::String) -> Float64
+
+Parse an ISO 8601 datetime string and return seconds since epoch.
+Empty strings return NaN.
+"""
+function parse_time_iso(t_str::String)
+    isempty(t_str) && return NaN
+    return datetime2unix(DateTime(t_str))
+end
+
+"""
+    haversine_distance(lat1, lon1, lat2, lon2) -> Float64
+
+Compute great-circle distance (km) between two points on a sphere
+(Earth radius = 6371 km).
+"""
+function haversine_distance(lat1, lon1, lat2, lon2)
+    R = 6371.0
+    dlat = deg2rad(lat2 - lat1)
+    dlon = deg2rad(lon2 - lon1)
+    a = sin(dlat / 2)^2 + cos(deg2rad(lat1)) * cos(deg2rad(lat2)) * sin(dlon / 2)^2
+    return 2 * R * asin(sqrt(a))
+end
+
+"""
+    compute_azimuth(lat1, lon1, lat2, lon2) -> Float64
+
+Compute azimuth (degrees, 0 = north, clockwise) from point 1 to point 2.
+"""
+function compute_azimuth(lat1, lon1, lat2, lon2)
+    lat1r = deg2rad(lat1)
+    lat2r = deg2rad(lat2)
+    dlon = deg2rad(lon2 - lon1)
+    x = sin(dlon) * cos(lat2r)
+    y = cos(lat1r) * sin(lat2r) - sin(lat1r) * cos(lat2r) * cos(dlon)
+    az = rad2deg(atan(x, y))
+    return mod(az, 360.0)
+end
+
+"""
+    extract_station(phase_id::String) -> String
+
+Extract station key from phase identifier.
+"NET.ST1.Z.P" → "NET.ST1"
+"""
+function extract_station(phase_id::String)
+    parts = split(phase_id, '.')
+    return join(parts[1:2], '.')
+end
+
+"""
+    extract_phase_type(phase_id::String) -> String
+
+Extract phase type from phase identifier.
+"NET.ST1.Z.P" → "P"
+"""
+function extract_phase_type(phase_id::String)
+    parts = split(phase_id, '.')
+    return parts[end]
+end
+
+"""
+    find_latest_status(status_dir::String) -> (filepath::String, iteration::Int)
+
+Find the highest-numbered `status_N.h5` file in a directory.
+Returns `(full_path, N)` or errors if none found.
+"""
+function find_latest_status(status_dir::String)
+    pattern = r"^status_(\d+)\.h5$"
+    max_n = -1
+    latest = ""
+    for entry in readdir(status_dir; join=true)
+        m = match(pattern, basename(entry))
+        if m !== nothing
+            n = parse(Int, m.captures[1])
+            if n > max_n
+                max_n = n
+                latest = entry
+            end
+        end
+    end
+    if max_n == -1
+        error("no status files found in $status_dir")
+    end
+    return (latest, max_n)
+end
 end # module
