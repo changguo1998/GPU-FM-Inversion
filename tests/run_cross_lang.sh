@@ -127,8 +127,8 @@ run_julia_cross_lang() {
     info "running Julia cross‑language test suite…"
     echo ""
 
-    # Uses MTUtils (already a project) and HDF5 (stdlib-ish)
-    if julia --project="$PROJECT_ROOT/shared/MTUtils.jl" "$jl_script"; then
+    # Uses MT (shared/mt) and HDF5 (stdlib-ish)
+    if julia "$jl_script"; then
         pass "Julia cross‑language test suite"
         record_pass
     else

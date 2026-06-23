@@ -1,4 +1,6 @@
-# Module: Waveform Preprocessing
+# Module: Signal (Waveform Preprocessing)
+
+**Location**: `shared/signal/` (Julia package `Signal`)
 
 ## Purpose
 

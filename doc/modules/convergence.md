@@ -1,12 +1,16 @@
 # Module: Grid Refinement & Strategy Update
 
+**Status**: Merged into `doc/modules/trial_gen.md` (now `doc/modules/grid_refinement.md`'s content lives in the Grid module doc). This file kept for reference.
+
 ## Purpose
+
+_Merged into `shared/grid/src/grid_refinement.jl` as part of the `Grid` package._
 
 Compute the next iteration's search grid from current results after each pipeline loop. The pipeline pauses after each iteration — the operator decides whether to continue or stop.
 
 ## Used By
 
-- `assess.jl`
+- `scripts/assess.jl` (via `shared/grid/`)
 
 ## Pause / Continue
 

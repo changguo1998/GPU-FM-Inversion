@@ -1,8 +1,8 @@
-# Stage: `output.jl` — Final Solution Compilation
+# Stage: `scripts/output.jl` — Final Solution Compilation
 
 ## Role
 
-Reads all files produced by prior pipeline stages and compiles the complete focal mechanism solution into `output.h5`. Rearranges, summarizes, and gathers — performs no novel misfit computation.
+Reads all files produced by prior pipeline stages and compiles the complete focal mechanism solution into `output.h5`. Uses `shared/mt/` for SDR→MT conversion and `shared/aggregate/` for misfit re-aggregation. Rearranges, summarizes, and gathers — performs no novel misfit computation.
 
 **Exceptions** (novel computation):
 - **Waveform synthesis** (`GF × MT`): generates synthetic seismograms for QC
@@ -36,8 +36,8 @@ This stage was renamed from `export.jl`.
 ## Tool Stack
 
 - Julia (`HDF5.jl`, `Statistics.jl`, `LinearAlgebra.jl`)
-- `AssessUtils` (shared aggregator from assess stage, for verification)
-- `MTUtils` (shared SDR → MT conversion)
+- `MT` (shared/mt, SDR → MT conversion)
+- `Aggregate` (shared/aggregate, misfit re-aggregation for verification)
 
 ## What It Does NOT Do
 

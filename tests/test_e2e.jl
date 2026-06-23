@@ -3,7 +3,7 @@
 # test_e2e.jl — Verify output.h5 structure for e2e test.
 #
 # Usage:
-#   julia --project=shared/HDF5IO.jl tests/test_e2e.jl <output.h5>
+#   julia tests/test_e2e.jl <output.h5>
 #
 # Checks:
 #   /solution:  strike, dip, rake, depth, misfit, moment_tensor

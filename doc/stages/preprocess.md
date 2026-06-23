@@ -1,8 +1,8 @@
-# Stage: `preprocess.jl` — Trial Generation
+# Stage: `scripts/preprocess.jl` — Trial Generation
 
 ## Role
 
-Runs on every loop iteration. Reads the current search strategy from `status_{N}.h5`, generates trials (Cartesian product of varying axes), and writes the `/trials` group into `status_{N}.h5`.
+Runs on every loop iteration. Reads the current search strategy from `status_{N}.h5`, generates trials via `shared/grid/` (Cartesian product of varying axes), and writes the `/trials` group into `status_{N}.h5`.
 
 This is the per-loop portion of the former `setup.jl`. It is **not** responsible for data preprocessing (filtering, trimming, GF loading) — that is `input.jl`, which runs once.
 

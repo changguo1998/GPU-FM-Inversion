@@ -41,7 +41,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 ## Tool Stack
 
 - Bash (built-in file tests, loops, string parsing)
-- Julia runner (`julia --project=<stage_dir>`)
+- Julia runner (scripts use `include()` for shared packages; helpers use `julia --project=shared/io`)
 - Compiled `forward` binary
 - HDF5 introspection via `julia -e "using HDF5; ..."`
 

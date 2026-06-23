@@ -1,8 +1,8 @@
-# Stage: `assess.jl` — Weighting, Aggregation & Strategy Update
+# Stage: `scripts/assess.jl` — Weighting, Aggregation & Strategy Update
 
 ## Role
 
-Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase masks, aggregates into per-trial scores, refines the search grid, and prompts the operator whether to continue or break.
+Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase masks, aggregates into per-trial scores, refines the search grid using `shared/grid/`, and prompts the operator whether to continue or break.
 
 **Owns all strategy decisions**: module weights, phase/channel selection, grid refinement. `forward.cpp` never applies weights.
 

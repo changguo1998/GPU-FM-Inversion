@@ -4,6 +4,22 @@
 
 CUDA-accelerated pipeline for determining earthquake focal mechanisms through iterative grid search. A 5-stage pipeline: one-time initialization, then a 3-stage loop with GPU-accelerated misfit computation and Julia-based preprocessing, strategy, and output compilation.
 
+## Project Layout
+
+```
+scripts/                    ← Flat stage scripts (one file per stage)
+  input.jl, preprocess.jl, assess.jl, output.jl
+shared/                     ← Julia packages by function (not stage)
+  io/        (module: IO)      ← HDF5 I/O abstractions
+  mt/        (module: MT)      ← SDR ↔ MT conversion
+  grid/      (module: Grid)    ← Trial generation + grid refinement
+  signal/    (module: Signal)  ← Waveform preprocessing (filtering, trimming)
+  aggregate/ (module: Aggregate) ← Misfit masking, weighting, aggregation
+forward/                    ← C++ executable (OpenMP/CUDA), unchanged
+driver.sh                   ← Bash orchestration
+tests/                      ← Test scripts and data
+```
+
 ## Stage Partitioning
 
 ```
@@ -18,6 +34,8 @@ input (once) ──→ loop: [preprocess → forward → assess → [repeat]] �
 | `assess.jl` | Julia | Each loop | Weighting, aggregation, grid refinement, operator prompt → creates `status_{N+1}.h5` (continue) or marks current `status_{N}.h5` converged (break) |
 | `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
 | `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
+
+Stage scripts use `include()` to load shared packages from `shared/` — no `--project` flag needed. The `driver.sh` helper functions that introspect HDF5 use `--project=shared/io` for standalone HDF5 access.
 
 Orchestration detail: `doc/stages/`
 

@@ -36,7 +36,7 @@ echo "========================================================================"
 # ==============================================================================
 echo ""
 echo "[Step 1] Generating synthetic data ..."
-julia --project="$PROJECT_DIR/shared/HDF5IO.jl" \
+julia --project="$PROJECT_DIR/shared/io" \
     "$PROJECT_DIR/tests/synthetic_data.jl" "$DATA_DIR"
 echo "  raw.h5: $(ls -lh "$DATA_DIR/raw.h5" | awk '{print $5}')"
 echo "  config.toml: $(wc -l < "$DATA_DIR/config.toml") lines"
@@ -48,8 +48,8 @@ echo ""
 echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
 (
     cd "$DATA_DIR"
-    julia --project="$PROJECT_DIR/input" \
-        "$PROJECT_DIR/input/src/input.jl" \
+    julia \
+        "$PROJECT_DIR/scripts/input.jl" \
         "$DATA_DIR/raw.h5" "$DATA_DIR/config.toml"
 )
 
@@ -64,11 +64,11 @@ echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
 # ==============================================================================
 echo ""
 echo "[Step 3] preprocess.jl → /trials into status_0.h5 ..."
-julia --project="$PROJECT_DIR/preprocess" \
-    "$PROJECT_DIR/preprocess/src/preprocess.jl" \
+julia \
+    "$PROJECT_DIR/scripts/preprocess.jl" \
     "$DATA_DIR/status_0.h5" "$DATA_DIR/database.h5"
 
-N_TRIALS_0=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+N_TRIALS_0=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_0.h5\", \"r\") do f
         println(length(read(f[\"trials/strike\"])))
@@ -87,7 +87,7 @@ echo "[Step 4] Injecting fake misfits into status_0.h5 ..."
 # Dimensions: 6 phases, 3 stations, 81 trials
 # Place best misfit at trial 14 (strike=45,dip=30,rake=20,depth_idx=2,10km)
 # so depth refinement narrows to depth 2 only, and best SDR = (45,30,20)
-julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e '
+julia --project="$PROJECT_DIR/shared/io" -e '
 using HDF5
 
 fname = "'"$DATA_DIR"'/status_0.h5"
@@ -120,7 +120,7 @@ end
 println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))], psr[$(size(psr))]")
 '
 
-has_xcorr=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+has_xcorr=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_0.h5\", \"r\") do f
         println(haskey(f, \"misfits/xcorr\"))
@@ -134,8 +134,8 @@ has_xcorr=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
 # ==============================================================================
 echo ""
 echo "[Step 5] assess.jl (echo y → continue) ..."
-echo "y" | julia --project="$PROJECT_DIR/assess" \
-    "$PROJECT_DIR/assess/src/assess.jl" \
+echo "y" | julia \
+    "$PROJECT_DIR/scripts/assess.jl" \
     "$DATA_DIR/status_0.h5" "$DATA_DIR/database.h5"
 
 # After refinement, best was (45,30,20) at depth 2 with all other depths poor
@@ -144,7 +144,7 @@ echo "y" | julia --project="$PROJECT_DIR/assess" \
 [[ -f "$DATA_DIR/status_1.h5" ]] && pass "status_1.h5 created" \
     || fail "status_1.h5 missing"
 
-CONVERGED_1=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+CONVERGED_1=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_1.h5\", \"r\") do f
         println(read(f[\"strategy/converged\"]))
@@ -154,7 +154,7 @@ CONVERGED_1=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
     || fail "status_1 converged=$CONVERGED_1, expected 0"
 
 # Verify step sizes decreased
-NEW_DSTRIKE=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+NEW_DSTRIKE=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_1.h5\", \"r\") do f
         println(read(f[\"strategy/dstrike\"]))
@@ -175,11 +175,11 @@ fi
 # ==============================================================================
 echo ""
 echo "[Step 6] preprocess.jl → /trials into status_1.h5 ..."
-julia --project="$PROJECT_DIR/preprocess" \
-    "$PROJECT_DIR/preprocess/src/preprocess.jl" \
+julia \
+    "$PROJECT_DIR/scripts/preprocess.jl" \
     "$DATA_DIR/status_1.h5" "$DATA_DIR/database.h5"
 
-N_TRIALS_1=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+N_TRIALS_1=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_1.h5\", \"r\") do f
         println(length(read(f[\"trials/strike\"])))
@@ -196,7 +196,7 @@ echo ""
 echo "[Step 7] Injecting fake misfits into status_1.h5 ..."
 
 # Iter 1: 3×3×3×1×1 = 27 trials (only 1 depth). Best at trial 14 again.
-julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e '
+julia --project="$PROJECT_DIR/shared/io" -e '
 using HDF5
 
 fname = "'"$DATA_DIR"'/status_1.h5"
@@ -233,14 +233,14 @@ pass "Injected misfits into status_1.h5"
 # ==============================================================================
 echo ""
 echo "[Step 8] assess.jl (echo N → converged) ..."
-echo "N" | julia --project="$PROJECT_DIR/assess" \
-    "$PROJECT_DIR/assess/src/assess.jl" \
+echo "N" | julia \
+    "$PROJECT_DIR/scripts/assess.jl" \
     "$DATA_DIR/status_1.h5" "$DATA_DIR/database.h5"
 
 [[ -f "$DATA_DIR/status_2.h5" ]] && pass "status_2.h5 created" \
     || fail "status_2.h5 missing"
 
-CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
+CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_2.h5\", \"r\") do f
         println(read(f[\"strategy/converged\"]))
@@ -254,8 +254,8 @@ CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/HDF5IO.jl" -e "
 # ==============================================================================
 echo ""
 echo "[Step 9] output.jl → output.h5 ..."
-julia --project="$PROJECT_DIR/output" \
-    "$PROJECT_DIR/output/src/output.jl" \
+julia \
+    "$PROJECT_DIR/scripts/output.jl" \
     "$DATA_DIR/database.h5" --status-dir "$DATA_DIR"
 
 [[ -f "$DATA_DIR/output.h5" ]] && pass "output.h5 created" \
@@ -266,7 +266,7 @@ julia --project="$PROJECT_DIR/output" \
 # ==============================================================================
 echo ""
 echo "[Step 10] Verifying output.h5 structure ..."
-julia --project="$PROJECT_DIR/shared/HDF5IO.jl" \
+julia --project="$PROJECT_DIR/shared/io" \
     "$PROJECT_DIR/tests/test_e2e.jl" \
     "$DATA_DIR/output.h5"
 

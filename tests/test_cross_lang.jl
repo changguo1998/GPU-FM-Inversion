@@ -7,9 +7,10 @@
 # Part 2: HDF5 round‑trip — Julia HDF5IO writes, C++ reads
 # Part 3: Trial format — Julia generates trials, C++ reads
 #
-# Run:  julia --project=shared/MTUtils.jl tests/test_cross_lang.jl
+# Run:  julia tests/test_cross_lang.jl
 
-using MTUtils
+include(joinpath(@__DIR__, "..", "shared", "mt", "src", "MT.jl"))
+using .MT
 using HDF5
 using Random
 
@@ -55,7 +56,7 @@ function test_mt_csv()
     open(csv_path, "w") do io
         write(io, "strike,dip,rake,Mxx,Myy,Mzz,Mxy,Mxz,Myz\n")
         for i in 1:n
-            mt = sdr_to_mt(strikes[i], dips[i], rakes[i])
+            mt = MT.sdr_to_mt(strikes[i], dips[i], rakes[i])
             write(io, join([strikes[i], dips[i], rakes[i],
                             mt[1], mt[2], mt[3], mt[4], mt[5], mt[6]], ','))
             write(io, '\n')

@@ -4,9 +4,10 @@
 #
 # Cross-language verification: Julia MTUtils.sdr_to_mt vs C++ test_mt_to_csv.
 #
-# Run:  julia --project=shared/MTUtils.jl tests/test_mt_consistency.jl
+# Run:  julia tests/test_mt_consistency.jl
 
-using MTUtils
+include(joinpath(@__DIR__, "..", "shared", "mt", "src", "MT.jl"))
+using .MT
 using Random
 
 const TEST_BINARY = joinpath(@__DIR__, "..", "forward", "tests", "test_mt_to_csv")
@@ -31,7 +32,7 @@ function run_test()
 
     for i in 1:n
         s, d, r = strikes[i], dips[i], rakes[i]
-        julia_mt = sdr_to_mt(s, d, r)
+        julia_mt = MT.sdr_to_mt(s, d, r)
 
         cmd = `"$(TEST_BINARY)" $(s) $(d) $(r)`
         lines = readlines(pipeline(cmd))

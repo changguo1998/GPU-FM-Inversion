@@ -1,4 +1,6 @@
-# Module: MT Utils (SDR ↔ MT Conversion)
+# Module: MT (SDR ↔ MT Conversion)
+
+**Location**: `shared/mt/` (Julia package `MT`)
 
 ## Description
 
@@ -34,7 +36,7 @@ Output: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` in NED coordinate system.
 
 ## Interface
 
-**Julia (MTUtils package):**
+**Julia (`MT` module):**
 ```julia
 function sdr_to_mt(strike::Float64, dip::Float64, rake::Float64)::Vector{Float64}
 # Returns 6-element vector. Batch version:

@@ -36,7 +36,7 @@ GPU-accelerated core. Stateless misfit computation: reads preprocessed data + tr
 - C++17 — no external GPU framework dependency
 - **Custom backend dispatch**: thin template layer that compiles to OpenMP `#pragma omp parallel for` on CPU, or CUDA kernel launches on GPU. No Kokkos, no heavyweight abstraction — just `Device<Backend>::parallel_for(n, lambda)`. Only OpenMP and CUDA backends needed; HIP/SYCL not planned.
 - HDF5 C API (no HighFive)
-- SDR → MT conversion (shared with Julia via `MTUtils.jl`)
+- SDR → MT conversion (shared with Julia via `shared/mt/`)
 
 ## Backend Design
 

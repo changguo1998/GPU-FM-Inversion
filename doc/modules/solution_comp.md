@@ -1,22 +1,24 @@
 # Module: Solution Compilation & Uncertainty
 
+**Status**: Inlined into `scripts/output.jl` — no separate module file. Formerly `output/src/solution_comp.jl`.
+
 ## Purpose
 
 Compile final solution from converged pipeline results: best-fit parameters, uncertainties, per-station breakdown.
 
 ## Used By
 
-- `output.jl`
+- `scripts/output.jl` (inlined; formerly `output/src/output.jl`)
 
 ## Operations
 
 ### 1. Best-Fit Verification
 
-Re-aggregate misfits (using `Aggregator` module) and verify best trial matches `/strategy/best_sdr`.
+Re-aggregate misfits (using `Aggregate` module) and verify best trial matches `/strategy/best_sdr`.
 
 ### 2. SDR → MT Conversion
 
-Convert best SDR to moment tensor using `MTUtils`.
+Convert best SDR to moment tensor using `MT`.
 
 ### 3. Frequency Uncertainty
 

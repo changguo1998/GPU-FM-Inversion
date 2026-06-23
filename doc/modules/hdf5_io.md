@@ -1,4 +1,6 @@
-# Module: HDF5 I/O
+# Module: IO (HDF5 I/O)
+
+**Location**: `shared/io/` (Julia package `IO`)
 
 ## Purpose
 

@@ -1,4 +1,6 @@
-# Module: Misfit Aggregator
+# Module: Aggregate (Misfit Aggregation)
+
+**Location**: `shared/aggregate/` (Julia package `Aggregate`)
 
 ## Purpose
 

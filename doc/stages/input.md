@@ -1,8 +1,8 @@
-# Stage: `input.jl` — Data Ingestion & Initialization
+# Stage: `scripts/input.jl` — Data Ingestion & Initialization
 
 ## Role
 
-Runs once at the start of the pipeline (before the main loop). Reads `raw.h5` and `config.toml`, preprocesses all data into `database.h5`, and writes the initial strategy into `status_0.h5`.
+Runs once at the start of the pipeline (before the main loop). Reads `raw.h5` and `config.toml`, preprocesses all data into `database.h5` using `shared/signal/` for filtering/trimming and `shared/io/` for HDF5 I/O, and writes the initial strategy into `status_0.h5`.
 
 This stage replaces the first-run responsibilities of the former `setup.jl`. It does NOT generate trials — that is `preprocess.jl`'s job on each loop iteration.
 
