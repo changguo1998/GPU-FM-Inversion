@@ -33,6 +33,10 @@ This stage was renamed from `export.jl`.
 6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC. Raw waveforms remain in `raw.h5`.
 7. **Write output**: compile all results into `output.h5`
 
+## Script Style
+
+Flat, straight-line script — no `main()` wrapper. Runs top-down. Solution compilation is inline (no separate `solution_comp.jl`). Uses `Aggregate.aggregate_misfits`, `Aggregate.compute_depth_range`, `Aggregate.compute_sdr_std` from `shared/aggregate/`, `MT.sdr_to_mt` from `shared/mt/`, and `IO.find_latest_status` for file discovery.
+
 ## Tool Stack
 
 - Julia (`HDF5.jl`, `Statistics.jl`, `LinearAlgebra.jl`)

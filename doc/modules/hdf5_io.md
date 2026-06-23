@@ -42,6 +42,14 @@ write_output(file, solution, uncertainty, per_phase, per_station_summary, summar
 # Structure helpers
 h5create_group(file, path)
 h5exists(file, path)::Bool
+
+# Geophysics utilities
+parse_time_iso(t_str::String) -> Float64
+haversine_distance(lat1, lon1, lat2, lon2) -> Float64  # km
+compute_azimuth(lat1, lon1, lat2, lon2) -> Float64     # degrees (0=north)
+extract_station(phase_id::String) -> String            # "NET.ST1.Z.P" → "NET.ST1"
+extract_phase_type(phase_id::String) -> String          # "NET.ST1.Z.P" → "P"
+find_latest_status(dir::String) -> (filepath, iteration)
 ```
 
 ## C++ Interface (HDF5 C API)

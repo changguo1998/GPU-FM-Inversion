@@ -28,9 +28,13 @@ This stage replaces the first-run responsibilities of the former `setup.jl`. It 
 4. **Write initial strategy**: initial search grid from config → `/strategy` in `status_0.h5`
 5. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated, ready for `preprocess.jl` to add `/trials`. No config is written to status files — config lives only in `database.h5`.
 
-## Tool Stack
+## Script Style
 
-- Julia (`HDF5.jl`, `DSP.jl` for filtering, `Dates.jl`, `TOML.jl`)
+Flat, straight-line script — no `main()` wrapper. Runs top-down when `include`d or executed.
+
+Tooling functions (time parsing, distance/azimuth computation, phase ID extraction) live in `shared/io/` (module `IO`) and are called as `IO.parse_time_iso`, `IO.haversine_distance`, etc.
+
+- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`, `TOML.jl`)
 - Butterworth bandpass filter (DSP.jl, zero-phase forward-backward)
 - Time-window trimming
 - Green's function loader

@@ -43,6 +43,15 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 | `total` | `[N_trials]` | Weighted misfit per trial |
 | `best_idx` | scalar | Index of trial with minimum total misfit |
 
+## Uncertainty Helpers
+
+Two additional exported functions moved from `scripts/output.jl` during the flatten refactor:
+
+| Function | Input | Output | Purpose |
+|----------|-------|--------|---------|
+| `compute_depth_range` | `depth_vals, depth_misfit_vec; tolerance=0.05` | `[min, max]` or `[NaN, NaN]` | Depths within tolerance fraction of best |
+| `compute_sdr_std` | `freq_accumulated [N_freq × 3]` | `(s_std, d_std, r_std)` | SDR std across frequency bands |
+
 ## Testing Strategy
 
 - Verify aggregation matches hand-computed examples

@@ -32,6 +32,10 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase
    - On break: set `/strategy/converged=1`, `convergence_reason="user"` on current `status_{N}.h5` (no new file)
 7. **Accumulate**: frequency test results, per-depth misfit history
 
+## Script Style
+
+Flat, straight-line script — no `main()` wrapper. Runs top-down. Aggregation uses `Aggregate.aggregate_misfits` from `shared/aggregate/`. Grid refinement and operator prompting come from `shared/grid/`.
+
 ## Tool Stack
 
 - Julia (`HDF5.jl`, `Statistics.jl`, `LinearAlgebra.jl`)
