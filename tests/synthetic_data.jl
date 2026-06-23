@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# synthetic_data.jl — Generate minimal raw.h5 and config.toml for pipeline testing.
+# synthetic_data.jl — Generate minimal raw.h5 and config.jl for pipeline testing.
 #
 # Usage:
 #   julia tests/synthetic_data.jl                          # writes to CWD
@@ -15,8 +15,8 @@ using Dates
 # ── Arguments ──────────────────────────────────────────────────────────────────
 outdir = length(ARGS) > 0 ? ARGS[1] : "."
 mkpath(outdir)
-raw_h5  = joinpath(outdir, "raw.h5")
-cfg_toml = joinpath(outdir, "config.toml")
+raw_h5 = joinpath(outdir, "raw.h5")
+cfg_jl = joinpath(outdir, "config.jl")
 
 # ── Deterministic RNG ─────────────────────────────────────────────────────────
 Random.seed!(42)
@@ -101,57 +101,53 @@ h5open(raw_h5, "w") do file
     end
 end
 
-# ── Write config.toml ─────────────────────────────────────────────────────────
+# ── Write config.jl ───────────────────────────────────────────────────────────
 config = """\
-[misfit]
-modules = ["XCorr", "Polarity", "PSR"]
-module_weights = [0.5, 0.25, 0.25]
-minimum_stations = 2
+# Auto-generated pipeline config for synthetic test event.
+# Loaded by input.jl via include() — Config module already loaded.
 
-[freq_bands]
-bands = [[0.5, 2.0]]
-n_frequencies = 1
+Config.misfit_modules()   = ["XCorr", "Polarity", "PSR"]
+Config.module_weights()   = [0.5, 0.25, 0.25]
+Config.minimum_stations() = 2
 
-[grid]
-strike0 = 45.0
-dstrike = 20.0
-nstrike = 3
-dip0 = 30.0
-ddip = 20.0
-ndip = 3
-rake0 = 0.0
-drake = 20.0
-nrake = 3
+Config.freq_bands() = [(0.5, 2.0)]
 
-[depths]
-values = [5.0, 10.0, 15.0]
-n_depths = 3
+Config.depths() = [5.0, 10.0, 15.0]
 
-[greens]
-gf_dir = "tests/synthetic/"
-model = "synthetic"
+Config.grid_params() = (
+    strike0 = 45.0,
+    dstrike = 20.0,
+    nstrike = 3,
+    dip0    = 30.0,
+    ddip    = 20.0,
+    ndip    = 3,
+    rake0   = 0.0,
+    drake   = 20.0,
+    nrake   = 3,
+)
 
-[xcorr]
-maxlag_factor = 0.5
-filter_order = 4
-P_trim = [-2.0, 5.0]
-S_trim = [-2.0, 5.0]
-select_threshold = 0.5
-deselect_threshold = 0.3
+Config.xcorr_params() = (
+    maxlag_factor      = 0.5,
+    filter_order       = 4,
+    P_trim             = [-2.0, 5.0],
+    S_trim             = [-2.0, 5.0],
+    select_threshold   = 0.5,
+    deselect_threshold = 0.3,
+)
 
-[polarity]
-trim = [0.0, 2.0]
+Config.polarity_params() = (trim = [0.0, 2.0],)
 
-[freq_test]
-max_iter = 3
+Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic",)
+
+Config.freq_test_max_iter() = 3
 """
 
-write(cfg_toml, config)
+write(cfg_jl, config)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 println("Synthetic test data generated in: $(realpath(outdir))")
 println("  raw.h5    — /event, /phase_picks, /stations, /waveforms")
-println("  config.toml — pipeline config (3 stations, 1 freq band, 3 depths, 3×3×3 grid)")
+println("  config.jl — pipeline config (3 stations, 1 freq band, 3 depths, 3x3x3 grid)")
 println("  stations  : $(join(station_ids, ", "))")
 println("  phases    : $(length(ids)) phase-station pairs")
 println("  waveform  : $(n_samples) samples per phase (Float64, RNG seed=42)")

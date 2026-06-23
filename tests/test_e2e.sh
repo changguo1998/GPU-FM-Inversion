@@ -39,7 +39,7 @@ echo "[Step 1] Generating synthetic data ..."
 julia --project="$PROJECT_DIR/shared/io" \
     "$PROJECT_DIR/tests/synthetic_data.jl" "$DATA_DIR"
 echo "  raw.h5: $(ls -lh "$DATA_DIR/raw.h5" | awk '{print $5}')"
-echo "  config.toml: $(wc -l < "$DATA_DIR/config.toml") lines"
+echo "  config.jl: $(wc -l < "$DATA_DIR/config.jl") lines"
 
 # ==============================================================================
 # Step 2: input.jl → database.h5 + status_0.h5
@@ -50,7 +50,7 @@ echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
     cd "$DATA_DIR"
     julia \
         "$PROJECT_DIR/scripts/input.jl" \
-        "$DATA_DIR/raw.h5" "$DATA_DIR/config.toml"
+        "$DATA_DIR/raw.h5" "$DATA_DIR/config.jl"
 )
 
 [[ -f "$DATA_DIR/database.h5" ]] && pass "database.h5 created" \

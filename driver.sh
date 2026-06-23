@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
 DATA_DIR="."
-CONFIG_FILE="$DATA_DIR/config.toml"
+CONFIG_FILE="$DATA_DIR/config.jl"
 DRY_RUN=false
 SYNTHETIC=false
 RAW_H5="$DATA_DIR/raw.h5"
@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --data-dir)
             DATA_DIR="$2"
-            CONFIG_FILE="$DATA_DIR/config.toml"
+            CONFIG_FILE="$DATA_DIR/config.jl"
             RAW_H5="$DATA_DIR/raw.h5"
             DATABASE_H5="$DATA_DIR/database.h5"
             shift 2
@@ -173,9 +173,18 @@ while true; do
 
     # ── Stage 1: input.jl (once, no database.h5) ──────────────────────────────
     if [[ ! -f "$DATABASE_H5" ]]; then
+        # Validate input files exist (script does not check — driver owns validation)
+        if [[ ! -f "$RAW_H5" ]]; then
+            echo "[driver] ERROR: raw.h5 not found: $RAW_H5" >&2
+            exit 1
+        fi
+        if [[ ! -f "$CONFIG_FILE" ]]; then
+            echo "[driver] ERROR: config file not found: $CONFIG_FILE" >&2
+            exit 1
+        fi
         run_stage "input.jl → database.h5 + status_0.h5" \
-            julia --project="$SCRIPT_DIR/input" \
-                "$SCRIPT_DIR/input/src/input.jl" \
+            julia \
+                "$SCRIPT_DIR/scripts/input.jl" \
                 "$RAW_H5" "$CONFIG_FILE"
         if $DRY_RUN; then break; fi
         continue
