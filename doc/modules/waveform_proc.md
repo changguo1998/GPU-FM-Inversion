@@ -31,7 +31,7 @@ Filter, trim, and preprocess observed waveforms and Green's functions for each f
 |--------|-----------|--------|--------|
 | XCorr | Filter/trim waveform pair; store persistent reduction | `obs`, `gf`, `synamp` | active |
 | Polarity | Trim GF to polarity window `[0, t_source]` | `gf_pol`, `obs_pol` | active |
-| PSR | Compute/store P/S observation and any persistent covariance chosen by schema | `amp_P`, `amp_S`, `obs_psr` | active |
+| PSR | Compute/store P/S observation and any persistent covariance chosen by schema | `amp_P`, `amp_S`, `obs_psr` | deferred (pipeline) |
 | AbsShift | Spatial component decomposition | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 | RelShift | Spatial component concatenation | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 | CAP | Cut-and-paste waveform fitting | `obs[3×N]`, `gf[3×N×6]` | **cancelled** |

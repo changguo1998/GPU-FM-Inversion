@@ -29,21 +29,18 @@ Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
-| `misfit_modules` | String | `[N_modules]` | Active modules: `"XCorr"`, `"Polarity"`, `"PSR"` (AbsShift, RelShift deferred; CAP cancelled) |
+| `misfit_modules` | String | `[N_modules]` | Active modules: `"XCorr"`, `"Polarity"` |
 | `module_weights` | Float64 | `[N_modules]` | Initial module weights |
 | `depth_vals` | Float64 | `[N_depths]` | All depth levels |
 | `freq_bands_low` | Float64 | `[N_frequencies]` | Low-cut corner frequencies (Hz) |
 | `freq_bands_high` | Float64 | `[N_frequencies]` | High-cut corner frequencies (Hz) |
 | `minimum_stations` | Int32 | scalar | Minimum stations required |
-| `freq_test_max_iter` | Int32 | scalar | Frequency test max iterations |
 
 Per-module settings in sub-groups (present only when module is in `misfit_modules`):
 
 **`/config/xcorr/`**: `maxlag_factor` (scalar), `filter_order` (Int32), `P_trim` [2], `S_trim` [2], `select_threshold` (scalar), `deselect_threshold` (scalar)
 
 **`/config/polarity/`**: `trim` [2]
-
-**`/config/psr/`**: no required module-specific parameters in v1; PSR uses global frequency bands and preprocessed P/S amplitude windows.
 
 ### `/greens`
 
@@ -62,11 +59,6 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 | | `synamp` | `[6 × 6]` | GF auto-correlation matrix | |
 | Polarity | `gf_pol` | `[N_polarity_samples × 6]` | GF within polarity window. **Only written for P-wave phase_ids.** | active |
 | | `obs_pol` | Float64 | Observed polarity (-1.0, 0.0, +1.0, NaN = unavailable). **Only written for P-wave phase_ids.** | |
-| PSR | `amp_P` | `[6 × 6]` | P-wave amplitude covariance matrix | active |
-| | `amp_S` | `[6 × 6]` | S-wave amplitude covariance matrix | |
-| | `obs_psr` | Float64 | Observed log10(P/S) ratio | |
-
-**Note**: PSR data is stored per P/S phase-pair using key `"{P_phase_id}|{S_phase_id}"` (e.g., `"NET.STA.Z.P|NET.STA.Z.S"`), not under a single `phase_id`.
 | AbsShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
 | | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
 | RelShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |

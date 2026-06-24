@@ -35,7 +35,7 @@ input (once) ──→ loop: [preprocess → forward → assess → [repeat]] �
 | `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
 | `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
 
-Stage scripts use `include()` to load shared packages from `shared/` — no `--project` flag needed. The `driver.sh` helper functions that introspect HDF5 use `--project=shared/io` for standalone HDF5 access.
+Stage scripts use `include()` to load shared packages from `shared/` — no `--project` flag needed. HDF5 state detection delegated to assess.jl (exit code signaling) — driver.sh does not introspect HDF5.
 
 Orchestration detail: `doc/stages/`
 
@@ -105,7 +105,7 @@ config.jl ───────────► input.jl (once) ──► databas
 1. **`forward.cpp` is stateless** — reads preprocessed data + trial params, writes raw misfits. No weighting, no aggregation, no strategy knowledge.
 2. **`assess.jl` owns all strategy** — weights, phase selection, grid refinement, and operator prompt for continue/break.
 3. **All frequency-band variants precomputed upfront** in `database.h5`. No runtime filtering.
-4. **Misfits are unweighted** — weights applied in assess. XCorr: `[N_ph × N_tr]` (phase-level). Polarity: `[N_ch × N_tr]` (channel-level, P-polarity per channel). PSR: `[N_ch × N_tr]` (channel-level, P/S ratio per channel).
+4. **Misfits are unweighted** — weights applied in assess. XCorr: `[N_ph × N_tr]` (phase-level). Polarity: `[N_ch × N_tr]` (channel-level, P-polarity per channel).
 5. **Green's functions pre-computed externally** — loaded by `input.jl`, never computed by the pipeline.
 6. **Linear decomposition** — cross-correlation precomputed on host CPU by `DataCache`: `CC(obs, GF[:,i])` for i=0..5. Per-trial: weighted sum of precomputed CCs on device via kernel.
 7. **Dynamic grid refinement** — `assess.jl` refines grid from results each iteration. Grid axes generate values as `var0 + i*dvar` (start model).
@@ -119,5 +119,5 @@ config.jl ───────────► input.jl (once) ──► databas
 | `N_phases` | Phase entries (channel + wave type: P/S) | 20–60 |
 | `N_depths` | Depth levels for Greens | 10–40 |
 | `N_frequencies` | Frequency band combinations | configurable |
-| `N_modules` | Active misfit modules | 3 (XCorr, Polarity, PSR) |
+| `N_modules` | Active misfit modules | 2 (XCorr, Polarity) |
 | `N_trials` | Trials per iteration | 10–100000 |

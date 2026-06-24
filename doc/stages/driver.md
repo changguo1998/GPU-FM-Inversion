@@ -2,7 +2,7 @@
 
 ## Role
 
-Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. Determines next action by inspecting file state and `/strategy/converged` flag.
+Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. Sequentially runs stages; `assess.jl` signals continue (exit 0) or converged (exit 10).
 
 ## Inputs
 
@@ -22,44 +22,43 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 
 ## Responsibilities
 
-1. **State detection** — inspect HDF5 files and group presence to determine next stage
-2. **Stage invocation** — call `input.jl`, `preprocess.jl`, `forward.cpp`, `assess.jl`, `output.jl` in order
-3. **Loop control** — detect converged flag, loop or break to output
+1. **Stage invocation** — call `input.jl`, `preprocess.jl`, `forward.cpp`, `assess.jl`, `output.jl` in order
+2. **Loop control** — run preprocess→forward→assess repeatedly until assess exits with code 10 (converged)
+3. **File-level checks** — check `database.h5` existence (triggers input once). All state detection is delegated to assess.jl.
 4. **Error handling** — stop on failure, report error to stderr
 
 ## Pipeline Stage Detection
 
-| File State | Action |
+| Condition | Action |
 |-----------|--------|
 | No `database.h5` | Run `input.jl` (once, with `config.jl`) |
-| `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
-| `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
-| `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
-| `status_{N}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
+| `database.h5` exists | Loop: `preprocess.jl` → `forward.cpp` → `assess.jl` indefinitely |
+| `assess.jl` exit code 10 | Break loop → run `output.jl` |
+
+All HDF5 group-level state detection (trials/misfits existence, converged flag) is handled by `assess.jl` internally. The driver only checks `database.h5` file existence.
 
 ## Tool Stack
 
 - Bash (built-in file tests, loops, string parsing)
 - Julia runner (scripts use `include()` for shared packages; helpers use `julia --project=shared/io`)
 - Compiled `forward` binary
-- HDF5 introspection via `julia -e "using HDF5; ..."`
+
 
 ## CLI
 
 ```
-bash driver.sh --data-dir <dir> [--dry-run]
+bash driver.sh --data-dir <dir>
 ```
 
 - `--data-dir <dir>` (required): data directory; holds `config.jl`, `database.h5`, `output.h5`; contains `status/` subdir with `status_{N}.h5` files
-- `--dry-run`: print stages without executing
 
 ## Key Decisions
 
 - **Bootstrapping**: Config passed only to `input.jl`. Subsequent runs read strategy from `status_{N}.h5`.
-- **Resume**: Re-running driver picks up from current state based on file/group existence.
-- **Convergence**: `assess.jl` prompts operator; on continue, creates `status_{N+1}.h5` with refined strategy (converged=0). On break, sets `/strategy/converged=1` on the **current** `status_{N}.h5` — no new file is created. Driver checks the latest status file for the converged flag to break to output.
+- **Resume**: Re-running driver picks up from current state. `database.h5` exists → skips input. Assess.jl checks iteration state internally.
+- **Convergence**: `assess.jl` prompts operator; on continue exit 0 → creates `status_{N+1}.h5` with refined strategy (converged=0). On break exit 10 → sets `/strategy/converged=1` on the **current** `status_{N}.h5` — no new file is created. Driver tests exit code to break to output.
 
 ## What It Does NOT Do
 
 - Does NOT compute anything — pure orchestration
-- Does NOT generate or modify HDF5 data — only reads `/strategy/converged` for loop control and checks file/group existence
+- Does NOT generate or modify HDF5 data — only checks whether `database.h5` exists

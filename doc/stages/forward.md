@@ -75,8 +75,9 @@ Kernel functions in `namespace fm` are templates parameterized on `Backend B`. S
 
 1. Framework: main(), HDF5 I/O, trial reading + DataCache + misfit writing (all inline in main.cpp)
 2. XCorr kernel (most complex — validates full pipeline)
-3. Polarity + PSR kernels
-4. AbsShift + RelShift (deferred). CAP, FFT-based XCorr — cancelled.
+3. Polarity kernel
+4. PSR kernel (present in C++ code, but not used at pipeline level — database.h5 has no PSR data)
+5. AbsShift + RelShift (deferred). CAP, FFT-based XCorr — cancelled.
 
 ## What It Does NOT Do
 

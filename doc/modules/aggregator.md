@@ -17,11 +17,11 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 |--------|-------|-------|
 | `xcorr` | `[N_phases × N_trials]` | phase |
 | `polarity` | `[N_channels × N_trials]` | channel P-polarity |
-| `psr` | `[N_channels × N_trials]` | channel P/S ratio |
+| `psr` (optional) | `[N_channels × N_trials]` | channel P/S ratio, zeros if absent |
 | `xcorr_phase_mask` | `[N_phases]` | XCorr mask |
 | `polarity_channel_mask` | `[N_channels]` | Polarity mask |
 | `psr_channel_mask` | `[N_channels]` | PSR mask |
-| `module_weights` | `[N_modules]` | scalar per module |
+| `module_weights` | `[2]` or `[3]` | scalar per module (2: XCorr+Polarity, 3: +PSR) |
 
 ## Processing Steps
 
