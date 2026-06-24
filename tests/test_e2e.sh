@@ -50,7 +50,7 @@ echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
     cd "$DATA_DIR"
     julia \
         "$PROJECT_DIR/scripts/input.jl" \
-        "$DATA_DIR/raw.h5" "$DATA_DIR/config.jl"
+        "$DATA_DIR/config.jl"
 )
 
 [[ -f "$DATA_DIR/database.h5" ]] && pass "database.h5 created" \

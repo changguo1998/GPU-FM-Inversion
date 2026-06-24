@@ -110,6 +110,8 @@ Config.misfit_modules()   = ["XCorr", "Polarity", "PSR"]
 Config.module_weights()   = [0.5, 0.25, 0.25]
 Config.minimum_stations() = 2
 
+Config.data_file() = joinpath(@__DIR__, "raw.h5")
+
 Config.freq_bands() = [(0.5, 2.0)]
 
 Config.depths() = [5.0, 10.0, 15.0]
@@ -146,8 +148,8 @@ write(cfg_jl, config)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 println("Synthetic test data generated in: $(realpath(outdir))")
-println("  raw.h5    — /event, /phase_picks, /stations, /waveforms")
-println("  config.jl — pipeline config (3 stations, 1 freq band, 3 depths, 3x3x3 grid)")
+println("  data file  — raw.h5 (/event, /phase_picks, /stations, /waveforms)")
+println("  config.jl  — pipeline config (3 stations, 1 freq band, 3 depths, 3x3x3 grid)")
 println("  stations  : $(join(station_ids, ", "))")
 println("  phases    : $(length(ids)) phase-station pairs")
 println("  waveform  : $(n_samples) samples per phase (Float64, RNG seed=42)")
