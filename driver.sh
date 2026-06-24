@@ -85,7 +85,7 @@ find_latest_n() {
 h5_group_exists() {
     local file="$1"
     local path="$2"
-    julia --project="$SCRIPT_DIR/shared/io" -e "
+    julia --project="$SCRIPT_DIR" -e "
         using HDF5
         function hasgroup(fname, p)
             if !isfile(fname); println(\"false\"); return; end
@@ -113,7 +113,7 @@ h5_group_exists() {
 # Read /strategy/converged value from an HDF5 file
 h5_read_converged() {
     local file="$1"
-    julia --project="$SCRIPT_DIR/shared/io" -e "
+    julia --project="$SCRIPT_DIR" -e "
         using HDF5
         if !isfile(\"$file\"); println(\"notfound\"); return; end
         h5open(\"$file\", \"r\") do f
@@ -193,7 +193,7 @@ while true; do
     if [[ "$converged_val" =~ ^1 ]]; then
         echo "[driver] Converged=1 detected in status_${N}.h5"
         run_stage "output.jl → output.h5" \
-            julia --project="$SCRIPT_DIR/output" \
+            julia --project="$SCRIPT_DIR" \
             "$SCRIPT_DIR/output/src/output.jl" \
             "$DATABASE_H5" --status-dir "$STATUS_DIR"
         break
@@ -204,7 +204,7 @@ while true; do
     if [[ "$has_misfits" == "true" ]]; then
         NEXT_N=$((N + 1))
         run_stage "assess.jl → status_${NEXT_N}.h5" \
-            julia --project="$SCRIPT_DIR/assess" \
+            julia --project="$SCRIPT_DIR" \
             "$SCRIPT_DIR/assess/src/assess.jl" \
             "$SRC_STATUS" "$DATABASE_H5"
         if $DRY_RUN; then
@@ -225,7 +225,7 @@ while true; do
 
     # ── Stage 2: preprocess.jl (has /strategy, no /trials) ────────────────────
     run_stage "preprocess.jl → /trials into status_${N}.h5" \
-        julia --project="$SCRIPT_DIR/preprocess" \
+        julia --project="$SCRIPT_DIR" \
         "$SCRIPT_DIR/preprocess/src/preprocess.jl" \
         "$SRC_STATUS" "$DATABASE_H5"
     if $DRY_RUN; then break; fi
