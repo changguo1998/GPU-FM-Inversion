@@ -5,15 +5,14 @@
 # Each function MUST be implemented — if one is missing, you'll
 # get a ConfigError at startup telling you exactly what to define.
 #
-# The Config module is loaded by input.jl before this file is included.
-# When running standalone for validation, uncomment the include/using block.
+# The Config module is loaded by input.jl (via `using Config`) before this file.
+# When running standalone for validation, uncomment the using block.
 #
 # Usage:
-#   julia scripts/input.jl config_sample.jl
+#   julia --project=. scripts/input.jl config_sample.jl
 
-# (Uncomment the two lines below only for standalone validation)
-# include("shared/config/src/Config.jl")
-# using .Config
+# (Uncomment only for standalone validation)
+# using Config
 
 # ── External data file ──────────────────────────────────────
 # Path to HDF5 file with event info, station metadata,
