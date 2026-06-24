@@ -57,6 +57,9 @@ if [[ ! -d "$DATA_DIR" ]]; then
     exit 1
 fi
 
+STATUS_DIR="$DATA_DIR/status"
+mkdir -p "$STATUS_DIR"
+
 # ==============================================================================
 # Helper functions
 # ==============================================================================
@@ -64,7 +67,7 @@ fi
 # Find the latest status_{N}.h5 file and return N (or -1 if none found)
 find_latest_n() {
     local max_n=-1
-    for f in "$DATA_DIR"/status_*.h5; do
+    for f in "$STATUS_DIR"/status_*.h5; do
         [[ -f "$f" ]] || continue
         local basename_f
         basename_f=$(basename "$f")
@@ -166,9 +169,12 @@ while true; do
             exit 1
         fi
         run_stage "input.jl → database.h5 + status_0.h5" \
-            julia \
-            "$SCRIPT_DIR/scripts/input.jl" \
-            "$CONFIG_FILE"
+            sh -c 'cd "$0" && julia "$1" "$2"' \
+            "$DATA_DIR" "$SCRIPT_DIR/scripts/input.jl" "$CONFIG_FILE"
+        # Move status_0.h5 from data dir to status dir
+        if [[ -f "$DATA_DIR/status_0.h5" ]]; then
+            mv "$DATA_DIR/status_0.h5" "$STATUS_DIR/"
+        fi
         if $DRY_RUN; then break; fi
         continue
     fi
@@ -179,7 +185,7 @@ while true; do
         echo "[driver] ERROR: database.h5 exists but no status_N.h5 found." >&2
         exit 1
     fi
-    SRC_STATUS="$DATA_DIR/status_${N}.h5"
+    SRC_STATUS="$STATUS_DIR/status_${N}.h5"
 
     # ── Check converged flag on LATEST status file ────────────────────────────
     # After assess writes status_{N+1} with converged=1, it becomes the latest.
@@ -189,7 +195,7 @@ while true; do
         run_stage "output.jl → output.h5" \
             julia --project="$SCRIPT_DIR/output" \
             "$SCRIPT_DIR/output/src/output.jl" \
-            "$DATABASE_H5" --status-dir "$DATA_DIR"
+            "$DATABASE_H5" --status-dir "$STATUS_DIR"
         break
     fi
 
