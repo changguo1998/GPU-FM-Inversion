@@ -11,28 +11,28 @@ Usage:
 =#
 
 using HDF5
+# ═══════════════════════════════════════════════════════════════════════════════
+# Logging: uses shared StageLog module, writes to both stdout and preprocess.log
+# ═══════════════════════════════════════════════════════════════════════════════
+
+include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
+using .StageLog
+
+StageLog.setup_logger!("preprocess", "preprocess.log")
 
 # ─────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────
 
 if length(ARGS) < 1
-    println(stderr, "Usage: julia scripts/preprocess.jl <status_N.h5> [database.h5]")
+    @error "Usage: julia scripts/preprocess.jl <status_N.h5> [database.h5]"
     exit(1)
 end
 
 status_file = ARGS[1]
 database_file = length(ARGS) >= 2 ? ARGS[2] : nothing
 
-if !isfile(status_file)
-    println(stderr, "Error: status file not found: $status_file")
-    exit(1)
-end
-
-if database_file !== nothing && !isfile(database_file)
-    println(stderr, "Error: database file not found: $database_file")
-    exit(1)
-end
+# (file existence validated by driver.sh)
 
 # ─────────────────────────────────────────────────────────
 # Include modules
@@ -50,7 +50,7 @@ using .Grid
 # ─────────────────────────────────────────────────────────
 
 strategy = IO.read_strategy(status_file)
-println("Read strategy from $status_file (iteration $(strategy.iteration))")
+@info "Read strategy from $status_file (iteration $(strategy.iteration))"
 
 # ─────────────────────────────────────────────────────────
 # Extract GridStrategy from IO.Strategy
@@ -79,12 +79,12 @@ if database_file !== nothing && IO.h5exists(database_file, "config/depth_vals")
     depth_vals = h5open(database_file, "r") do f
         read(f["config/depth_vals"])
     end
-    println("Read $(length(depth_vals)) depth values from database.h5")
+    @info "Read $(length(depth_vals)) depth values from database.h5"
 else
     # Fallback: use 1:max_index as synthetic depth values
     max_idx = isempty(grid.depth_indices) ? grid.best_depth_index : maximum(grid.depth_indices)
     depth_vals = collect(Float64, 1:max(max_idx, 1))
-    println("Using synthetic depth values [1:$max_idx] (no database.h5 provided)")
+    @info "Using synthetic depth values [1:$max_idx] (no database.h5 provided)"
 end
 
 # ─────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ n_d = max(grid.ndip, 1)
 n_r = max(grid.nrake, 1)
 n_depth = max(length(grid.depth_indices), 1)
 n_freq = max(length(grid.freq_indices), 1)
-println("Generated $nt trials ($n_s strikes × $n_d dips × $n_r rakes × $n_depth depths × $n_freq freqs)")
+@info "Generated $nt trials ($n_s strikes × $n_d dips × $n_r rakes × $n_depth depths × $n_freq freqs)"
 
 # ─────────────────────────────────────────────────────────
 # Convert Grid.TrialSet → IO.TrialSet and write
@@ -114,4 +114,4 @@ hdf5_trials = IO.TrialSet(
 )
 
 IO.write_trials(status_file, hdf5_trials)
-println("Written /trials to $status_file ($nt trials)")
+@info "Written /trials to $status_file ($nt trials)"

@@ -16,31 +16,13 @@ using Dates
 using Random
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: writes to both stdout and input.log
+# Logging: uses shared StageLog module, writes to both stdout and input.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
-const LOG_FILE = open("input.log", "w")
+include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
+using .StageLog
 
-function log_info(msg::String)
-    line = "[input] $(msg)"
-    println(line)
-    println(LOG_FILE, line)
-    flush(LOG_FILE)
-end
-
-function log_warn(msg::String)
-    line = "[input] WARN: $(msg)"
-    println(stderr, line)
-    println(LOG_FILE, line)
-    flush(LOG_FILE)
-end
-
-function log_error(msg::String)
-    line = "[input] ERROR: $(msg)"
-    println(stderr, line)
-    println(LOG_FILE, line)
-    flush(LOG_FILE)
-end
+StageLog.setup_logger!("input", "input.log")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Load shared modules
@@ -65,17 +47,17 @@ raw_path   = ARGS[1]
 config_jl  = ARGS[2]
 
 # ── Log header ──
-log_info("─"^70)
-log_info("input stage started")
-log_info("  raw.h5   = $raw_path")
-log_info("  config   = $config_jl")
-log_info("  log file = input.log")
+@info "─"^70
+@info "input stage started"
+@info "  raw.h5   = $raw_path"
+@info "  config   = $config_jl"
+@info "  log file = input.log"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. Load config (user script defines Config.* interface functions)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Loading config: $config_jl")
+@info "Loading config: $config_jl"
 include(abspath(config_jl))  # defines Config.misfit_modules(), Config.grid_params(), …
 
 # ── Read config values via interface ──
@@ -93,17 +75,17 @@ freq_test_maxiter = Config.freq_test_max_iter()
 n_frequencies = length(freq_bands)
 n_depths      = length(depths)
 
-log_info("Config loaded")
-log_info("  misfit_modules   = $misfit_modules")
-log_info("  module_weights   = $module_weights")
-log_info("  freq_bands       = $freq_bands")
-log_info("  depths           = $depths")
+@info "Config loaded"
+@info "  misfit_modules   = $misfit_modules"
+@info "  module_weights   = $module_weights"
+@info "  freq_bands       = $freq_bands"
+@info "  depths           = $depths"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. Read raw.h5
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Reading raw.h5 …")
+@info "Reading raw.h5 …"
 event    = IO.read_event(raw_path)
 picks    = IO.read_phase_picks(raw_path)
 stations = IO.read_stations(raw_path)
@@ -113,15 +95,15 @@ station_to_idx = Dict(pick.station_id => i for (i, pick) in enumerate(picks))
 n_phases          = length(stations)
 n_stations_picks  = length(picks)
 
-log_info("  event      = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))")
-log_info("  phases     = $n_phases")
-log_info("  stations   = $n_stations_picks")
+@info "  event      = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))"
+@info "  phases     = $n_phases"
+@info "  stations   = $n_stations_picks"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. Build /index
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Building index …")
+@info "Building index …"
 
 phase_ids   = [s.id for s in stations]
 phase_types = [IO.extract_phase_type(pid) for pid in phase_ids]
@@ -149,13 +131,13 @@ index = IO.Index(
     distances, azimuths, greens_depth_idx
 )
 
-log_info("  index built ($(length(phase_ids)) phases, $n_depths depths)")
+@info "  index built ($(length(phase_ids)) phases, $n_depths depths)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. Preprocess waveforms
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Preprocessing waveforms …")
+@info "Preprocessing waveforms …"
 
 greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
 data   = Dict{Int, Dict{Symbol, Dict{String, Dict{String, Any}}}}()
@@ -191,7 +173,7 @@ for freq_idx in 1:n_frequencies
     low_cut  = Float64(bnd[1])
     high_cut = Float64(bnd[2])
 
-    log_info("  freq band $freq_idx/$n_frequencies: [$low_cut, $high_cut] Hz")
+    @info "  freq band $freq_idx/$n_frequencies: [$low_cut, $high_cut] Hz"
 
     data[freq_idx] = Dict{Symbol, Dict{String, Dict{String, Any}}}()
     data[freq_idx][:XCorr]    = Dict{String, Dict{String, Any}}()
@@ -324,13 +306,13 @@ for freq_idx in 1:n_frequencies
     end
 end
 
-log_info("  preprocessing complete ($n_frequencies freqs, $(length(misfit_modules)) modules)")
+@info "  preprocessing complete ($n_frequencies freqs, $(length(misfit_modules)) modules)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. Build database config
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Building database config …")
+@info "Building database config …"
 
 db_config = Dict{String, Any}(
     "misfit_modules"     => misfit_modules,
@@ -363,15 +345,15 @@ end
 # 6. Write database.h5
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Writing database.h5 …")
+@info "Writing database.h5 …"
 IO.write_database("database.h5", greens, data, index, db_config)
-log_info("  database.h5 written")
+@info "  database.h5 written"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. Write status_0.h5
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("Writing status_0.h5 …")
+@info "Writing status_0.h5 …"
 
 strategy = IO.Strategy(
     Float64(grid.strike0),
@@ -402,20 +384,18 @@ strategy = IO.Strategy(
 
 h5open("status_0.h5", "w") do f end  # create fresh file
 IO.write_strategy("status_0.h5", strategy)
-log_info("  status_0.h5 written")
+@info "  status_0.h5 written"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
 
-log_info("")
-log_info("Stage complete:")
-log_info("  database.h5  : /greens ($(length(greens)) phases × $n_depths depths)")
-log_info("  database.h5  : /data ($n_frequencies frequencies × $(length(misfit_modules)) modules)")
-log_info("  database.h5  : /config, /index")
-log_info("  status_0.h5  : /strategy (initial grid, no trials)")
-log_info("  Phases: $n_phases | Stations: $n_stations_picks | Depths: $n_depths | Freqs: $n_frequencies")
-log_info("")
-log_info("─"^70)
-
-close(LOG_FILE)
+@info ""
+@info "Stage complete:"
+@info "  database.h5  : /greens ($(length(greens)) phases × $n_depths depths)"
+@info "  database.h5  : /data ($n_frequencies frequencies × $(length(misfit_modules)) modules)"
+@info "  database.h5  : /config, /index"
+@info "  status_0.h5  : /strategy (initial grid, no trials)"
+@info "  Phases: $n_phases | Stations: $n_stations_picks | Depths: $n_depths | Freqs: $n_frequencies"
+@info ""
+@info "─"^70

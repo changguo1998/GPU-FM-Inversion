@@ -4,6 +4,15 @@
 using Printf
 using Statistics: std
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Logging: uses shared StageLog module, writes to both stdout and output.log
+# ═══════════════════════════════════════════════════════════════════════════════
+
+include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
+using .StageLog
+
+StageLog.setup_logger!("output", "output.log")
+
 # ── Load shared modules ──
 SCRIPT_DIR = @__DIR__
 include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
@@ -29,7 +38,7 @@ status_dir, synthesize_waveforms, db_path = let sd = ".", sw = false, dp = ""
         elseif !startswith(a, "--")
             dp = a
         else
-            println(stderr, "Unknown argument: $a")
+            @error "Unknown argument: $a"
             exit(1)
         end
         i += 1
@@ -38,39 +47,37 @@ status_dir, synthesize_waveforms, db_path = let sd = ".", sw = false, dp = ""
 end
 
 if isempty(db_path)
-    println(stderr, "Usage: julia scripts/output.jl <database.h5> [--status-dir <dir>] [--waveforms]")
+    @error "Usage: julia scripts/output.jl <database.h5> [--status-dir <dir>] [--waveforms]"
     exit(1)
 end
-if !isfile(db_path)
-    println(stderr, "ERROR: database file not found: $db_path")
-    exit(1)
 end
+# (driver.sh handles file existence validation)
 
-println("[output] Starting solution compilation")
-println("[output] Database: $(abspath(db_path))")
-println("[output] Status dir: $(abspath(status_dir))")
+@info "Starting solution compilation"
+@info "Database: $(abspath(db_path))"
+@info "Status dir: $(abspath(status_dir))"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Find latest status file
 # ═══════════════════════════════════════════════════════════════════════════════
 
 latest_status, max_n = IO.find_latest_status(status_dir)
-println("[output] Latest status: $latest_status (iteration $max_n)")
+@info "Latest status: $latest_status (iteration $max_n)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Read inputs
 # ═══════════════════════════════════════════════════════════════════════════════
 
-println("[output] Reading final strategy, trials, misfits from $latest_status")
+@info "Reading final strategy, trials, misfits from $latest_status"
 strategy = IO.read_strategy(latest_status)
 trials = IO.read_trials(latest_status)
 misfits = IO.read_misfits(latest_status)
 
-println("[output] Reading index and config from $db_path")
+@info "Reading index and config from $db_path"
 index = IO.read_index(db_path)
 config = IO.read_config(db_path)
 
-println("[output] strategy.converged = $(strategy.converged)")
+@info "strategy.converged = $(strategy.converged)"
 if strategy.converged == 0
     @warn "Final status file has converged=0 — proceeding anyway"
 end
@@ -226,7 +233,7 @@ summary = Dict{String, Any}(
 
 waveforms = nothing
 if synthesize_waveforms
-    println("[output] Synthesizing waveforms (GF × MT)...")
+    @info "Synthesizing waveforms (GF × MT)..."
     best_mt = solution["moment_tensor"]
     best_depth_idx = strategy.best_depth_index
     waveforms = Dict{String, Vector{Float64}}()
@@ -247,7 +254,7 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 
 out_path = joinpath(status_dir, "output.h5")
-println("[output] Writing $out_path ...")
+@info "Writing $out_path ..."
 
 if waveforms !== nothing
     h5open(out_path, "cw") do f
@@ -276,16 +283,17 @@ end
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════════
 
-println("\n" * "="^60)
-println(" OUTPUT COMPLETE")
-println("="^60)
-@printf("  Strike    : %.2f°\n", solution["strike"])
-@printf("  Dip       : %.2f°\n", solution["dip"])
-@printf("  Rake      : %.2f°\n", solution["rake"])
-@printf("  Depth     : %.2f km\n", solution["depth"])
-@printf("  Misfit    : %.6f\n", solution["misfit"])
-println("  Iterations: $(summary["total_iterations"])")
-println("  Trials    : $(summary["total_trials"])")
-println("  Reason    : $(summary["convergence_reason"])")
-println("  Output    : $(abspath(out_path))")
-println("="^60)
+@info ""
+@info "="^60
+@info " OUTPUT COMPLETE"
+@info "="^60
+@info @sprintf("  Strike    : %.2f°", solution["strike"])
+@info @sprintf("  Dip       : %.2f°", solution["dip"])
+@info @sprintf("  Rake      : %.2f°", solution["rake"])
+@info @sprintf("  Depth     : %.2f km", solution["depth"])
+@info @sprintf("  Misfit    : %.6f", solution["misfit"])
+@info "  Iterations: $(summary["total_iterations"])"
+@info "  Trials    : $(summary["total_trials"])"
+@info "  Reason    : $(summary["convergence_reason"])"
+@info "  Output    : $(abspath(out_path))"
+@info "="^60

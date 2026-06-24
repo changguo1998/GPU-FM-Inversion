@@ -2,6 +2,15 @@
 
 using HDF5
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Logging: uses shared StageLog module, writes to both stdout and assess.log
+# ═══════════════════════════════════════════════════════════════════════════════
+
+include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
+using .StageLog
+
+StageLog.setup_logger!("assess", "assess.log")
+
 # ── Load shared modules ────────────────────────────────────────────────────────
 SCRIPT_DIR = @__DIR__
 include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
@@ -16,7 +25,7 @@ using .Grid: refine_strategy, prompt_operator, TrialResult
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if length(ARGS) < 2
-    println(stderr, "Usage: julia scripts/assess.jl <status_N.h5> <database.h5>")
+    @error "Usage: julia scripts/assess.jl <status_N.h5> <database.h5>"
     exit(1)
 end
 
@@ -25,7 +34,7 @@ database_file = ARGS[2]
 
 m = match(r"status_(\d+)\.h5$", basename(status_file))
 if m === nothing
-    println(stderr, "Error: status file must be named status_N.h5")
+    @error "status file must be named status_N.h5"
     exit(1)
 end
 n = parse(Int, m.captures[1])
@@ -44,7 +53,7 @@ xcorr_mat = get(misfits_map, :xcorr, nothing)
 polarity_mat = get(misfits_map, :polarity, nothing)
 psr_mat = get(misfits_map, :psr, nothing)
 if xcorr_mat === nothing || polarity_mat === nothing || psr_mat === nothing
-    println(stderr, "Error: /misfits must contain :xcorr, :polarity, :psr")
+    @error "/misfits must contain :xcorr, :polarity, :psr"
     exit(1)
 end
 
@@ -155,8 +164,8 @@ final_strategy = IO.Strategy(
 if continue_flag
     cp(status_file, next_status_file; force=true)
     IO.write_strategy(next_status_file, final_strategy)
-    println("Wrote ", next_status_file, " (converged=", Int(final_strategy.converged), ")")
+    @info "Wrote $next_status_file (converged=$(Int(final_strategy.converged)))"
 else
     IO.write_strategy(status_file, final_strategy)
-    println("Set converged=1 on ", status_file)
+    @info "Set converged=1 on $status_file"
 end
