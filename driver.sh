@@ -52,7 +52,10 @@ if [[ -z "${DATA_DIR:-}" ]]; then
 fi
 
 # ── Ensure data directory exists ───────────────────────────────────────────────
-mkdir -p "$DATA_DIR"
+if [[ ! -d "$DATA_DIR" ]]; then
+    echo "[driver] ERROR: data directory not found: $DATA_DIR" >&2
+    exit 1
+fi
 
 # ==============================================================================
 # Helper functions
