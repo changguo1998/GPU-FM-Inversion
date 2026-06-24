@@ -9,8 +9,7 @@ module Grid
 
 # Cannot `import IO` — name clashes with Base.IO.
 # Load via PkgId to disambiguate, then alias for use in sub-files.
-const H5IO = Base.require(Base.PkgId(
-    Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
+const H5IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
 
 include("trial_gen.jl")
 include("grid_refinement.jl")

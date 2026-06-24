@@ -98,7 +98,9 @@ function aggregate_misfits(
     active_nan = [all_nan_xc, all_nan_pol]
     n_w >= 3 && push!(active_nan, all_nan_psr)
     if all(active_nan)
-        error("aggregate_misfits: all trials are NaN across all modules — check input data and masks")
+        error(
+            "aggregate_misfits: all trials are NaN across all modules — check input data and masks",
+        )
     end
 
     # ── Apply module weights ──

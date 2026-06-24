@@ -51,7 +51,7 @@ function expand_axis(var0::Float64, dvar::Float64, n::Int32)::Vector{Float64}
     if n <= 0
         return [var0]
     end
-    return [var0 + Float64(i) * dvar for i in 0:(n-1)]
+    return [var0 + Float64(i) * dvar for i in 0:(n - 1)]
 end
 
 # ─────────────────────────────────────────────────────────
@@ -90,11 +90,11 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
     n_trials = n_strikes * n_dips * n_rakes * n_depths * n_freqs
 
     strikes_out = Vector{Float64}(undef, n_trials)
-    dips_out    = Vector{Float64}(undef, n_trials)
-    rakes_out   = Vector{Float64}(undef, n_trials)
-    depths_out  = Vector{Float64}(undef, n_trials)
+    dips_out = Vector{Float64}(undef, n_trials)
+    rakes_out = Vector{Float64}(undef, n_trials)
+    depths_out = Vector{Float64}(undef, n_trials)
     depth_idx_out = Vector{Int32}(undef, n_trials)
-    freq_idx_out  = Vector{Int32}(undef, n_trials)
+    freq_idx_out = Vector{Int32}(undef, n_trials)
 
     idx = 1
     for s in strikes
@@ -107,12 +107,12 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
                         NaN
                     end
                     for fidx in freq_idxs
-                        strikes_out[idx]   = s
-                        dips_out[idx]      = d
-                        rakes_out[idx]     = r
+                        strikes_out[idx] = s
+                        dips_out[idx] = d
+                        rakes_out[idx] = r
                         depth_idx_out[idx] = didx
-                        depths_out[idx]    = depth_val
-                        freq_idx_out[idx]  = fidx
+                        depths_out[idx] = depth_val
+                        freq_idx_out[idx] = fidx
                         idx += 1
                     end
                 end

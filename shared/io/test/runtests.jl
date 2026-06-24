@@ -34,7 +34,11 @@ function make_synthetic_stations()
         write(gr, "longitude", [118.0, 118.0, 117.5])
         write(gr, "elevation", [150.0, 150.0, 200.0])
         write(gr, "dt", [0.01, 0.01, 0.02])
-        write(gr, "begin_time", ["2024-03-15T08:21:00", "2024-03-15T08:21:00", "2024-03-15T08:21:00"])
+        write(
+            gr,
+            "begin_time",
+            ["2024-03-15T08:21:00", "2024-03-15T08:21:00", "2024-03-15T08:21:00"],
+        )
     end
 end
 
@@ -51,9 +55,15 @@ function make_synthetic_status()
 
     # ---- Strategy ----
     strategy = IO.Strategy(
-        120.0, 10.0, 5,   # strike
-        45.0, 5.0, 3,     # dip
-        -90.0, 20.0, 4,   # rake
+        120.0,
+        10.0,
+        5,   # strike
+        45.0,
+        5.0,
+        3,     # dip
+        -90.0,
+        20.0,
+        4,   # rake
         Int32[0, 1, 2],   # depth_indices
         Int32[0, 3],       # freq_indices
         Int32[1, 1, 1, 0, 0, 1],  # xcorr_phase_mask
@@ -128,17 +138,21 @@ function make_synthetic_database()
         ),
     )
 
-    config = Dict{String,Any}(
+    config = Dict{String, Any}(
         "misfit_modules" => ["XCorr"],
         "module_weights" => [1.0],
         "depth_vals" => [5.0, 10.0, 15.0],
         "freq_bands_low" => [0.05, 0.1],
         "freq_bands_high" => [0.5, 1.0],
         "minimum_stations" => Int32(3),
-
-        "xcorr" => Dict("maxlag_factor" => 0.5, "filter_order" => Int32(4),
-                         "P_trim" => [-2.0, 60.0], "S_trim" => [-2.0, 80.0],
-                         "select_threshold" => 0.7, "deselect_threshold" => 0.5),
+        "xcorr" => Dict(
+            "maxlag_factor" => 0.5,
+            "filter_order" => Int32(4),
+            "P_trim" => [-2.0, 60.0],
+            "S_trim" => [-2.0, 80.0],
+            "select_threshold" => 0.7,
+            "deselect_threshold" => 0.5,
+        ),
     )
 
     IO.write_database(fn, greens, data, index, config)
@@ -149,13 +163,18 @@ function make_synthetic_output()
     fn = tmpfile("test_output.h5")
 
     solution = Dict(
-        "strike" => 130.0, "dip" => 50.0, "rake" => -80.0,
-        "depth" => 12.3, "moment_tensor" => [1.0, 2.0, 3.0, 0.5, -0.3, 1.2],
+        "strike" => 130.0,
+        "dip" => 50.0,
+        "rake" => -80.0,
+        "depth" => 12.3,
+        "moment_tensor" => [1.0, 2.0, 3.0, 0.5, -0.3, 1.2],
         "misfit" => 0.023,
     )
 
     uncertainty = Dict(
-        "strike_std" => 5.0, "dip_std" => 3.0, "rake_std" => 7.0,
+        "strike_std" => 5.0,
+        "dip_std" => 3.0,
+        "rake_std" => 7.0,
         "depth_range" => [10.0, 15.0],
         "freq_test_misfit_curve" => rand(2, 3),
     )
@@ -349,7 +368,8 @@ end
     @testset "h5create_group and h5exists" begin
         fn = tmpfile("test_helpers.h5")
         rm(fn; force = true)
-        HDF5.h5open(fn, "w") do f end  # create empty
+        HDF5.h5open(fn, "w") do f
+        end  # create empty
 
         IO.h5create_group(fn, "/a/b/c")
         @test IO.h5exists(fn, "/a")
@@ -372,25 +392,20 @@ end
         @test isnan(mis[:nan_test][1, 1])
         @test isnan(mis[:nan_test][2, 2])
     end
-@testset "recursive config read/write" begin
+    @testset "recursive config read/write" begin
         # Create a database with deep nested config
         fn = tmpfile("test_deep_config.h5")
-        deep_config = Dict{String,Any}(
+        deep_config = Dict{String, Any}(
             "basic" => "value",
-            "level1" => Dict{String,Any}(
-                "level2" => Dict(
-                    "deep_key1" => 42.0,
-                    "deep_key2" => [1.0, 2.0, 3.0],
-                ),
+            "level1" => Dict{String, Any}(
+                "level2" => Dict("deep_key1" => 42.0, "deep_key2" => [1.0, 2.0, 3.0]),
                 "shallow" => Int32(7),
             ),
         )
         # Build minimal greens/data/index for write_database
         greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
         data = Dict{Int, Dict{Symbol, Dict{String, Any}}}()
-        index = IO.Index(
-            String[], String[], Int32[], Float64[], Float64[], Int32[0;;]
-        )
+        index = IO.Index(String[], String[], Int32[], Float64[], Float64[], Int32[0;;])
         IO.write_database(fn, greens, data, index, deep_config)
 
         cfg = IO.read_config(fn)
@@ -400,7 +415,7 @@ end
         @test cfg["level1"]["level2"]["deep_key1"] ≈ 42.0
         @test cfg["level1"]["level2"]["deep_key2"] ≈ [1.0, 2.0, 3.0]
         @test cfg["level1"]["shallow"] == 7
-        rm(fn; force=true)
+        rm(fn; force = true)
     end
 
     @testset "write_strategy called twice (replacement)" begin
@@ -411,12 +426,30 @@ end
             HDF5.create_group(f, "misfits")
         end
         strat = IO.Strategy(
-            120.0, 10.0, 5, 45.0, 5.0, 3, -90.0, 20.0, 4,
-            Int32[0, 1, 2], Int32[0, 3],
-            Int32[1, 1, 1], Int32[1, 1], Int32[1, 1],
-            [0.5, 0.3, 0.2], [130.0, 50.0, -80.0],
-            Int32(2), 0.023, Int32(3), Int32(0), "running",
-            [1.0 2.0; 3.0 NaN], [0.1 0.2; 0.3 0.4], [0.05, NaN],
+            120.0,
+            10.0,
+            5,
+            45.0,
+            5.0,
+            3,
+            -90.0,
+            20.0,
+            4,
+            Int32[0, 1, 2],
+            Int32[0, 3],
+            Int32[1, 1, 1],
+            Int32[1, 1],
+            Int32[1, 1],
+            [0.5, 0.3, 0.2],
+            [130.0, 50.0, -80.0],
+            Int32(2),
+            0.023,
+            Int32(3),
+            Int32(0),
+            "running",
+            [1.0 2.0; 3.0 NaN],
+            [0.1 0.2; 0.3 0.4],
+            [0.05, NaN],
         )
         # Write first time
         IO.write_strategy(fn, strat)
@@ -425,12 +458,30 @@ end
         @test r1.nstrike == 5
         # Write second time (replacement)
         strat2 = IO.Strategy(
-            200.0, 5.0, 10, 60.0, 3.0, 2, 0.0, 15.0, 6,
-            Int32[3, 4], Int32[1],
-            Int32[0, 1], Int32[0], Int32[0],
-            [0.6, 0.2, 0.2], [200.0, 60.0, 0.0],
-            Int32(3), 0.015, Int32(5), Int32(1), "converged",
-            [5.0;;], [0.05;;], [0.01, 0.02],
+            200.0,
+            5.0,
+            10,
+            60.0,
+            3.0,
+            2,
+            0.0,
+            15.0,
+            6,
+            Int32[3, 4],
+            Int32[1],
+            Int32[0, 1],
+            Int32[0],
+            Int32[0],
+            [0.6, 0.2, 0.2],
+            [200.0, 60.0, 0.0],
+            Int32(3),
+            0.015,
+            Int32(5),
+            Int32(1),
+            "converged",
+            [5.0;;],
+            [0.05;;],
+            [0.01, 0.02],
         )
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
@@ -438,7 +489,7 @@ end
         @test r2.nstrike == 10
         @test r2.converged == 1
         @test r2.convergence_reason == "converged"
-        rm(fn; force=true)
+        rm(fn; force = true)
     end
 
     @testset "write_misfits called twice (replacement)" begin
@@ -457,7 +508,7 @@ end
         mis2 = IO.read_misfits(fn)
         @test length(keys(mis2)) == 1  # only :xcorr, not duplicated
         @test mis2[:xcorr] ≈ data2    # second write values
-        rm(fn; force=true)
+        rm(fn; force = true)
     end
 
 end

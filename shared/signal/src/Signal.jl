@@ -19,9 +19,13 @@ export envelope, rms_amplitude
 
 Apply zero-phase (forward-backward) Butterworth bandpass filter to `x` in-place.
 """
-function bandpass_filter!(x::AbstractVector{Float64}, dt::Float64,
-                           low_cut::Float64, high_cut::Float64;
-                           order::Int=4)
+function bandpass_filter!(
+    x::AbstractVector{Float64},
+    dt::Float64,
+    low_cut::Float64,
+    high_cut::Float64;
+    order::Int = 4,
+)
     fs = 1.0 / dt
     nyquist = fs / 2.0
 
@@ -34,7 +38,7 @@ function bandpass_filter!(x::AbstractVector{Float64}, dt::Float64,
 
     responsetype = Bandpass(low, high)
     designmethod = Butterworth(order)
-    filt = digitalfilter(responsetype, designmethod; fs=fs)
+    filt = digitalfilter(responsetype, designmethod; fs = fs)
 
     n = length(x)
     x[:] = filtfilt(filt, x)
@@ -50,8 +54,14 @@ end
                       arrival_sample::Int, window_factor::Float64, band_high::Float64)
                       -> (obs_trimmed, gf_trimmed)
 """
-function trim_time_window!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
-                            arrival_sample::Int, window_factor::Float64, band_high::Float64)
+function trim_time_window!(
+    obs::Vector{Float64},
+    gf::Matrix{Float64},
+    dt::Float64,
+    arrival_sample::Int,
+    window_factor::Float64,
+    band_high::Float64,
+)
     window_seconds = window_factor / band_high
     half_samples = max(1, round(Int, window_seconds / dt))
 
@@ -68,8 +78,12 @@ end
     trim_to_polarity_window!(gf::Matrix{Float64}, dt::Float64, arrival_sample::Int,
                               t_source::Float64) -> gf_pol
 """
-function trim_to_polarity_window!(gf::Matrix{Float64}, dt::Float64,
-                                   arrival_sample::Int, t_source::Float64)
+function trim_to_polarity_window!(
+    gf::Matrix{Float64},
+    dt::Float64,
+    arrival_sample::Int,
+    t_source::Float64,
+)
     n_samples = max(1, round(Int, t_source / dt))
     n_raw = size(gf, 1)
     start_idx = arrival_sample
@@ -87,23 +101,29 @@ end
                       filter_order=4)
                       -> (obs_proc, gf_proc, synamp, obs_norm2)
 """
-function preprocess_xcorr!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
-                            arrival_sample::Int, low_cut::Float64, high_cut::Float64,
-                            window_factor::Float64; filter_order::Int=4)
+function preprocess_xcorr!(
+    obs::Vector{Float64},
+    gf::Matrix{Float64},
+    dt::Float64,
+    arrival_sample::Int,
+    low_cut::Float64,
+    high_cut::Float64,
+    window_factor::Float64;
+    filter_order::Int = 4,
+)
     obs_filt = copy(obs)
     n_samples, n_comp = size(gf)
     gf_filt = copy(gf)
 
-    bandpass_filter!(obs_filt, dt, low_cut, high_cut; order=filter_order)
+    bandpass_filter!(obs_filt, dt, low_cut, high_cut; order = filter_order)
     for c in 1:n_comp
         col = gf_filt[:, c]
-        bandpass_filter!(col, dt, low_cut, high_cut; order=filter_order)
+        bandpass_filter!(col, dt, low_cut, high_cut; order = filter_order)
         gf_filt[:, c] = col
     end
 
-    obs_proc, gf_proc = trim_time_window!(
-        obs_filt, gf_filt, dt, arrival_sample, window_factor, high_cut
-    )
+    obs_proc, gf_proc =
+        trim_time_window!(obs_filt, gf_filt, dt, arrival_sample, window_factor, high_cut)
 
     synamp = gf_proc' * gf_proc
     obs_norm2 = dot(obs_proc, obs_proc)
@@ -115,9 +135,13 @@ end
     preprocess_polarity!(gf, dt, arrival_sample, t_source, obs_polarity)
                          -> (gf_pol, obs_pol)
 """
-function preprocess_polarity!(gf::Matrix{Float64}, dt::Float64,
-                               arrival_sample::Int, t_source::Float64,
-                               obs_polarity::Int8)
+function preprocess_polarity!(
+    gf::Matrix{Float64},
+    dt::Float64,
+    arrival_sample::Int,
+    t_source::Float64,
+    obs_polarity::Int8,
+)
     gf_pol = trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
     obs_pol_float = if obs_polarity == Int8(-128)
         NaN
@@ -132,11 +156,19 @@ end
                     pre_P_sec, post_P_sec, pre_S_sec, post_S_sec)
                     -> (amp_P, amp_S, obs_psr)
 """
-function preprocess_psr!(obs_P::Vector{Float64}, obs_S::Vector{Float64},
-                          gf_P::Matrix{Float64}, gf_S::Matrix{Float64},
-                          dt::Float64, arrival_P::Int, arrival_S::Int,
-                          pre_P_sec::Float64, post_P_sec::Float64,
-                          pre_S_sec::Float64, post_S_sec::Float64)
+function preprocess_psr!(
+    obs_P::Vector{Float64},
+    obs_S::Vector{Float64},
+    gf_P::Matrix{Float64},
+    gf_S::Matrix{Float64},
+    dt::Float64,
+    arrival_P::Int,
+    arrival_S::Int,
+    pre_P_sec::Float64,
+    post_P_sec::Float64,
+    pre_S_sec::Float64,
+    post_S_sec::Float64,
+)
     amp_P = gf_P' * gf_P
     amp_S = gf_S' * gf_S
 
@@ -177,11 +209,11 @@ function envelope(x::AbstractVector{Float64})
     h = zeros(ComplexF64, n)
     if iseven(n)
         h[1] = 1.0
-        h[2:(n÷2)] .= 2.0
-        h[n÷2+1] = 1.0
+        h[2:(n ÷ 2)] .= 2.0
+        h[n ÷ 2 + 1] = 1.0
     else
         h[1] = 1.0
-        h[2:((n+1)÷2)] .= 2.0
+        h[2:((n + 1) ÷ 2)] .= 2.0
     end
     return abs.(ifft(X .* h))
 end

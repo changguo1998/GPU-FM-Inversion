@@ -26,14 +26,14 @@ tests/                      ← Test scripts and data
 input (once) ──→ loop: [preprocess → forward → assess → [repeat]] ──→ output
 ```
 
-| Stage | Language | Runs | Responsibility |
-|-------|----------|------|----------------|
-| `input.jl` | Julia | Once (before loop) | Data ingestion → `database.h5`; initial strategy → `status_0.h5` |
-| `preprocess.jl` | Julia | Each loop | Trial generation from strategy → `status_{N}.h5` |
-| `forward.cpp` | C++ (OpenMP/CUDA) | Each loop | GPU misfit computation: per-module, per-phase, per-trial. Stateless. No weights. |
-| `assess.jl` | Julia | Each loop | Weighting, aggregation, grid refinement, operator prompt → creates `status_{N+1}.h5` (continue) or marks current `status_{N}.h5` converged (break) |
-| `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
-| `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
+| Stage           | Language          | Runs               | Responsibility                                                                                                                                     |
+|-----------------|-------------------|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `input.jl`      | Julia             | Once (before loop) | Data ingestion → `database.h5`; initial strategy → `status_0.h5`                                                                                   |
+| `preprocess.jl` | Julia             | Each loop          | Trial generation from strategy → `status_{N}.h5`                                                                                                   |
+| `forward.cpp`   | C++ (OpenMP/CUDA) | Each loop          | GPU misfit computation: per-module, per-phase, per-trial. Stateless. No weights.                                                                   |
+| `assess.jl`     | Julia             | Each loop          | Weighting, aggregation, grid refinement, operator prompt → creates `status_{N+1}.h5` (continue) or marks current `status_{N}.h5` converged (break) |
+| `output.jl`     | Julia             | Once (after loop)  | Compile final solution → `output.h5`                                                                                                               |
+| `driver.sh`     | Bash              | Entire run         | Stateless orchestration: file-state detection, stage invocation, loop control                                                                      |
 
 Stage scripts use `include()` to load shared packages from `shared/` — no `--project` flag needed. HDF5 state detection delegated to assess.jl (exit code signaling) — driver.sh does not introspect HDF5.
 
@@ -93,12 +93,12 @@ config.jl ───────────► input.jl (once) ──► databas
 
 ## Data Files
 
-| File | Lifetime | Produced By | Contents |
-|------|----------|-------------|----------|
-| `database.h5` | Static | `input.jl` (first run, once) | All preprocessed data: Greens at all depths, filtered waveform variants, per-module preprocessing, algorithm config |
+| File            | Lifetime      | Produced By                                                                                                      | Contents                                                                                                                                                                                                |
+|-----------------|---------------|------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `database.h5`   | Static        | `input.jl` (first run, once)                                                                                     | All preprocessed data: Greens at all depths, filtered waveform variants, per-module preprocessing, algorithm config                                                                                     |
 | `status_{N}.h5` | Per-iteration | `input.jl` (initial strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence flag) | Workflow file built incrementally: starts with `/strategy` only, then `/trials` and `/misfits` are added. On break, assess sets `/strategy/converged=1`. On continue, assess creates `status_{N+1}.h5`. |
-| `output.h5` | Final | `output.jl` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms |
-| `config.jl` | Bootstrap | User | Misfit module list, frequency bands, depth range, initial grid params |
+| `output.h5`     | Final         | `output.jl`                                                                                                      | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms                                                                                              |
+| `config.jl`     | Bootstrap     | User                                                                                                             | Misfit module list, frequency bands, depth range, initial grid params                                                                                                                                   |
 
 ## Key Design Rules
 
@@ -112,12 +112,12 @@ config.jl ───────────► input.jl (once) ──► databas
 
 ## Dimension Symbols
 
-| Symbol | Description | Typical Value |
-|--------|-------------|---------------|
-| `N_stations` | Stations | 10–30 |
-| `N_channels` | Unique (station, component) pairs | 30–90 |
-| `N_phases` | Phase entries (channel + wave type: P/S) | 20–60 |
-| `N_depths` | Depth levels for Greens | 10–40 |
-| `N_frequencies` | Frequency band combinations | configurable |
-| `N_modules` | Active misfit modules | 2 (XCorr, Polarity) |
-| `N_trials` | Trials per iteration | 10–100000 |
+| Symbol          | Description                              | Typical Value       |
+|-----------------|------------------------------------------|---------------------|
+| `N_stations`    | Stations                                 | 10–30               |
+| `N_channels`    | Unique (station, component) pairs        | 30–90               |
+| `N_phases`      | Phase entries (channel + wave type: P/S) | 20–60               |
+| `N_depths`      | Depth levels for Greens                  | 10–40               |
+| `N_frequencies` | Frequency band combinations              | configurable        |
+| `N_modules`     | Active misfit modules                    | 2 (XCorr, Polarity) |
+| `N_trials`      | Trials per iteration                     | 10–100000           |

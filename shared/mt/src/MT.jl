@@ -69,7 +69,7 @@ Convert multiple strike/dip/rake combinations (degrees) to moment tensors.
 function sdr_to_mt_batch(
     strikes::Vector{Float64},
     dips::Vector{Float64},
-    rakes::Vector{Float64}
+    rakes::Vector{Float64},
 )::Matrix{Float64}
     n = length(strikes)
     @assert length(dips) == n && length(rakes) == n "All input vectors must have the same length"

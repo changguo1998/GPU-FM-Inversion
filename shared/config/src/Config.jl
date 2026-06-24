@@ -35,9 +35,11 @@ struct ConfigError <: Exception
     msg::String
 end
 
-Base.showerror(io::IO, e::ConfigError) = print(io,
+Base.showerror(io::IO, e::ConfigError) = print(
+    io,
     "ConfigError: $(e.func)() is not implemented.\n" *
-    "  Your config script must define:  $(e.func)()  $(e.msg)")
+    "  Your config script must define:  $(e.func)()  $(e.msg)",
+)
 
 # ─────────────────────────────────────────────────────────
 # Interface functions (must be implemented by user config)
@@ -50,8 +52,9 @@ Return the list of active misfit module names.
 Example: `return [\"XCorr\", \"Polarity\"]`
 """
 function misfit_modules()::Vector{String}
-    throw(ConfigError("misfit_modules",
-        "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\"])"))
+    throw(
+        ConfigError("misfit_modules", "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\"])"),
+    )
 end
 
 """
@@ -62,8 +65,7 @@ Must sum to 1.0 (validated by caller).
 Example: `return [0.5, 0.25, 0.25]`
 """
 function module_weights()::Vector{Float64}
-    throw(ConfigError("module_weights",
-        "-> Vector{Float64}  (e.g. return [0.5, 0.25, 0.25])"))
+    throw(ConfigError("module_weights", "-> Vector{Float64}  (e.g. return [0.5, 0.25, 0.25])"))
 end
 
 """
@@ -72,8 +74,7 @@ end
 Minimum station count required for misfit accumulation.
 """
 function minimum_stations()::Int
-    throw(ConfigError("minimum_stations",
-        "-> Int  (e.g. return 2)"))
+    throw(ConfigError("minimum_stations", "-> Int  (e.g. return 2)"))
 end
 
 """
@@ -83,8 +84,12 @@ Return list of (low_cut, high_cut) frequency-band pairs in Hz.
 Example: `return [(0.5, 2.0), (1.0, 4.0)]`
 """
 function freq_bands()::Vector{Tuple{Float64, Float64}}
-    throw(ConfigError("freq_bands",
-        "-> Vector{Tuple{Float64,Float64}}  (e.g. return [(0.5, 2.0), (1.0, 4.0)])"))
+    throw(
+        ConfigError(
+            "freq_bands",
+            "-> Vector{Tuple{Float64,Float64}}  (e.g. return [(0.5, 2.0), (1.0, 4.0)])",
+        ),
+    )
 end
 
 """
@@ -94,8 +99,7 @@ Return list of source depths (km) for Green's function lookup.
 Example: `return [5.0, 10.0, 15.0]`
 """
 function depths()::Vector{Float64}
-    throw(ConfigError("depths",
-        "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
+    throw(ConfigError("depths", "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
 end
 
 """
@@ -122,8 +126,12 @@ Example:
           rake0=0.0, drake=20.0, nrake=3)
 """
 function grid_params()
-    throw(ConfigError("grid_params",
-        "-> NamedTuple (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake)"))
+    throw(
+        ConfigError(
+            "grid_params",
+            "-> NamedTuple (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake)",
+        ),
+    )
 end
 
 """
@@ -147,8 +155,12 @@ Example:
           select_threshold=0.5, deselect_threshold=0.3)
 """
 function xcorr_params()
-    throw(ConfigError("xcorr_params",
-        "-> NamedTuple (maxlag_factor, filter_order, P_trim, S_trim, select_threshold, deselect_threshold)"))
+    throw(
+        ConfigError(
+            "xcorr_params",
+            "-> NamedTuple (maxlag_factor, filter_order, P_trim, S_trim, select_threshold, deselect_threshold)",
+        ),
+    )
 end
 
 """
@@ -163,8 +175,7 @@ Example:
   return (trim=[0.0, 2.0],)
 """
 function polarity_params()
-    throw(ConfigError("polarity_params",
-        "-> NamedTuple (trim=[t_start, t_end])"))
+    throw(ConfigError("polarity_params", "-> NamedTuple (trim=[t_start, t_end])"))
 end
 
 """
@@ -180,8 +191,7 @@ Example:
   return (gf_dir=\"data/greens/\", model=\"iasp91\")
 """
 function greens_params()
-    throw(ConfigError("greens_params",
-        "-> NamedTuple (gf_dir=\"path/\", model=\"name\")"))
+    throw(ConfigError("greens_params", "-> NamedTuple (gf_dir=\"path/\", model=\"name\")"))
 end
 
 """
@@ -193,8 +203,7 @@ phase picks, and raw waveforms. Same schema as the former `raw.h5`.
 Example: `return "data/my_event.h5"`
 """
 function data_file()::String
-    throw(ConfigError("data_file",
-        "-> String  (e.g. return \"data/my_event.h5\")"))
+    throw(ConfigError("data_file", "-> String  (e.g. return \"data/my_event.h5\")"))
 end
 
 end # module

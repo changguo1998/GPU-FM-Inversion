@@ -23,18 +23,18 @@ Random.seed!(42)
 
 # ── 1. /event group ───────────────────────────────────────────────────────────
 event = Dict(
-    "longitude"  => 120.0,
-    "latitude"   => 30.0,
-    "depth"      => 10.0,
-    "magnitude"  => 5.0,
+    "longitude" => 120.0,
+    "latitude" => 30.0,
+    "depth" => 10.0,
+    "magnitude" => 5.0,
     "origintime" => "2024-01-01T00:00:00",
 )
 
 # ── 2. /phase_picks group ────────────────────────────────────────────────────
 station_ids = ["NET.ST1", "NET.ST2", "NET.ST3"]
-P_time      = ["2024-01-01T00:00:10", "2024-01-01T00:00:12", "2024-01-01T00:00:14"]
-S_time      = ["2024-01-01T00:00:18", "2024-01-01T00:00:21", "2024-01-01T00:00:24"]
-P_polarity  = Int8[1, -1, 0]
+P_time = ["2024-01-01T00:00:10", "2024-01-01T00:00:12", "2024-01-01T00:00:14"]
+S_time = ["2024-01-01T00:00:18", "2024-01-01T00:00:21", "2024-01-01T00:00:24"]
+P_polarity = Int8[1, -1, 0]
 
 # ── 3. /stations group ───────────────────────────────────────────────────────
 # Phase key: NET.STn.Z.{P|S}
@@ -48,15 +48,15 @@ station_entries = [
 ]
 
 n_phases = length(station_entries)
-ids      = [e[1] for e in station_entries]
-nets     = ["NET" for _ in 1:n_phases]
-stas     = ["ST1", "ST1", "ST2", "ST2", "ST3", "ST3"]
-comps    = ["Z"  for _ in 1:n_phases]
-lats     = [e[2] for e in station_entries]
-lons     = [e[3] for e in station_entries]
-elevs    = [e[4] for e in station_entries]
-dts      = fill(0.01, n_phases)                # 100 Hz
-begin_t  = ["2024-01-01T00:00:05" for _ in 1:n_phases]
+ids = [e[1] for e in station_entries]
+nets = ["NET" for _ in 1:n_phases]
+stas = ["ST1", "ST1", "ST2", "ST2", "ST3", "ST3"]
+comps = ["Z" for _ in 1:n_phases]
+lats = [e[2] for e in station_entries]
+lons = [e[3] for e in station_entries]
+elevs = [e[4] for e in station_entries]
+dts = fill(0.01, n_phases)                # 100 Hz
+begin_t = ["2024-01-01T00:00:05" for _ in 1:n_phases]
 
 # ── 4. /waveforms group ──────────────────────────────────────────────────────
 n_samples = 2000
@@ -69,29 +69,29 @@ end
 h5open(raw_h5, "w") do file
     # /event
     g_event = create_group(file, "/event")
-    g_event["longitude"]  = event["longitude"]
-    g_event["latitude"]   = event["latitude"]
-    g_event["depth"]      = event["depth"]
-    g_event["magnitude"]  = event["magnitude"]
+    g_event["longitude"] = event["longitude"]
+    g_event["latitude"] = event["latitude"]
+    g_event["depth"] = event["depth"]
+    g_event["magnitude"] = event["magnitude"]
     g_event["origintime"] = event["origintime"]
 
     # /phase_picks
     g_phases = create_group(file, "/phase_picks")
-    g_phases["station_ids"]  = station_ids
-    g_phases["P_time"]       = P_time
-    g_phases["S_time"]       = S_time
-    g_phases["P_polarity"]   = P_polarity
+    g_phases["station_ids"] = station_ids
+    g_phases["P_time"] = P_time
+    g_phases["S_time"] = S_time
+    g_phases["P_polarity"] = P_polarity
 
     # /stations
     g_stations = create_group(file, "/stations")
-    g_stations["id"]         = ids
-    g_stations["network"]    = nets
-    g_stations["station"]    = stas
-    g_stations["component"]  = comps
-    g_stations["latitude"]   = lats
-    g_stations["longitude"]  = lons
-    g_stations["elevation"]  = elevs
-    g_stations["dt"]         = dts
+    g_stations["id"] = ids
+    g_stations["network"] = nets
+    g_stations["station"] = stas
+    g_stations["component"] = comps
+    g_stations["latitude"] = lats
+    g_stations["longitude"] = lons
+    g_stations["elevation"] = elevs
+    g_stations["dt"] = dts
     g_stations["begin_time"] = begin_t
 
     # /waveforms  (one dataset per phase id)

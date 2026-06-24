@@ -13,15 +13,15 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 
 ## Input
 
-| Source | Shape | Level |
-|--------|-------|-------|
-| `xcorr` | `[N_phases × N_trials]` | phase |
-| `polarity` | `[N_channels × N_trials]` | channel P-polarity |
-| `psr` (optional) | `[N_channels × N_trials]` | channel P/S ratio, zeros if absent |
-| `xcorr_phase_mask` | `[N_phases]` | XCorr mask |
-| `polarity_channel_mask` | `[N_channels]` | Polarity mask |
-| `psr_channel_mask` | `[N_channels]` | PSR mask |
-| `module_weights` | `[2]` or `[3]` | scalar per module (2: XCorr+Polarity, 3: +PSR) |
+| Source                  | Shape                     | Level                                          |
+|-------------------------|---------------------------|------------------------------------------------|
+| `xcorr`                 | `[N_phases × N_trials]`   | phase                                          |
+| `polarity`              | `[N_channels × N_trials]` | channel P-polarity                             |
+| `psr` (optional)        | `[N_channels × N_trials]` | channel P/S ratio, zeros if absent             |
+| `xcorr_phase_mask`      | `[N_phases]`              | XCorr mask                                     |
+| `polarity_channel_mask` | `[N_channels]`            | Polarity mask                                  |
+| `psr_channel_mask`      | `[N_channels]`            | PSR mask                                       |
+| `module_weights`        | `[2]` or `[3]`            | scalar per module (2: XCorr+Polarity, 3: +PSR) |
 
 ## Processing Steps
 
@@ -38,19 +38,19 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 
 ## Output
 
-| Output | Shape | Description |
-|--------|-------|-------------|
-| `total` | `[N_trials]` | Weighted misfit per trial |
-| `best_idx` | scalar | Index of trial with minimum total misfit |
+| Output     | Shape        | Description                              |
+|------------|--------------|------------------------------------------|
+| `total`    | `[N_trials]` | Weighted misfit per trial                |
+| `best_idx` | scalar       | Index of trial with minimum total misfit |
 
 ## Uncertainty Helpers
 
 Two additional exported functions moved from `scripts/output.jl` during the flatten refactor:
 
-| Function | Input | Output | Purpose |
-|----------|-------|--------|---------|
+| Function              | Input                                          | Output                       | Purpose                                  |
+|-----------------------|------------------------------------------------|------------------------------|------------------------------------------|
 | `compute_depth_range` | `depth_vals, depth_misfit_vec; tolerance=0.05` | `[min, max]` or `[NaN, NaN]` | Depths within tolerance fraction of best |
-| `compute_sdr_std` | `freq_accumulated [N_freq × 3]` | `(s_std, d_std, r_std)` | SDR std across frequency bands |
+| `compute_sdr_std`     | `freq_accumulated [N_freq × 3]`                | `(s_std, d_std, r_std)`      | SDR std across frequency bands           |
 
 ## Testing Strategy
 

@@ -46,18 +46,18 @@ The caller (assess.jl) prompts the operator and writes the strategy to
 function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
     # ── SDR center ← best trial ────────────────────────
     new_strike0 = best_trial.sdr[1]
-    new_dip0    = best_trial.sdr[2]
-    new_rake0   = best_trial.sdr[3]
+    new_dip0 = best_trial.sdr[2]
+    new_rake0 = best_trial.sdr[3]
 
     # ── Halve step sizes ───────────────────────────────
     new_dstrike = current.dstrike / 2.0
-    new_ddip    = current.ddip / 2.0
-    new_drake   = current.drake / 2.0
+    new_ddip = current.ddip / 2.0
+    new_drake = current.drake / 2.0
 
     # ── Fixed 3×3×3 SDR grid ──────────────────────────
     new_nstrike = Int32(3)
-    new_ndip    = Int32(3)
-    new_nrake   = Int32(3)
+    new_ndip = Int32(3)
+    new_nrake = Int32(3)
 
     # ── Depth subset: within 20% of best depth misfit ──
     best_depth_misfit = best_trial.depth_misfits[best_trial.depth_idx]
@@ -89,15 +89,21 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
     if isempty(current.depth_misfit_accumulated)
         new_depth_misfit_accumulated = copy(best_trial.depth_misfits)
     else
-        new_depth_misfit_accumulated = min.(current.depth_misfit_accumulated,
-                                            best_trial.depth_misfits)
+        new_depth_misfit_accumulated =
+            min.(current.depth_misfit_accumulated, best_trial.depth_misfits)
     end
 
     # ── Build output Strategy ──────────────────────────
     return H5IO.Strategy(
-        new_strike0, new_dstrike, new_nstrike,
-        new_dip0, new_ddip, new_ndip,
-        new_rake0, new_drake, new_nrake,
+        new_strike0,
+        new_dstrike,
+        new_nstrike,
+        new_dip0,
+        new_ddip,
+        new_ndip,
+        new_rake0,
+        new_drake,
+        new_nrake,
         new_depth_indices,
         new_freq_indices,
         copy(current.xcorr_phase_mask),
@@ -128,10 +134,18 @@ continue to the next iteration.
 
 Returns `true` for "y" / "Y", `false` for anything else.
 """
-function prompt_operator(best_sdr, misfit, current::H5IO.Strategy;
-                         io_in::Base.IO=stdin, io_out::Base.IO=stdout)
+function prompt_operator(
+    best_sdr,
+    misfit,
+    current::H5IO.Strategy;
+    io_in::Base.IO = stdin,
+    io_out::Base.IO = stdout,
+)
     println(io_out)
-    println(io_out, "Best SDR: (strike=$(best_sdr[1]), dip=$(best_sdr[2]), rake=$(best_sdr[3])), Misfit=$misfit")
+    println(
+        io_out,
+        "Best SDR: (strike=$(best_sdr[1]), dip=$(best_sdr[2]), rake=$(best_sdr[3])), Misfit=$misfit",
+    )
 
     # ── Format current grid description ────────────────
     parts = String[]

@@ -8,14 +8,14 @@ HDF5 file read/write operations shared across all stages. Provides typed accesso
 
 ## Used By
 
-| Stage | Language | Usage |
-|-------|----------|-------|
-| `input.jl` | Julia | Read external data via config paths, write `database.h5` + `status_0.h5` (strategy only) |
-| `preprocess.jl` | Julia | Read `status_{N}.h5` (strategy), write `status_{N}.h5` (trials) |
-| `forward.cpp` | C++ | Read `database.h5`, read/write `status_{N}.h5` |
-| `assess.jl` | Julia | Read `status_{N}.h5`, `database.h5`, write `status_{N+1}.h5` |
-| `output.jl` | Julia | Read all `status_{*}.h5` + `database.h5`, write `output.h5` |
-| `driver.sh` | Bash | Check dataset/group existence |
+| Stage           | Language | Usage                                                                                    |
+|-----------------|----------|------------------------------------------------------------------------------------------|
+| `input.jl`      | Julia    | Read external data via config paths, write `database.h5` + `status_0.h5` (strategy only) |
+| `preprocess.jl` | Julia    | Read `status_{N}.h5` (strategy), write `status_{N}.h5` (trials)                          |
+| `forward.cpp`   | C++      | Read `database.h5`, read/write `status_{N}.h5`                                           |
+| `assess.jl`     | Julia    | Read `status_{N}.h5`, `database.h5`, write `status_{N+1}.h5`                             |
+| `output.jl`     | Julia    | Read all `status_{*}.h5` + `database.h5`, write `output.h5`                              |
+| `driver.sh`     | Bash     | Check dataset/group existence                                                            |
 
 ## Julia Interface (`HDF5.jl`)
 

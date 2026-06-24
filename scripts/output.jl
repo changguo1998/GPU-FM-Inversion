@@ -23,7 +23,8 @@ status_dir, synthesize_waveforms, db_path = let sd = ".", sw = false, dp = ""
     while i <= length(ARGS)
         a = ARGS[i]
         if a == "--status-dir"
-            i += 1; sd = ARGS[i]
+            i += 1;
+            sd = ARGS[i]
         elseif a == "--waveforms"
             sw = true
         elseif !startswith(a, "--")
@@ -98,16 +99,25 @@ polmask = strategy.polarity_channel_mask
 psrmask = strategy.psr_channel_mask
 n_stations = size(pol, 1)
 
-if length(xmask) < n_phases; xmask = ones(Int32, n_phases); end
-if length(polmask) < n_stations; polmask = ones(Int32, n_stations); end
-if length(psrmask) < n_stations; psrmask = ones(Int32, n_stations); end
+if length(xmask) < n_phases
+    ;
+    xmask = ones(Int32, n_phases);
+end
+if length(polmask) < n_stations
+    ;
+    polmask = ones(Int32, n_stations);
+end
+if length(psrmask) < n_stations
+    ;
+    psrmask = ones(Int32, n_stations);
+end
 
 xcorr_bool = Vector{Bool}(xmask .== Int32(1))
 pol_bool = Vector{Bool}(polmask .== Int32(1))
 psr_bool = Vector{Bool}(psrmask .== Int32(1))
 
-total, best_idx, per_module = Aggregate.aggregate_misfits(
-    xc, pol, psr, xcorr_bool, pol_bool, psr_bool, module_weights)
+total, best_idx, per_module =
+    Aggregate.aggregate_misfits(xc, pol, psr, xcorr_bool, pol_bool, psr_bool, module_weights)
 
 best_strike = trials.strike[best_idx]
 best_dip = trials.dip[best_idx]
@@ -119,8 +129,12 @@ best_misfit = total[best_idx]
 mt = MT.sdr_to_mt(best_strike, best_dip, best_rake)
 
 solution = Dict{String, Any}(
-    "strike" => best_strike, "dip" => best_dip, "rake" => best_rake,
-    "depth" => best_depth, "moment_tensor" => mt, "misfit" => best_misfit,
+    "strike" => best_strike,
+    "dip" => best_dip,
+    "rake" => best_rake,
+    "depth" => best_depth,
+    "moment_tensor" => mt,
+    "misfit" => best_misfit,
 )
 
 # 3. Frequency uncertainty
@@ -132,16 +146,24 @@ freq_misfit_curve = getfield(strategy, :freq_misfit_curve)
 depth_vals_from_config = get(config, "depth_vals", Float64[])
 if isempty(depth_vals_from_config) && haskey(config, "depth")
     dcfg = config["depth"]
-    depth_vals_from_config = if dcfg isa Vector; dcfg
-    elseif dcfg isa Dict && haskey(dcfg, "vals"); dcfg["vals"]
-    else depth_vals_from_config end
+    depth_vals_from_config = if dcfg isa Vector
+        ;
+        dcfg
+    elseif dcfg isa Dict && haskey(dcfg, "vals")
+        ;
+        dcfg["vals"]
+    else
+        depth_vals_from_config
+    end
 end
 depth_misfit_vec = getfield(strategy, :depth_misfit_accumulated)
 depth_range = Aggregate.compute_depth_range(depth_vals_from_config, depth_misfit_vec)
 
 uncertainty = Dict{String, Any}(
-    "strike_std" => strike_std_val, "dip_std" => dip_std_val,
-    "rake_std" => rake_std_val, "depth_range" => depth_range,
+    "strike_std" => strike_std_val,
+    "dip_std" => dip_std_val,
+    "rake_std" => rake_std_val,
+    "depth_range" => depth_range,
     "freq_test_misfit_curve" => freq_misfit_curve,
 )
 
@@ -159,17 +181,26 @@ for ph in 1:n_phases
 end
 for ph in 1:n_phases
     si = station_indices[ph]
-    if 1 <= si <= size(pol, 1); misfit_per_module[2, ph] = pol[si, best_idx]; end
-    if 1 <= si <= size(psr, 1); misfit_per_module[3, ph] = psr[si, best_idx]; end
+    if 1 <= si <= size(pol, 1)
+        ;
+        misfit_per_module[2, ph] = pol[si, best_idx];
+    end
+    if 1 <= si <= size(psr, 1)
+        ;
+        misfit_per_module[3, ph] = psr[si, best_idx];
+    end
 end
 
 selected = length(xmask) < n_phases ? ones(Int32, n_phases) : xmask
 cross_correlation = [1.0 - misfit_per_module[1, ph] for ph in 1:n_phases]
 
 per_phase = Dict{String, Any}(
-    "phase_id" => phase_ids, "channel_id" => channel_ids,
-    "station_id" => station_ids, "phase_type" => phase_types,
-    "misfit_per_module" => misfit_per_module, "selected" => selected,
+    "phase_id" => phase_ids,
+    "channel_id" => channel_ids,
+    "station_id" => station_ids,
+    "phase_type" => phase_types,
+    "misfit_per_module" => misfit_per_module,
+    "selected" => selected,
     "cross_correlation" => cross_correlation,
 )
 
@@ -191,7 +222,10 @@ for sta in unique_stations
     pol_match = 0
     for i in idx_in_sta
         si = station_indices[i]
-        if 1 <= si <= size(pol, 1) && pol[si, best_idx] == 0.0; pol_match += 1; end
+        if 1 <= si <= size(pol, 1) && pol[si, best_idx] == 0.0
+            ;
+            pol_match += 1;
+        end
     end
     total_misfit = 0.0
     for i in idx_in_sta
@@ -209,9 +243,12 @@ for sta in unique_stations
 end
 
 per_station_summary = Dict{String, Any}(
-    "station_id" => sta_ids, "n_channels" => sta_n_ch,
-    "n_phases" => sta_n_ph, "mean_cross_correlation" => sta_cc,
-    "polarity_match" => sta_pol, "misfit_total" => sta_mis,
+    "station_id" => sta_ids,
+    "n_channels" => sta_n_ch,
+    "n_phases" => sta_n_ph,
+    "mean_cross_correlation" => sta_cc,
+    "polarity_match" => sta_pol,
+    "misfit_total" => sta_mis,
 )
 
 # 7. Summary

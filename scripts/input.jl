@@ -46,18 +46,18 @@ include(abspath(config_jl))  # defines Config.misfit_modules(), Config.data_file
 raw_path = Config.data_file()
 @info "  data file = $raw_path"
 
-misfit_modules    = Config.misfit_modules()
-module_weights    = Config.module_weights()
-minimum_stations  = Config.minimum_stations()
-freq_bands        = Config.freq_bands()
-depths            = Config.depths()
-grid              = Config.grid_params()
-xcorr             = Config.xcorr_params()
-polarity          = Config.polarity_params()
-greens_cfg        = Config.greens_params()
+misfit_modules = Config.misfit_modules()
+module_weights = Config.module_weights()
+minimum_stations = Config.minimum_stations()
+freq_bands = Config.freq_bands()
+depths = Config.depths()
+grid = Config.grid_params()
+xcorr = Config.xcorr_params()
+polarity = Config.polarity_params()
+greens_cfg = Config.greens_params()
 
 n_frequencies = length(freq_bands)
-n_depths      = length(depths)
+n_depths = length(depths)
 
 @info "Config loaded"
 @info "  misfit_modules = $misfit_modules"
@@ -70,14 +70,14 @@ n_depths      = length(depths)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Reading external data: $raw_path"
-event    = IO.read_event(raw_path)
-picks    = IO.read_phase_picks(raw_path)
+event = IO.read_event(raw_path)
+picks = IO.read_phase_picks(raw_path)
 stations = IO.read_stations(raw_path)
 
 station_to_idx = Dict(pick.station_id => i for (i, pick) in enumerate(picks))
 
-n_phases          = length(stations)
-n_stations_picks  = length(picks)
+n_phases = length(stations)
+n_stations_picks = length(picks)
 
 @info "  event    = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))"
 @info "  phases   = $n_phases"
@@ -89,7 +89,7 @@ n_stations_picks  = length(picks)
 
 @info "Building index …"
 
-phase_ids   = [s.id for s in stations]
+phase_ids = [s.id for s in stations]
 phase_types = [IO.extract_phase_type(pid) for pid in phase_ids]
 
 station_idx = Int32[]
@@ -99,10 +99,13 @@ for pid in phase_ids
 end
 
 distances = Float64[]
-azimuths  = Float64[]
+azimuths = Float64[]
 for s in stations
-    push!(distances, IO.haversine_distance(event.latitude, event.longitude, s.latitude, s.longitude))
-    push!(azimuths,  IO.compute_azimuth(event.latitude, event.longitude, s.latitude, s.longitude))
+    push!(
+        distances,
+        IO.haversine_distance(event.latitude, event.longitude, s.latitude, s.longitude),
+    )
+    push!(azimuths, IO.compute_azimuth(event.latitude, event.longitude, s.latitude, s.longitude))
 end
 
 greens_depth_idx = Matrix{Int32}(undef, n_phases, n_depths)
@@ -110,10 +113,7 @@ for p in 1:n_phases, d in 1:n_depths
     greens_depth_idx[p, d] = Int32(d)
 end
 
-index = IO.Index(
-    phase_ids, phase_types, station_idx,
-    distances, azimuths, greens_depth_idx
-)
+index = IO.Index(phase_ids, phase_types, station_idx, distances, azimuths, greens_depth_idx)
 
 @info "  index built ($(length(phase_ids)) phases, $n_depths depths)"
 
@@ -124,48 +124,48 @@ index = IO.Index(
 @info "Preprocessing waveforms …"
 
 greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
-data   = Dict{Int, Dict{Symbol, Dict{String, Dict{String, Any}}}}()
+data = Dict{Int, Dict{Symbol, Dict{String, Dict{String, Any}}}}()
 
-maxlag_factor       = xcorr.maxlag_factor
-filter_order        = xcorr.filter_order
-P_trim              = xcorr.P_trim
-S_trim              = xcorr.S_trim
-select_threshold    = xcorr.select_threshold
-deselect_threshold  = xcorr.deselect_threshold
-polarity_trim       = polarity.trim
-t_source            = polarity_trim[2]
-gf_dir              = greens_cfg.gf_dir
+maxlag_factor = xcorr.maxlag_factor
+filter_order = xcorr.filter_order
+P_trim = xcorr.P_trim
+S_trim = xcorr.S_trim
+select_threshold = xcorr.select_threshold
+deselect_threshold = xcorr.deselect_threshold
+polarity_trim = polarity.trim
+t_source = polarity_trim[2]
+gf_dir = greens_cfg.gf_dir
 
 for freq_idx in 1:n_frequencies
-    bnd      = freq_bands[freq_idx]
-    low_cut  = Float64(bnd[1])
+    bnd = freq_bands[freq_idx]
+    low_cut = Float64(bnd[1])
     high_cut = Float64(bnd[2])
 
     @info "  freq band $freq_idx/$n_frequencies: [$low_cut, $high_cut] Hz"
 
     data[freq_idx] = Dict{Symbol, Dict{String, Dict{String, Any}}}()
-    data[freq_idx][:XCorr]    = Dict{String, Dict{String, Any}}()
+    data[freq_idx][:XCorr] = Dict{String, Dict{String, Any}}()
     data[freq_idx][:Polarity] = Dict{String, Dict{String, Any}}()
 
     for (ph_idx, s) in enumerate(stations)
-        pid   = s.id
+        pid = s.id
         ptype = IO.extract_phase_type(pid)
-        dt    = s.dt
+        dt = s.dt
 
-        wf       = IO.read_waveform(raw_path, pid)
+        wf = IO.read_waveform(raw_path, pid)
         n_samples = length(wf)
 
-        skey  = IO.extract_station(pid)
+        skey = IO.extract_station(pid)
         st_idx = get(station_to_idx, skey, 1)
-        pick  = picks[st_idx]
+        pick = picks[st_idx]
 
         begin_unix = IO.parse_time_iso(s.begin_time)
         if ptype == "P"
             pick_unix = IO.parse_time_iso(pick.P_time)
-            trim_cfg  = P_trim
+            trim_cfg = P_trim
         else
             pick_unix = IO.parse_time_iso(pick.S_time)
-            trim_cfg  = S_trim
+            trim_cfg = S_trim
         end
 
         if isnan(begin_unix) || isnan(pick_unix)
@@ -186,42 +186,47 @@ for freq_idx in 1:n_frequencies
                 if isfile(gf_path)
                     gf_mat = h5open(f -> read(f["greens"]), gf_path, "r")
                 else
-                    rng    = Random.MersenneTwister(42 + d_idx + ph_idx)
+                    rng = Random.MersenneTwister(42 + d_idx + ph_idx)
                     gf_raw = randn(rng, n_samples, 6)
-                    decay  = exp.(-(0:n_samples-1) ./ (n_samples / 4))
+                    decay = exp.(-(0:(n_samples - 1)) ./ (n_samples / 4))
                     gf_mat = gf_raw .* decay
                 end
                 greens[pid][didx] = gf_mat
             end
         end
 
-        gf_full      = greens[pid][Int32(1)]
-        pre_sec      = abs(trim_cfg[1])
-        post_sec     = abs(trim_cfg[2])
+        gf_full = greens[pid][Int32(1)]
+        pre_sec = abs(trim_cfg[1])
+        post_sec = abs(trim_cfg[2])
         window_factor = max(pre_sec, post_sec) * high_cut
 
         # ── XCorr preprocessing ──
         if "XCorr" in misfit_modules
             obs_proc, gf_proc, synamp, obs_norm2 = Signal.preprocess_xcorr!(
-                wf, gf_full, dt, arrival_sample,
-                low_cut, high_cut, window_factor;
-                filter_order=filter_order
+                wf,
+                gf_full,
+                dt,
+                arrival_sample,
+                low_cut,
+                high_cut,
+                window_factor;
+                filter_order = filter_order,
             )
             data[freq_idx][:XCorr][pid] = Dict{String, Any}(
-                "obs" => obs_proc, "gf" => gf_proc,
-                "synamp" => synamp, "obs_norm2" => obs_norm2,
+                "obs" => obs_proc,
+                "gf" => gf_proc,
+                "synamp" => synamp,
+                "obs_norm2" => obs_norm2,
             )
         end
 
         # ── Polarity preprocessing ──
         if "Polarity" in misfit_modules && ptype == "P"
             pick_pol = picks[st_idx].P_polarity
-            gf_pol, obs_pol = Signal.preprocess_polarity!(
-                gf_full, dt, arrival_sample, t_source, pick_pol
-            )
-            data[freq_idx][:Polarity][pid] = Dict{String, Any}(
-                "gf_pol" => gf_pol, "obs_pol" => obs_pol,
-            )
+            gf_pol, obs_pol =
+                Signal.preprocess_polarity!(gf_full, dt, arrival_sample, t_source, pick_pol)
+            data[freq_idx][:Polarity][pid] =
+                Dict{String, Any}("gf_pol" => gf_pol, "obs_pol" => obs_pol)
         end
     end
 end
@@ -235,29 +240,27 @@ end
 @info "Building database config …"
 
 db_config = Dict{String, Any}(
-    "misfit_modules"     => misfit_modules,
-    "module_weights"     => module_weights,
-    "depth_vals"         => Float64.(depths),
-    "freq_bands_low"     => Float64[low  for (low, _) in freq_bands],
-    "freq_bands_high"    => Float64[high for (_, high) in freq_bands],
-    "minimum_stations"   => Int32(minimum_stations),
+    "misfit_modules" => misfit_modules,
+    "module_weights" => module_weights,
+    "depth_vals" => Float64.(depths),
+    "freq_bands_low" => Float64[low for (low, _) in freq_bands],
+    "freq_bands_high" => Float64[high for (_, high) in freq_bands],
+    "minimum_stations" => Int32(minimum_stations),
 )
 
 if "XCorr" in misfit_modules
     db_config["xcorr"] = Dict{String, Any}(
-        "maxlag_factor"      => Float64(maxlag_factor),
-        "filter_order"       => Int32(filter_order),
-        "P_trim"             => Float64.(P_trim),
-        "S_trim"             => Float64.(S_trim),
-        "select_threshold"   => Float64(select_threshold),
+        "maxlag_factor" => Float64(maxlag_factor),
+        "filter_order" => Int32(filter_order),
+        "P_trim" => Float64.(P_trim),
+        "S_trim" => Float64.(S_trim),
+        "select_threshold" => Float64(select_threshold),
         "deselect_threshold" => Float64(deselect_threshold),
     )
 end
 
 if "Polarity" in misfit_modules
-    db_config["polarity"] = Dict{String, Any}(
-        "trim" => Float64.(polarity_trim),
-    )
+    db_config["polarity"] = Dict{String, Any}("trim" => Float64.(polarity_trim))
 end
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -303,7 +306,8 @@ strategy = IO.Strategy(
 )
 
 status0_path = joinpath(data_dir, "status_0.h5")
-h5open(status0_path, "w") do f end
+h5open(status0_path, "w") do f
+end
 IO.write_strategy(status0_path, strategy)
 @info "  $status0_path written"
 

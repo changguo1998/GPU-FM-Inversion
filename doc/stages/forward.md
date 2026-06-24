@@ -6,15 +6,15 @@ GPU-accelerated core. Stateless misfit computation: reads preprocessed data + tr
 
 ## Inputs
 
-| Source | Description |
-|--------|-------------|
-| `database.h5` | Preprocessed data (read-only): waveform variants, index, Greens |
-| `status_{N}.h5` | Trials (`/trials` group): parameters + data slice references |
+| Source          | Description                                                     |
+|-----------------|-----------------------------------------------------------------|
+| `database.h5`   | Preprocessed data (read-only): waveform variants, index, Greens |
+| `status_{N}.h5` | Trials (`/trials` group): parameters + data slice references    |
 
 ## Outputs
 
-| Source | Description |
-|--------|-------------|
+| Source          | Description                                                           |
+|-----------------|-----------------------------------------------------------------------|
 | `status_{N}.h5` | Misfits (`/misfits/` group): one dataset per module, raw (unweighted) |
 
 ## Responsibilities

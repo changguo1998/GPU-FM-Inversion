@@ -1,7 +1,15 @@
 module StageLog
 
 import Logging
-using Logging: AbstractLogger, BelowMinLevel, Warn, Error, handle_message, min_enabled_level, shouldlog, global_logger
+using Logging:
+    AbstractLogger,
+    BelowMinLevel,
+    Warn,
+    Error,
+    handle_message,
+    min_enabled_level,
+    shouldlog,
+    global_logger
 
 export StageLogger, setup_logger!
 
@@ -28,7 +36,17 @@ end
 Logging.min_enabled_level(::StageLogger) = BelowMinLevel
 Logging.shouldlog(::StageLogger, args...) = true
 
-function Logging.handle_message(logger::StageLogger, lvl, msg, _mod, group, id, file, line; kwargs...)
+function Logging.handle_message(
+    logger::StageLogger,
+    lvl,
+    msg,
+    _mod,
+    group,
+    id,
+    file,
+    line;
+    kwargs...,
+)
     pfx = lvl == Warn ? "WARN: " : lvl == Error ? "ERROR: " : ""
     line_str = "[$(logger.prefix)] $pfx$msg"
 

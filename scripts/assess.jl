@@ -69,13 +69,15 @@ end
 # Convert Int32 masks to Bool
 # ═══════════════════════════════════════════════════════════════════════════════
 
-xcorr_phase_mask = length(strategy.xcorr_phase_mask) >= N_phases ?
-    Vector{Bool}(strategy.xcorr_phase_mask[1:N_phases] .== Int32(1)) :
-    Vector{Bool}(trues(N_phases))
-polarity_channel_mask = length(strategy.polarity_channel_mask) >= N_stations_pol ?
+xcorr_phase_mask =
+    length(strategy.xcorr_phase_mask) >= N_phases ?
+    Vector{Bool}(strategy.xcorr_phase_mask[1:N_phases] .== Int32(1)) : Vector{Bool}(trues(N_phases))
+polarity_channel_mask =
+    length(strategy.polarity_channel_mask) >= N_stations_pol ?
     Vector{Bool}(strategy.polarity_channel_mask[1:N_stations_pol] .== Int32(1)) :
     Vector{Bool}(trues(N_stations_pol))
-psr_channel_mask = length(strategy.psr_channel_mask) >= N_stations_pol ?
+psr_channel_mask =
+    length(strategy.psr_channel_mask) >= N_stations_pol ?
     Vector{Bool}(strategy.psr_channel_mask[1:N_stations_pol] .== Int32(1)) :
     Vector{Bool}(trues(N_stations_pol))
 
@@ -84,8 +86,12 @@ psr_channel_mask = length(strategy.psr_channel_mask) >= N_stations_pol ?
 # ═══════════════════════════════════════════════════════════════════════════════
 
 total, best_idx, per_module = aggregate_misfits(
-    xcorr_mat, polarity_mat, psr_mat,
-    xcorr_phase_mask, polarity_channel_mask, psr_channel_mask,
+    xcorr_mat,
+    polarity_mat,
+    psr_mat,
+    xcorr_phase_mask,
+    polarity_channel_mask,
+    psr_channel_mask,
     strategy.module_weights,
 )
 
@@ -129,8 +135,12 @@ freq_misfits[isinf.(freq_misfits)] .= NaN
 # ═══════════════════════════════════════════════════════════════════════════════
 
 trial_result = TrialResult(
-    best_sdr, best_depth_idx, best_freq_idx, best_misfit_val,
-    depth_misfits, freq_misfits,
+    best_sdr,
+    best_depth_idx,
+    best_freq_idx,
+    best_misfit_val,
+    depth_misfits,
+    freq_misfits,
 )
 
 next_strategy = refine_strategy(strategy, trial_result)
@@ -140,9 +150,15 @@ converged_val = continue_flag ? Int32(0) : Int32(1)
 converged_reason = continue_flag ? "" : "user"
 
 final_strategy = IO.Strategy(
-    next_strategy.strike0, next_strategy.dstrike, next_strategy.nstrike,
-    next_strategy.dip0, next_strategy.ddip, next_strategy.ndip,
-    next_strategy.rake0, next_strategy.drake, next_strategy.nrake,
+    next_strategy.strike0,
+    next_strategy.dstrike,
+    next_strategy.nstrike,
+    next_strategy.dip0,
+    next_strategy.ddip,
+    next_strategy.ndip,
+    next_strategy.rake0,
+    next_strategy.drake,
+    next_strategy.nrake,
     next_strategy.depth_indices,
     next_strategy.freq_indices,
     next_strategy.xcorr_phase_mask,
@@ -165,7 +181,7 @@ final_strategy = IO.Strategy(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if continue_flag
-    cp(status_file, next_status_file; force=true)
+    cp(status_file, next_status_file; force = true)
     IO.write_strategy(next_status_file, final_strategy)
     @info "Wrote $next_status_file (converged=$(Int(final_strategy.converged)))"
     exit(0)   # signal continue

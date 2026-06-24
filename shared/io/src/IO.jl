@@ -143,8 +143,8 @@ end
 Recursively read an HDF5 group into a nested `Dict{String,Any}`.
 Datasets become their values; subgroups become nested Dicts.
 """
-function _read_group_recursive(gr)::Dict{String,Any}
-    result = Dict{String,Any}()
+function _read_group_recursive(gr)::Dict{String, Any}
+    result = Dict{String, Any}()
     for name in keys(gr)
         obj = gr[name]
         if isa(obj, HDF5.Dataset)
@@ -161,7 +161,7 @@ end
 
 Recursively read `/config` group into a nested Dict.
 """
-function read_config(h5file)::Dict{String,Any}
+function read_config(h5file)::Dict{String, Any}
     return h5open(f -> _read_group_recursive(f["config"]), h5file, "r")
 end
 
@@ -170,16 +170,20 @@ end
 # ─────────────────────────────────────────────────────────
 
 function read_event(h5file)::EventInfo
-    h5open(f -> begin
-        gr = f["event"]
-        EventInfo(
-            read(gr["longitude"]),
-            read(gr["latitude"]),
-            read(gr["depth"]),
-            read(gr["magnitude"]),
-            String(read(gr["origintime"])),
-        )
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["event"]
+            EventInfo(
+                read(gr["longitude"]),
+                read(gr["latitude"]),
+                read(gr["depth"]),
+                read(gr["magnitude"]),
+                String(read(gr["origintime"])),
+            )
+        end,
+        h5file,
+        "r",
+    )
 end
 
 function read_phase_picks(h5file)::Vector{PhasePick}
@@ -194,21 +198,35 @@ function read_phase_picks(h5file)::Vector{PhasePick}
 end
 
 function read_stations(h5file)::Vector{StationInfo}
-    h5open(f -> begin
-        gr = f["stations"]
-        ids = [String(x) for x in read(gr["id"])]
-        nets = [String(x) for x in read(gr["network"])]
-        stas = [String(x) for x in read(gr["station"])]
-        comps = [String(x) for x in read(gr["component"])]
-        lats = read(gr["latitude"])
-        lons = read(gr["longitude"])
-        elevs = read(gr["elevation"])
-        dts = read(gr["dt"])
-        btimes = [String(x) for x in read(gr["begin_time"])]
-        [StationInfo(ids[i], nets[i], stas[i], comps[i],
-                      lats[i], lons[i], elevs[i], dts[i], btimes[i])
-         for i in eachindex(ids)]
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["stations"]
+            ids = [String(x) for x in read(gr["id"])]
+            nets = [String(x) for x in read(gr["network"])]
+            stas = [String(x) for x in read(gr["station"])]
+            comps = [String(x) for x in read(gr["component"])]
+            lats = read(gr["latitude"])
+            lons = read(gr["longitude"])
+            elevs = read(gr["elevation"])
+            dts = read(gr["dt"])
+            btimes = [String(x) for x in read(gr["begin_time"])]
+            [
+                StationInfo(
+                    ids[i],
+                    nets[i],
+                    stas[i],
+                    comps[i],
+                    lats[i],
+                    lons[i],
+                    elevs[i],
+                    dts[i],
+                    btimes[i],
+                ) for i in eachindex(ids)
+            ]
+        end,
+        h5file,
+        "r",
+    )
 end
 
 function read_waveform(h5file, phase_id)::Vector{Float64}
@@ -216,53 +234,61 @@ function read_waveform(h5file, phase_id)::Vector{Float64}
 end
 
 function read_trials(h5file)::TrialSet
-    h5open(f -> begin
-        gr = f["trials"]
-        TrialSet(
-            read(gr["strike"]),
-            read(gr["dip"]),
-            read(gr["rake"]),
-            read(gr["depth"]),
-            read(gr["depth_idx"]),
-            read(gr["freq_idx"]),
-        )
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["trials"]
+            TrialSet(
+                read(gr["strike"]),
+                read(gr["dip"]),
+                read(gr["rake"]),
+                read(gr["depth"]),
+                read(gr["depth_idx"]),
+                read(gr["freq_idx"]),
+            )
+        end,
+        h5file,
+        "r",
+    )
 end
 
 function read_strategy(h5file)::Strategy
-    h5open(f -> begin
-        gr = f["strategy"]
-        Strategy(
-            read(gr["strike0"]),
-            read(gr["dstrike"]),
-            read(gr["nstrike"]),
-            read(gr["dip0"]),
-            read(gr["ddip"]),
-            read(gr["ndip"]),
-            read(gr["rake0"]),
-            read(gr["drake"]),
-            read(gr["nrake"]),
-            read(gr["depth_indices"]),
-            read(gr["freq_indices"]),
-            read(gr["xcorr_phase_mask"]),
-            read(gr["polarity_channel_mask"]),
-            read(gr["psr_channel_mask"]),
-            read(gr["module_weights"]),
-            read(gr["best_sdr"]),
-            read(gr["best_depth_index"]),
-            read(gr["best_misfit"]),
-            read(gr["iteration"]),
-            read(gr["converged"]),
-            String(read(gr["convergence_reason"])),
-            read(gr["freq_accumulated"]),
-            read(gr["freq_misfit_curve"]),
-            read(gr["depth_misfit_accumulated"]),
-        )
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["strategy"]
+            Strategy(
+                read(gr["strike0"]),
+                read(gr["dstrike"]),
+                read(gr["nstrike"]),
+                read(gr["dip0"]),
+                read(gr["ddip"]),
+                read(gr["ndip"]),
+                read(gr["rake0"]),
+                read(gr["drake"]),
+                read(gr["nrake"]),
+                read(gr["depth_indices"]),
+                read(gr["freq_indices"]),
+                read(gr["xcorr_phase_mask"]),
+                read(gr["polarity_channel_mask"]),
+                read(gr["psr_channel_mask"]),
+                read(gr["module_weights"]),
+                read(gr["best_sdr"]),
+                read(gr["best_depth_index"]),
+                read(gr["best_misfit"]),
+                read(gr["iteration"]),
+                read(gr["converged"]),
+                String(read(gr["convergence_reason"])),
+                read(gr["freq_accumulated"]),
+                read(gr["freq_misfit_curve"]),
+                read(gr["depth_misfit_accumulated"]),
+            )
+        end,
+        h5file,
+        "r",
+    )
 end
 
 function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
-    mis = Dict{Symbol,Matrix{Float64}}()
+    mis = Dict{Symbol, Matrix{Float64}}()
     h5open(f -> begin
         gr = f["misfits"]
         for name in keys(gr)
@@ -277,17 +303,21 @@ function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
 end
 
 function read_index(h5file)::Index
-    h5open(f -> begin
-        gr = f["index"]
-        Index(
-            [String(x) for x in read(gr["phase_ids"])],
-            [String(x) for x in read(gr["phase_type"])],
-            read(gr["station_idx"]),
-            read(gr["distance"]),
-            read(gr["azimuth"]),
-            read(gr["greens_depth_idx"]),
-        )
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["index"]
+            Index(
+                [String(x) for x in read(gr["phase_ids"])],
+                [String(x) for x in read(gr["phase_type"])],
+                read(gr["station_idx"]),
+                read(gr["distance"]),
+                read(gr["azimuth"]),
+                read(gr["greens_depth_idx"]),
+            )
+        end,
+        h5file,
+        "r",
+    )
 end
 
 # ─────────────────────────────────────────────────────────
@@ -538,7 +568,7 @@ function find_latest_status(status_dir::String)
     pattern = r"^status_(\d+)\.h5$"
     max_n = -1
     latest = ""
-    for entry in readdir(status_dir; join=true)
+    for entry in readdir(status_dir; join = true)
         m = match(pattern, basename(entry))
         if m !== nothing
             n = parse(Int, m.captures[1])

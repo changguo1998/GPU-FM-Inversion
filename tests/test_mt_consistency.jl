@@ -20,8 +20,8 @@ function run_test()
     rng = MersenneTwister(42)
     n = 100
     strikes = rand(rng, n) * 360.0           # [0, 360)
-    dips    = rand(rng, n) * 90.0            # [0, 90]
-    rakes   = (rand(rng, n) .- 0.5) * 180.0   # [-90, 90]
+    dips = rand(rng, n) * 90.0            # [0, 90]
+    rakes = (rand(rng, n) .- 0.5) * 180.0   # [-90, 90]
 
     println("Running cross-language consistency test: Julia vs C++ ($n trials)")
     println("Binary: $TEST_BINARY")
@@ -48,7 +48,7 @@ function run_test()
             end
             if diff >= 1e-6
                 all_pass = false
-                @warn "Mismatch at trial $i, component $j" sdr=(s,d,r) julia=julia_mt[j] cpp=cpp_mt[j] diff=diff
+                @warn "Mismatch at trial $i, component $j" sdr=(s, d, r) julia=julia_mt[j] cpp=cpp_mt[j] diff=diff
             end
         end
     end
