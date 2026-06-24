@@ -83,4 +83,4 @@ Kernel functions in `namespace fm` are templates parameterized on `Backend B`. S
 - Does NOT apply module weights or masks
 - Does NOT aggregate misfits
 - Does NOT know about convergence or strategy
-- Does NOT read `config.toml` directly (it consumes config already written into HDF5)
+- Does NOT read `config.jl` directly (it consumes config already written into HDF5)

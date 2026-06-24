@@ -63,9 +63,7 @@ driver.sh:
 ## Data Flow (Stage Level)
 
 ```
-raw.h5 (external) ──┐
-                     │
-config.toml ─────────► input.jl (once) ──► database.h5 (static, all preprocessed data)
+config.jl ───────────► input.jl (once) ──► database.h5 (static, all preprocessed data)
                                          status_0.h5 (initial strategy, no trials yet)
                                               │
                         ◄─────────────────────┘
@@ -97,11 +95,10 @@ config.toml ─────────► input.jl (once) ──► database.h5
 
 | File | Lifetime | Produced By | Contents |
 |------|----------|-------------|----------|
-| `raw.h5` | Static (input) | External | Event info, station metadata, raw SAC waveforms |
 | `database.h5` | Static | `input.jl` (first run, once) | All preprocessed data: Greens at all depths, filtered waveform variants, per-module preprocessing, algorithm config |
 | `status_{N}.h5` | Per-iteration | `input.jl` (initial strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence flag) | Workflow file built incrementally: starts with `/strategy` only, then `/trials` and `/misfits` are added. On break, assess sets `/strategy/converged=1`. On continue, assess creates `status_{N+1}.h5`. |
 | `output.h5` | Final | `output.jl` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms |
-| `config.toml` | Bootstrap | User | Misfit module list, frequency bands, depth range, initial grid params |
+| `config.jl` | Bootstrap | User | Misfit module list, frequency bands, depth range, initial grid params |
 
 ## Key Design Rules
 

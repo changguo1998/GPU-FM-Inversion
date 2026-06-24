@@ -30,7 +30,7 @@ This stage was renamed from `export.jl`.
 3. **Synthesize frequency uncertainty**: read accumulated freq results from strategy → std of SDR across bands
 4. **Synthesize depth range**: apply 5% tolerance to `depth_misfit_accumulated` → depth bounds
 5. **Per-phase breakdown**: extract per-module misfit at best trial for each phase
-6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC. Raw waveforms remain in `raw.h5`.
+6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC.
 7. **Write output**: compile all results into `output.h5`
 
 ## Script Style

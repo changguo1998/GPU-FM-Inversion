@@ -28,7 +28,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 
 | Stage | Language | Role |
 |-------|----------|------|
-| `input.jl` | Julia | Import `raw.h5`, preprocess all data → `database.h5`; initial strategy → `status_0.h5` |
+| `input.jl` | Julia | Read `config.jl`, locate external data, preprocess all data → `database.h5`; initial strategy → `status_0.h5` |
 | `preprocess.jl` | Julia | Generate trials from strategy → `status_{N}.h5` |
 | `forward.cpp` | C++ (OpenMP/CUDA) | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation |
 | `assess.jl` | Julia | Apply weights, aggregate, refine grid, prompt operator → `status_{N+1}.h5` |
@@ -38,7 +38,6 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 
 | File | Lifetime | Holds |
 |------|----------|-------|
-| `raw.h5` | Static | External data: event info, station metadata, raw SAC waveforms |
 | `database.h5` | Static | All preprocessed data: Greens at all depths, all frequency-band variants, per-module preprocessing |
 | `status_{N}.h5` | Per-iteration | Self-contained: strategy, trials, misfits for iteration N |
 | `output.h5` | Final | Best-fit parameters with uncertainties |

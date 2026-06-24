@@ -23,51 +23,7 @@ Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
 ---
 
-## 1. `raw.h5` — External Data (Input, Static)
-
-### `/event`
-
-| Dataset | Type | Shape | Description |
-|---------|------|-------|-------------|
-| `longitude` | Float64 | scalar | Event longitude (°) |
-| `latitude` | Float64 | scalar | Event latitude (°) |
-| `depth` | Float64 | scalar | Event depth (km) |
-| `magnitude` | Float64 | scalar | Event magnitude |
-| `origintime` | String | scalar | ISO 8601 datetime |
-
-### `/phase_picks`
-
-| Dataset | Type | Shape | Description |
-|---------|------|-------|-------------|
-| `station_ids` | String | `[N_channels]` | `"NET.STA"` — station identifier for each channel with phase picks |
-| `P_time` | String | `[N_channels]` | P-wave arrival ISO 8601 (empty if none) |
-| `S_time` | String | `[N_channels]` | S-wave arrival ISO 8601 (empty if none) |
-| `P_polarity` | Int8 | `[N_channels]` | -1, 0, +1, or -128 (not available) |
-
-### `/stations`
-
-| Dataset | Type | Shape | Description |
-|---------|------|-------|-------------|
-| `id` | String | `[N_phases]` | `"NET.STA.COMP.TYPE"` (channel + wave type) |
-| `channel_id` | String | `[N_phases]` | `"NET.STA.COMP"` (channel identifier) |
-| `network` | String | `[N_phases]` | Network code |
-| `station` | String | `[N_phases]` | Station code |
-| `component` | String | `[N_phases]` | Channel component (single char) |
-| `latitude` | Float64 | `[N_phases]` | Station latitude (°) |
-| `longitude` | Float64 | `[N_phases]` | Station longitude (°) |
-| `elevation` | Float64 | `[N_phases]` | Station elevation (m) |
-| `dt` | Float64 | `[N_phases]` | Sampling interval (s) |
-| `begin_time` | String | `[N_phases]` | Record start time ISO 8601 |
-
-### `/waveforms`
-
-| Dataset | Type | Shape | Description |
-|---------|------|-------|-------------|
-| `{phase_id}` | Float64 | `[N_samples_raw]` | Raw waveform for phase `id` |
-
----
-
-## 2. `database.h5` — Preprocessed Data (Static)
+## 1. `database.h5` — Preprocessed Data (Static)
 
 ### `/config`
 
@@ -131,7 +87,7 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 
 ---
 
-## 3. `status_{N}.h5` — Per-Iteration Workflow File
+## 2. `status_{N}.h5` — Per-Iteration Workflow File
 
 One file per iteration. Built up incrementally during each loop: starts with `/strategy` only from `input.jl`, then `/trials` from `preprocess.jl`, then `/misfits` from `forward.cpp`. Assess reads the completed file and either creates `status_{N+1}.h5` (continue) or sets `/strategy/converged=1` on the current file (break).
 
@@ -193,7 +149,7 @@ Future: `absshift`, `relshift`, `cap` under `/misfits/`.
 
 ---
 
-## 4. `output.h5` — Final Results
+## 3. `output.h5` — Final Results
 
 ### `/solution`
 
@@ -245,7 +201,7 @@ Station-level summary across all of a station's channels.
 
 ### `/waveforms` (optional)
 
-Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag). Synthesized from Greens in `database.h5`; raw waveforms remain in `raw.h5`.
+Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag). Synthesized from Greens in `database.h5`.
 
 | Dataset | Type | Shape | Description |
 |---------|------|-------|-------------|
@@ -261,7 +217,7 @@ Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag
 
 ---
 
-## 5. Signal Conventions
+## 4. Signal Conventions
 
 ### Convergence Signal
 
@@ -284,4 +240,4 @@ Driver detects convergence by reading `/strategy/converged` from the latest stat
 
 ### Config Bootstrap
 
-`config.toml` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5`. Subsequent stages read config from HDF5 only.
+`config.jl` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5`. Subsequent stages read config from HDF5 only.

@@ -10,7 +10,7 @@ HDF5 file read/write operations shared across all stages. Provides typed accesso
 
 | Stage | Language | Usage |
 |-------|----------|-------|
-| `input.jl` | Julia | Read `raw.h5`, write `database.h5` + `status_0.h5` (strategy only) |
+| `input.jl` | Julia | Read external data via config paths, write `database.h5` + `status_0.h5` (strategy only) |
 | `preprocess.jl` | Julia | Read `status_{N}.h5` (strategy), write `status_{N}.h5` (trials) |
 | `forward.cpp` | C++ | Read `database.h5`, read/write `status_{N}.h5` |
 | `assess.jl` | Julia | Read `status_{N}.h5`, `database.h5`, write `status_{N+1}.h5` |

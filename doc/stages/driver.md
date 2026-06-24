@@ -8,8 +8,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 
 | Source | Purpose |
 |--------|---------|
-| `raw.h5` | Input data (passed to `input.jl` once) |
-| `config.toml` | Bootstrap config (passed to `input.jl` only; default path is `<data-dir>/config.toml`, override with `--config`) |
+| `config.jl` | Bootstrap config (passed to `input.jl` only; always `<data-dir>/config.jl`) |
 | `database.h5` | Preprocessed data (path known to all stages) |
 | `status_{N}.h5` | Iteration snapshots (discovered by file inspection) |
 
@@ -32,7 +31,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 
 | File State | Action |
 |-----------|--------|
-| No `database.h5` | Run `input.jl` (once, with `config.toml`) |
+| No `database.h5` | Run `input.jl` (once, with `config.jl`) |
 | `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
 | `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
 | `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
@@ -48,13 +47,11 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 ## CLI
 
 ```
-bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]
+bash driver.sh [--data-dir <dir>] [--dry-run]
 ```
 
-- `--data-dir <dir>`: directory for `raw.h5`, `database.h5`, status files (default: `.`)
-- `--config <path>`: TOML config file path (default: `<data-dir>/config.toml`)
+- `--data-dir <dir>`: directory for `config.jl`, `database.h5`, status files (default: `.`)
 - `--dry-run`: print stages without executing
-- `--synthetic`: generate synthetic data via input.jl before running pipeline
 
 ## Key Decisions
 
