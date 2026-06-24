@@ -50,7 +50,7 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 bash driver.sh --data-dir <dir> [--dry-run]
 ```
 
-- `--data-dir <dir>` (required): directory for `config.jl`, `database.h5`, status files
+- `--data-dir <dir>` (required): data directory; holds `config.jl`, `database.h5`, `output.h5`; contains `status/` subdir with `status_{N}.h5` files
 - `--dry-run`: print stages without executing
 
 ## Key Decisions
