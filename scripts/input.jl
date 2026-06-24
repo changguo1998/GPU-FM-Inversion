@@ -3,12 +3,12 @@
 # input.jl — Data ingestion and initialization stage
 #
 # Runs once before the main loop:
-#   1. Read raw.h5 + config.jl
-#   2. Preprocess all waveform data → database.h5
+#   1. Load config.jl (paths to external data)
+#   2. Read and preprocess all waveform data → database.h5
 #   3. Write initial strategy → status_0.h5 (NO trials)
 #
 # Usage:
-#   julia scripts/input.jl <raw.h5> <config.jl>
+#   julia scripts/input.jl <config.jl>
 
 using HDF5
 using LinearAlgebra
@@ -43,22 +43,17 @@ using .Config
 # CLI (no file-existence checks — driver handles validation)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-raw_path   = ARGS[1]
-config_jl  = ARGS[2]
+config_jl = ARGS[1]
 
 # ── Log header ──
 @info "─"^70
 @info "input stage started"
-@info "  raw.h5   = $raw_path"
 @info "  config   = $config_jl"
 @info "  log file = input.log"
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 1. Load config (user script defines Config.* interface functions)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@info "Loading config: $config_jl"
-include(abspath(config_jl))  # defines Config.misfit_modules(), Config.grid_params(), …
+include(abspath(config_jl))  # defines Config.misfit_modules(), Config.data_file(), …
+raw_path = Config.data_file()
+@info "  data file = $raw_path"
 
 # ── Read config values via interface ──
 misfit_modules    = Config.misfit_modules()
@@ -82,10 +77,10 @@ n_depths      = length(depths)
 @info "  depths           = $depths"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 2. Read raw.h5
+# 2. Read external data file
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@info "Reading raw.h5 …"
+@info "Reading external data: $raw_path"
 event    = IO.read_event(raw_path)
 picks    = IO.read_phase_picks(raw_path)
 stations = IO.read_stations(raw_path)
