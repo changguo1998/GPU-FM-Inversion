@@ -3,7 +3,7 @@
 using HDF5
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module
+# Logging
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
@@ -17,53 +17,6 @@ using Grid: refine_strategy, prompt_operator, TrialResult
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# ── Query mode (for shell orchestration, no stage execution) ───────────────────
-if length(ARGS) >= 1 && ARGS[1] == "--query"
-    if length(ARGS) < 2
-        println(stderr, "Usage: assess.jl --query <group-exists|read-converged> <file> [path]")
-        exit(1)
-    end
-    cmd = ARGS[2]
-    f   = ARGS[3]
-    if cmd == "group-exists"
-        p = length(ARGS) >= 4 ? ARGS[4] : ""
-        if !isfile(f)
-            println("false"); exit(0)
-        end
-        h5open(f, "r") do h5
-            try
-                parts = split(p, '/'; keepempty=false)
-                node = h5
-                for part in parts
-                    if !haskey(node, part)
-                        println("false")
-                        return
-                    end
-                    node = node[part]
-                end
-                println("true")
-            catch
-                println("false")
-            end
-        end
-    elseif cmd == "read-converged"
-        if !isfile(f)
-            println("notfound"); exit(0)
-        end
-        h5open(f, "r") do h5
-            try
-                println(read(h5["strategy/converged"]))
-            catch
-                println("notfound")
-            end
-        end
-    else
-        println(stderr, "Unknown query: $cmd")
-        exit(1)
-    end
-    exit(0)
-end
-
 if length(ARGS) < 2
     @error "Usage: julia scripts/assess.jl <status_N.h5> <database.h5>"
     exit(1)
@@ -72,7 +25,6 @@ end
 status_file = ARGS[1]
 database_file = ARGS[2]
 
-# Log to the same directory as the status file (i.e. status/ subdir)
 assess_log = joinpath(dirname(abspath(status_file)), "assess.log")
 StageLog.setup_logger!("assess", assess_log)
 
@@ -96,14 +48,22 @@ config = IO.read_config(database_file)
 xcorr_mat = get(misfits_map, :xcorr, nothing)
 polarity_mat = get(misfits_map, :polarity, nothing)
 psr_mat = get(misfits_map, :psr, nothing)
-if xcorr_mat === nothing || polarity_mat === nothing || psr_mat === nothing
-    @error "/misfits must contain :xcorr, :polarity, :psr"
-    exit(1)
-end
+
+# PSR is optional — may not exist if only XCorr+Polarity
+polarity_mat === nothing && @warn "No /misfits/polarity — using zeros"
+psr_mat === nothing && @warn "No /misfits/psr — using zeros"
 
 N_phases = size(xcorr_mat, 1)
-N_stations = size(polarity_mat, 1)
+N_stations_pol = polarity_mat !== nothing ? size(polarity_mat, 1) : N_phases
 N_trials = length(trials.strike)
+
+# Default to zeros if module missing
+if polarity_mat === nothing
+    polarity_mat = zeros(Float64, N_stations_pol, N_trials)
+end
+if psr_mat === nothing
+    psr_mat = zeros(Float64, N_stations_pol, N_trials)
+end
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Convert Int32 masks to Bool
@@ -112,12 +72,12 @@ N_trials = length(trials.strike)
 xcorr_phase_mask = length(strategy.xcorr_phase_mask) >= N_phases ?
     Vector{Bool}(strategy.xcorr_phase_mask[1:N_phases] .== Int32(1)) :
     Vector{Bool}(trues(N_phases))
-polarity_channel_mask = length(strategy.polarity_channel_mask) >= N_stations ?
-    Vector{Bool}(strategy.polarity_channel_mask[1:N_stations] .== Int32(1)) :
-    Vector{Bool}(trues(N_stations))
-psr_channel_mask = length(strategy.psr_channel_mask) >= N_stations ?
-    Vector{Bool}(strategy.psr_channel_mask[1:N_stations] .== Int32(1)) :
-    Vector{Bool}(trues(N_stations))
+polarity_channel_mask = length(strategy.polarity_channel_mask) >= N_stations_pol ?
+    Vector{Bool}(strategy.polarity_channel_mask[1:N_stations_pol] .== Int32(1)) :
+    Vector{Bool}(trues(N_stations_pol))
+psr_channel_mask = length(strategy.psr_channel_mask) >= N_stations_pol ?
+    Vector{Bool}(strategy.psr_channel_mask[1:N_stations_pol] .== Int32(1)) :
+    Vector{Bool}(trues(N_stations_pol))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Aggregate misfits
@@ -179,7 +139,6 @@ continue_flag = prompt_operator(best_sdr, best_misfit_val, strategy)
 converged_val = continue_flag ? Int32(0) : Int32(1)
 converged_reason = continue_flag ? "" : "user"
 
-# Rebuild strategy with converged flag
 final_strategy = IO.Strategy(
     next_strategy.strike0, next_strategy.dstrike, next_strategy.nstrike,
     next_strategy.dip0, next_strategy.ddip, next_strategy.ndip,
@@ -202,14 +161,16 @@ final_strategy = IO.Strategy(
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Write output
+# Write output + signal driver via exit code
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if continue_flag
     cp(status_file, next_status_file; force=true)
     IO.write_strategy(next_status_file, final_strategy)
     @info "Wrote $next_status_file (converged=$(Int(final_strategy.converged)))"
+    exit(0)   # signal continue
 else
     IO.write_strategy(status_file, final_strategy)
     @info "Set converged=1 on $status_file"
+    exit(10)  # signal converged
 end

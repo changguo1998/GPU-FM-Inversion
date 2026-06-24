@@ -16,7 +16,7 @@ using Dates
 using Random
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module, writes to both stdout and <data_dir>/input.log
+# Logging
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
@@ -28,28 +28,24 @@ using StageLog
 using IO, Signal, Config
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CLI (no file-existence checks — driver handles validation)
+# CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 config_jl = ARGS[1]
 
-# Derive data directory from config path (config is always <data-dir>/config.jl)
 data_dir = dirname(abspath(config_jl))
 
 StageLog.setup_logger!("input", joinpath(data_dir, "input.log"))
 
-# ── Log header ──
 @info "─"^70
 @info "input stage started"
 @info "  config   = $config_jl"
 @info "  data dir = $data_dir"
-@info "  log file = $(joinpath(data_dir, "input.log"))"
 
 include(abspath(config_jl))  # defines Config.misfit_modules(), Config.data_file(), …
 raw_path = Config.data_file()
 @info "  data file = $raw_path"
 
-# ── Read config values via interface ──
 misfit_modules    = Config.misfit_modules()
 module_weights    = Config.module_weights()
 minimum_stations  = Config.minimum_stations()
@@ -59,16 +55,15 @@ grid              = Config.grid_params()
 xcorr             = Config.xcorr_params()
 polarity          = Config.polarity_params()
 greens_cfg        = Config.greens_params()
-freq_test_maxiter = Config.freq_test_max_iter()
 
 n_frequencies = length(freq_bands)
 n_depths      = length(depths)
 
 @info "Config loaded"
-@info "  misfit_modules   = $misfit_modules"
-@info "  module_weights   = $module_weights"
-@info "  freq_bands       = $freq_bands"
-@info "  depths           = $depths"
+@info "  misfit_modules = $misfit_modules"
+@info "  module_weights = $module_weights"
+@info "  freq_bands     = $freq_bands"
+@info "  depths         = $depths"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. Read external data file
@@ -84,9 +79,9 @@ station_to_idx = Dict(pick.station_id => i for (i, pick) in enumerate(picks))
 n_phases          = length(stations)
 n_stations_picks  = length(picks)
 
-@info "  event      = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))"
-@info "  phases     = $n_phases"
-@info "  stations   = $n_stations_picks"
+@info "  event    = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))"
+@info "  phases   = $n_phases"
+@info "  stations = $n_stations_picks"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. Build /index
@@ -131,22 +126,6 @@ index = IO.Index(
 greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
 data   = Dict{Int, Dict{Symbol, Dict{String, Dict{String, Any}}}}()
 
-# Build P/S phase-pair lookup for PSR
-station_phases = Dict{String, Vector{String}}()
-for pid in phase_ids
-    skey = IO.extract_station(pid)
-    push!(get!(Vector{String}, station_phases, skey), pid)
-end
-
-psr_pairs = Tuple{String, String}[]
-for (skey, phs) in station_phases
-    p_phases = filter(p -> IO.extract_phase_type(p) == "P", phs)
-    s_phases = filter(p -> IO.extract_phase_type(p) == "S", phs)
-    for pp in p_phases, sp in s_phases
-        push!(psr_pairs, (pp, sp))
-    end
-end
-
 maxlag_factor       = xcorr.maxlag_factor
 filter_order        = xcorr.filter_order
 P_trim              = xcorr.P_trim
@@ -167,7 +146,6 @@ for freq_idx in 1:n_frequencies
     data[freq_idx] = Dict{Symbol, Dict{String, Dict{String, Any}}}()
     data[freq_idx][:XCorr]    = Dict{String, Dict{String, Any}}()
     data[freq_idx][:Polarity] = Dict{String, Dict{String, Any}}()
-    data[freq_idx][:PSR]      = Dict{String, Dict{String, Any}}()
 
     for (ph_idx, s) in enumerate(stations)
         pid   = s.id
@@ -222,6 +200,7 @@ for freq_idx in 1:n_frequencies
         post_sec     = abs(trim_cfg[2])
         window_factor = max(pre_sec, post_sec) * high_cut
 
+        # ── XCorr preprocessing ──
         if "XCorr" in misfit_modules
             obs_proc, gf_proc, synamp, obs_norm2 = Signal.preprocess_xcorr!(
                 wf, gf_full, dt, arrival_sample,
@@ -234,6 +213,7 @@ for freq_idx in 1:n_frequencies
             )
         end
 
+        # ── Polarity preprocessing ──
         if "Polarity" in misfit_modules && ptype == "P"
             pick_pol = picks[st_idx].P_polarity
             gf_pol, obs_pol = Signal.preprocess_polarity!(
@@ -241,55 +221,6 @@ for freq_idx in 1:n_frequencies
             )
             data[freq_idx][:Polarity][pid] = Dict{String, Any}(
                 "gf_pol" => gf_pol, "obs_pol" => obs_pol,
-            )
-        end
-    end
-
-    # ── PSR preprocessing ──
-    if "PSR" in misfit_modules
-        for (p_pid, s_pid) in psr_pairs
-            p_st = stations[findfirst(s -> s.id == p_pid, stations)]
-            s_st = stations[findfirst(s -> s.id == s_pid, stations)]
-
-            p_wf = IO.read_waveform(raw_path, p_pid)
-            s_wf = IO.read_waveform(raw_path, s_pid)
-            gf_P = greens[p_pid][Int32(1)]
-            gf_S = greens[s_pid][Int32(1)]
-
-            dt    = p_st.dt
-            skey  = IO.extract_station(p_pid)
-            st_idx = get(station_to_idx, skey, 1)
-            pick  = picks[st_idx]
-
-            begin_unix  = IO.parse_time_iso(p_st.begin_time)
-            p_pick_unix = IO.parse_time_iso(pick.P_time)
-            s_pick_unix = IO.parse_time_iso(pick.S_time)
-
-            n_p_wf = length(p_wf)
-            n_s_wf = length(s_wf)
-
-            arr_P = if isnan(begin_unix) || isnan(p_pick_unix)
-                n_p_wf ÷ 2
-            else
-                clamp(round(Int, (p_pick_unix - begin_unix) / dt) + 1, 1, n_p_wf)
-            end
-            arr_S = if isnan(begin_unix) || isnan(s_pick_unix)
-                n_s_wf ÷ 2
-            else
-                clamp(round(Int, (s_pick_unix - begin_unix) / dt) + 1, 1, n_s_wf)
-            end
-
-            pre_P  = abs(P_trim[1]); post_P = abs(P_trim[2])
-            pre_S  = abs(S_trim[1]); post_S = abs(S_trim[2])
-
-            amp_P, amp_S, obs_psr = Signal.preprocess_psr!(
-                p_wf, s_wf, gf_P, gf_S, dt,
-                arr_P, arr_S, pre_P, post_P, pre_S, post_S
-            )
-
-            psr_key = "$(p_pid)|$(s_pid)"
-            data[freq_idx][:PSR][psr_key] = Dict{String, Any}(
-                "amp_P" => amp_P, "amp_S" => amp_S, "obs_psr" => obs_psr,
             )
         end
     end
@@ -310,7 +241,6 @@ db_config = Dict{String, Any}(
     "freq_bands_low"     => Float64[low  for (low, _) in freq_bands],
     "freq_bands_high"    => Float64[high for (_, high) in freq_bands],
     "minimum_stations"   => Int32(minimum_stations),
-    "freq_test_max_iter" => Int32(freq_test_maxiter),
 )
 
 if "XCorr" in misfit_modules
@@ -368,12 +298,12 @@ strategy = IO.Strategy(
     Int32(0),
     "",
     zeros(Float64, n_frequencies, 3),
-    zeros(Float64, n_frequencies, freq_test_maxiter),
+    zeros(Float64, n_frequencies, 0),
     zeros(Float64, n_depths),
 )
 
 status0_path = joinpath(data_dir, "status_0.h5")
-h5open(status0_path, "w") do f end  # create fresh file
+h5open(status0_path, "w") do f end
 IO.write_strategy(status0_path, strategy)
 @info "  $status0_path written"
 
