@@ -12,14 +12,11 @@ set -euo pipefail
 #   output.jl     (once) → output.h5
 #
 # Usage:
-#   bash driver.sh [--data-dir <dir>] [--dry-run]
+#   bash driver.sh --data-dir <dir> [--dry-run]
 # ==============================================================================
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
-DATA_DIR="."
-CONFIG_FILE="$DATA_DIR/config.jl"
 DRY_RUN=false
-DATABASE_H5="$DATA_DIR/database.h5"
 
 # Project root (directory containing this script)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -41,11 +38,18 @@ while [[ $# -gt 0 ]]; do
         ;;
     *)
         echo "[driver] ERROR: Unknown argument: $1" >&2
-        echo "Usage: bash driver.sh [--data-dir <dir>] [--dry-run]" >&2
+        echo "Usage: bash driver.sh --data-dir <dir> [--dry-run]" >&2
         exit 1
         ;;
     esac
 done
+
+# ── Validate --data-dir ───────────────────────────────────────────────────────
+if [[ -z "${DATA_DIR:-}" ]]; then
+    echo "[driver] ERROR: --data-dir is required" >&2
+    echo "Usage: bash driver.sh --data-dir <dir> [--dry-run]" >&2
+    exit 1
+fi
 
 # ── Ensure data directory exists ───────────────────────────────────────────────
 mkdir -p "$DATA_DIR"
@@ -220,4 +224,3 @@ while true; do
 done
 
 echo "[driver] Pipeline complete."
-
