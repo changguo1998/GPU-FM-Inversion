@@ -8,19 +8,12 @@ using Statistics: std
 # Logging: uses shared StageLog module, writes to both stdout and output.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
-include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
-using .StageLog
+using StageLog
 
 StageLog.setup_logger!("output", "output.log")
 
 # ── Load shared modules ──
-SCRIPT_DIR = @__DIR__
-include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
-using .IO
-include(joinpath(SCRIPT_DIR, "..", "shared", "mt", "src", "MT.jl"))
-using .MT
-include(joinpath(SCRIPT_DIR, "..", "shared", "aggregate", "src", "Aggregate.jl"))
-using .Aggregate
+using IO, MT, Aggregate
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI

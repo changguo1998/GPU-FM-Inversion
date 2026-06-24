@@ -6,19 +6,14 @@ using HDF5
 # Logging: uses shared StageLog module, writes to both stdout and assess.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
-include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
-using .StageLog
+using StageLog
 
 StageLog.setup_logger!("assess", "assess.log")
 
 # ── Load shared modules ────────────────────────────────────────────────────────
-SCRIPT_DIR = @__DIR__
-include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
-using .IO
-include(joinpath(SCRIPT_DIR, "..", "shared", "aggregate", "src", "Aggregate.jl"))
-using .Aggregate: aggregate_misfits
-include(joinpath(SCRIPT_DIR, "..", "shared", "grid", "src", "Grid.jl"))
-using .Grid: refine_strategy, prompt_operator, TrialResult
+using IO
+using Aggregate: aggregate_misfits
+using Grid: refine_strategy, prompt_operator, TrialResult
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI

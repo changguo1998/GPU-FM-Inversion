@@ -19,8 +19,7 @@ using Random
 # Logging: uses shared StageLog module, writes to both stdout and input.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
-include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
-using .StageLog
+using StageLog
 
 StageLog.setup_logger!("input", "input.log")
 
@@ -28,16 +27,7 @@ StageLog.setup_logger!("input", "input.log")
 # Load shared modules
 # ═══════════════════════════════════════════════════════════════════════════════
 
-SCRIPT_DIR = @__DIR__
-
-include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
-using .IO
-
-include(joinpath(SCRIPT_DIR, "..", "shared", "signal", "src", "Signal.jl"))
-using .Signal
-
-include(joinpath(SCRIPT_DIR, "..", "shared", "config", "src", "Config.jl"))
-using .Config
+using IO, Signal, Config
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI (no file-existence checks — driver handles validation)

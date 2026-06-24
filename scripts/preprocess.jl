@@ -15,8 +15,7 @@ using HDF5
 # Logging: uses shared StageLog module, writes to both stdout and preprocess.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
-include(joinpath(@__DIR__, "..", "shared", "stage_log", "src", "StageLog.jl"))
-using .StageLog
+using StageLog
 
 StageLog.setup_logger!("preprocess", "preprocess.log")
 
@@ -38,12 +37,7 @@ database_file = length(ARGS) >= 2 ? ARGS[2] : nothing
 # Include modules
 # ─────────────────────────────────────────────────────────
 
-SCRIPT_DIR = @__DIR__
-include(joinpath(SCRIPT_DIR, "..", "shared", "io", "src", "IO.jl"))
-using .IO
-
-include(joinpath(SCRIPT_DIR, "..", "shared", "grid", "src", "Grid.jl"))
-using .Grid
+using IO, Grid
 
 # ─────────────────────────────────────────────────────────
 # Read strategy
