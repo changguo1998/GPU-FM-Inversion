@@ -1,4 +1,4 @@
-using Test, HDF5, HDF5IO
+using Test, HDF5, IO
 
 tmpfile(fn) = joinpath(@__DIR__, fn)
 
@@ -50,7 +50,7 @@ function make_synthetic_status()
     fn = tmpfile("test_status.h5")
 
     # ---- Strategy ----
-    strategy = HDF5IO.Strategy(
+    strategy = IO.Strategy(
         120.0, 10.0, 5,   # strike
         45.0, 5.0, 3,     # dip
         -90.0, 20.0, 4,   # rake
@@ -72,7 +72,7 @@ function make_synthetic_status()
     )
 
     # ---- Trials ----
-    trials = HDF5IO.TrialSet(
+    trials = IO.TrialSet(
         collect(100.0:10.0:200.0),  # strike
         collect(40.0:5.0:60.0),     # dip
         collect(-120.0:20.0:-60.0), # rake
@@ -92,11 +92,11 @@ function make_synthetic_status()
         HDF5.create_group(f, "strategy")
         HDF5.create_group(f, "misfits")
     end
-    HDF5IO.write_strategy(fn, strategy)
-    HDF5IO.write_trials(fn, trials)
-    HDF5IO.write_misfits(fn, :xcorr, xcorr_misfit)
-    HDF5IO.write_misfits(fn, :polarity, polarity_misfit)
-    HDF5IO.write_misfits(fn, :psr, psr_misfit)
+    IO.write_strategy(fn, strategy)
+    IO.write_trials(fn, trials)
+    IO.write_misfits(fn, :xcorr, xcorr_misfit)
+    IO.write_misfits(fn, :polarity, polarity_misfit)
+    IO.write_misfits(fn, :psr, psr_misfit)
 
     return (; strategy, trials, xcorr_misfit, polarity_misfit, psr_misfit)
 end
@@ -105,7 +105,7 @@ function make_synthetic_database()
     fn = tmpfile("test_database.h5")
 
     green_phase = "NET.STA1.BHE.P"
-    index = HDF5IO.Index(
+    index = IO.Index(
         [green_phase, "NET.STA1.BHN.S", "NET.STA2.BHE.P"],
         ["P", "S", "P"],
         Int32[0, 0, 1],
@@ -141,7 +141,7 @@ function make_synthetic_database()
                          "select_threshold" => 0.7, "deselect_threshold" => 0.5),
     )
 
-    HDF5IO.write_database(fn, greens, data, index, config)
+    IO.write_database(fn, greens, data, index, config)
     return (; greens, data, index, config)
 end
 
@@ -185,7 +185,7 @@ function make_synthetic_output()
         "convergence_reason" => "user",
     )
 
-    HDF5IO.write_output(fn, solution, uncertainty, per_phase, per_station_summary, summary)
+    IO.write_output(fn, solution, uncertainty, per_phase, per_station_summary, summary)
     return (; solution, uncertainty, per_phase, per_station_summary, summary)
 end
 
@@ -193,10 +193,10 @@ end
 # Tests
 # ─────────────────────────────
 
-@testset "HDF5IO" begin
+@testset "IO" begin
     @testset "read_event" begin
         make_synthetic_event()
-        evt = HDF5IO.read_event(tmpfile("test_event.h5"))
+        evt = IO.read_event(tmpfile("test_event.h5"))
         @test evt.longitude ≈ 118.5
         @test evt.latitude ≈ 32.1
         @test evt.depth ≈ 12.3
@@ -206,7 +206,7 @@ end
 
     @testset "read_phase_picks" begin
         make_synthetic_phase_picks()
-        picks = HDF5IO.read_phase_picks(tmpfile("test_phase_picks.h5"))
+        picks = IO.read_phase_picks(tmpfile("test_phase_picks.h5"))
         @test length(picks) == 3
         @test picks[1].station_id == "NET.STA1"
         @test picks[1].P_time == "2024-03-15T08:22:15"
@@ -220,7 +220,7 @@ end
 
     @testset "read_stations" begin
         make_synthetic_stations()
-        stas = HDF5IO.read_stations(tmpfile("test_stations.h5"))
+        stas = IO.read_stations(tmpfile("test_stations.h5"))
         @test length(stas) == 3
         @test stas[1].id == "NET.STA1.BHE.P"
         @test stas[1].latitude ≈ 32.0
@@ -230,9 +230,9 @@ end
 
     @testset "read_waveform" begin
         make_synthetic_waveforms()
-        wf = HDF5IO.read_waveform(tmpfile("test_waveforms.h5"), "NET.STA1.BHE.P")
+        wf = IO.read_waveform(tmpfile("test_waveforms.h5"), "NET.STA1.BHE.P")
         @test wf ≈ [1.0, 2.0, 3.0, 4.0, 5.0]
-        wf2 = HDF5IO.read_waveform(tmpfile("test_waveforms.h5"), "NET.STA1.BHN.S")
+        wf2 = IO.read_waveform(tmpfile("test_waveforms.h5"), "NET.STA1.BHN.S")
         @test wf2 ≈ [0.5, 1.5, 2.5]
     end
 
@@ -241,7 +241,7 @@ end
         fn = tmpfile("test_status.h5")
 
         # Read strategy
-        strat = HDF5IO.read_strategy(fn)
+        strat = IO.read_strategy(fn)
         @test strat.strike0 ≈ 120.0
         @test strat.nstrike == 5
         @test strat.depth_indices == Int32[0, 1, 2]
@@ -270,7 +270,7 @@ end
 
     @testset "trials round-trip" begin
         fn = tmpfile("test_status.h5")
-        trials = HDF5IO.read_trials(fn)
+        trials = IO.read_trials(fn)
         @test length(trials.strike) == 11
         @test trials.strike[1] ≈ 100.0
         @test trials.strike[end] ≈ 200.0
@@ -280,7 +280,7 @@ end
 
     @testset "misfits round-trip" begin
         fn = tmpfile("test_status.h5")
-        mis = HDF5IO.read_misfits(fn)
+        mis = IO.read_misfits(fn)
         @test haskey(mis, :xcorr)
         @test haskey(mis, :polarity)
         @test haskey(mis, :psr)
@@ -300,7 +300,7 @@ end
         fn = tmpfile("test_database.h5")
 
         # Read index
-        idx = HDF5IO.read_index(fn)
+        idx = IO.read_index(fn)
         @test idx.phase_ids == ex.index.phase_ids
         @test idx.phase_type == ex.index.phase_type
         @test idx.station_idx == ex.index.station_idx
@@ -309,12 +309,12 @@ end
         @test idx.greens_depth_idx == ex.index.greens_depth_idx
 
         # Read greens
-        g = HDF5IO.read_greens(fn, "NET.STA1.BHE.P", Int32(0))
+        g = IO.read_greens(fn, "NET.STA1.BHE.P", Int32(0))
         @test size(g) == (100, 6)
         @test g ≈ ex.greens["NET.STA1.BHE.P"][Int32(0)]
 
         # Read config
-        cfg = HDF5IO.read_config(fn)
+        cfg = IO.read_config(fn)
         @test cfg["misfit_modules"] == ["XCorr"]
         @test cfg["depth_vals"] ≈ [5.0, 10.0, 15.0]
         @test cfg["minimum_stations"] == 3
@@ -351,11 +351,11 @@ end
         rm(fn; force = true)
         HDF5.h5open(fn, "w") do f end  # create empty
 
-        HDF5IO.h5create_group(fn, "/a/b/c")
-        @test HDF5IO.h5exists(fn, "/a")
-        @test HDF5IO.h5exists(fn, "/a/b/c")
-        @test HDF5IO.h5exists(fn, "/a/b")
-        @test !HDF5IO.h5exists(fn, "/x/y/z")
+        IO.h5create_group(fn, "/a/b/c")
+        @test IO.h5exists(fn, "/a")
+        @test IO.h5exists(fn, "/a/b/c")
+        @test IO.h5exists(fn, "/a/b")
+        @test !IO.h5exists(fn, "/x/y/z")
 
         rm(fn)
     end
@@ -366,8 +366,8 @@ end
             HDF5.create_group(f, "misfits")
         end
         data = [NaN 1.0; 2.0 NaN]
-        HDF5IO.write_misfits(fn, :nan_test, data)
-        mis = HDF5IO.read_misfits(fn)
+        IO.write_misfits(fn, :nan_test, data)
+        mis = IO.read_misfits(fn)
         @test size(mis[:nan_test]) == (2, 2)
         @test isnan(mis[:nan_test][1, 1])
         @test isnan(mis[:nan_test][2, 2])
@@ -388,12 +388,12 @@ end
         # Build minimal greens/data/index for write_database
         greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
         data = Dict{Int, Dict{Symbol, Dict{String, Any}}}()
-        index = HDF5IO.Index(
+        index = IO.Index(
             String[], String[], Int32[], Float64[], Float64[], Int32[0;;]
         )
-        HDF5IO.write_database(fn, greens, data, index, deep_config)
+        IO.write_database(fn, greens, data, index, deep_config)
 
-        cfg = HDF5IO.read_config(fn)
+        cfg = IO.read_config(fn)
         @test cfg["basic"] == "value"
         @test cfg["level1"] isa Dict
         @test cfg["level1"]["level2"] isa Dict
@@ -410,7 +410,7 @@ end
             HDF5.create_group(f, "trials")
             HDF5.create_group(f, "misfits")
         end
-        strat = HDF5IO.Strategy(
+        strat = IO.Strategy(
             120.0, 10.0, 5, 45.0, 5.0, 3, -90.0, 20.0, 4,
             Int32[0, 1, 2], Int32[0, 3],
             Int32[1, 1, 1], Int32[1, 1], Int32[1, 1],
@@ -419,12 +419,12 @@ end
             [1.0 2.0; 3.0 NaN], [0.1 0.2; 0.3 0.4], [0.05, NaN],
         )
         # Write first time
-        HDF5IO.write_strategy(fn, strat)
-        r1 = HDF5IO.read_strategy(fn)
+        IO.write_strategy(fn, strat)
+        r1 = IO.read_strategy(fn)
         @test r1.strike0 ≈ 120.0
         @test r1.nstrike == 5
         # Write second time (replacement)
-        strat2 = HDF5IO.Strategy(
+        strat2 = IO.Strategy(
             200.0, 5.0, 10, 60.0, 3.0, 2, 0.0, 15.0, 6,
             Int32[3, 4], Int32[1],
             Int32[0, 1], Int32[0], Int32[0],
@@ -432,8 +432,8 @@ end
             Int32(3), 0.015, Int32(5), Int32(1), "converged",
             [5.0;;], [0.05;;], [0.01, 0.02],
         )
-        HDF5IO.write_strategy(fn, strat2)
-        r2 = HDF5IO.read_strategy(fn)
+        IO.write_strategy(fn, strat2)
+        r2 = IO.read_strategy(fn)
         @test r2.strike0 ≈ 200.0
         @test r2.nstrike == 10
         @test r2.converged == 1
@@ -447,14 +447,14 @@ end
             HDF5.create_group(f, "misfits")
         end
         data1 = reshape(Float64[1:6;], 2, 3)
-        HDF5IO.write_misfits(fn, :xcorr, data1)
+        IO.write_misfits(fn, :xcorr, data1)
         # Verify first write
-        mis1 = HDF5IO.read_misfits(fn)
+        mis1 = IO.read_misfits(fn)
         @test mis1[:xcorr] ≈ data1
         # Write second time — should replace not duplicate
         data2 = [7.0 8.0 9.0; 10.0 11.0 12.0]
-        HDF5IO.write_misfits(fn, :xcorr, data2)
-        mis2 = HDF5IO.read_misfits(fn)
+        IO.write_misfits(fn, :xcorr, data2)
+        mis2 = IO.read_misfits(fn)
         @test length(keys(mis2)) == 1  # only :xcorr, not duplicated
         @test mis2[:xcorr] ≈ data2    # second write values
         rm(fn; force=true)

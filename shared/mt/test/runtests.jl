@@ -1,8 +1,8 @@
 using Test
-using MTUtils
+using MT
 using Random
 
-println("Running MTUtils tests...")
+println("Running MT tests...")
 
 # ─── Test 1: Pure double-couple (strike=0, dip=90, rake=0) ───
 @testset "Pure double-couple" begin
