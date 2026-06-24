@@ -9,11 +9,16 @@
 # When running standalone for validation, uncomment the include/using block.
 #
 # Usage:
-#   julia scripts/input.jl data/raw.h5 config_sample.jl
+#   julia scripts/input.jl config_sample.jl
 
 # (Uncomment the two lines below only for standalone validation)
 # include("shared/config/src/Config.jl")
 # using .Config
+
+# ── External data file ──────────────────────────────────────
+# Path to HDF5 file with event info, station metadata,
+# phase picks, and raw waveforms.
+Config.data_file() = "data/my_event.h5"
 
 # ── Misfit modules ────────────────────────────────────────
 Config.misfit_modules()   = ["XCorr", "Polarity", "PSR"]

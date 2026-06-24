@@ -24,6 +24,7 @@ module Config
 export misfit_modules, module_weights, minimum_stations
 export freq_bands, depths, grid_params
 export xcorr_params, polarity_params, greens_params
+export data_file
 export freq_test_max_iter
 
 # ─────────────────────────────────────────────────────────
@@ -182,6 +183,19 @@ Example:
 function greens_params()
     throw(ConfigError("greens_params",
         "-> NamedTuple (gf_dir=\"path/\", model=\"name\")"))
+end
+
+"""
+    data_file() -> String
+
+Path to the external HDF5 data file containing event info, station metadata,
+phase picks, and raw waveforms. Same schema as the former `raw.h5`.
+
+Example: `return "data/my_event.h5"`
+"""
+function data_file()::String
+    throw(ConfigError("data_file",
+        "-> String  (e.g. return \"data/my_event.h5\")"))
 end
 
 """
