@@ -1,5 +1,6 @@
 module StageLog
 
+import Logging
 using Logging: AbstractLogger, BelowMinLevel, Warn, Error, handle_message, min_enabled_level, shouldlog, global_logger
 
 export StageLogger, setup_logger!

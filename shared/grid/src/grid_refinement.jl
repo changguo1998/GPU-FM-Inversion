@@ -26,7 +26,7 @@ struct TrialResult
 end
 
 """
-    refine_strategy(current::IO.Strategy, best_trial::TrialResult) -> IO.Strategy
+    refine_strategy(current::H5IO.Strategy, best_trial::TrialResult) -> H5IO.Strategy
 
 Compute the next iteration's search grid from the best trial result.
 
@@ -39,11 +39,11 @@ Compute the next iteration's search grid from the best trial result.
 - **Frequency subset**: indices where `freq_misfit ≤ 1.2 × best_freq_misfit`
 - **Empty subset**: fall back to single value (best index only)
 
-Returns a new `IO.Strategy` with `converged=0` and `iteration` incremented.
+Returns a new `H5IO.Strategy` with `converged=0` and `iteration` incremented.
 The caller (assess.jl) prompts the operator and writes the strategy to
 `status_{N+1}.h5`.
 """
-function refine_strategy(current::IO.Strategy, best_trial::TrialResult)
+function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
     # ── SDR center ← best trial ────────────────────────
     new_strike0 = best_trial.sdr[1]
     new_dip0    = best_trial.sdr[2]
@@ -94,7 +94,7 @@ function refine_strategy(current::IO.Strategy, best_trial::TrialResult)
     end
 
     # ── Build output Strategy ──────────────────────────
-    return IO.Strategy(
+    return H5IO.Strategy(
         new_strike0, new_dstrike, new_nstrike,
         new_dip0, new_ddip, new_ndip,
         new_rake0, new_drake, new_nrake,
@@ -121,14 +121,14 @@ end
 # ─────────────────────────────────────────────────────────
 
 """
-    prompt_operator(best_sdr, misfit, current::IO.Strategy; io_in=stdin, io_out=stdout) -> Bool
+    prompt_operator(best_sdr, misfit, current::H5IO.Strategy; io_in=stdin, io_out=stdout) -> Bool
 
 Display current best result and grid, then ask the operator whether to
 continue to the next iteration.
 
 Returns `true` for "y" / "Y", `false` for anything else.
 """
-function prompt_operator(best_sdr, misfit, current::IO.Strategy;
+function prompt_operator(best_sdr, misfit, current::H5IO.Strategy;
                          io_in::Base.IO=stdin, io_out::Base.IO=stdout)
     println(io_out)
     println(io_out, "Best SDR: (strike=$(best_sdr[1]), dip=$(best_sdr[2]), rake=$(best_sdr[3])), Misfit=$misfit")

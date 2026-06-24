@@ -7,9 +7,10 @@ GridRefinement (compute next iteration's grid from best trial).
 """
 module Grid
 
-# Include IO types needed by grid_refinement
-include(joinpath(@__DIR__, "..", "..", "io", "src", "IO.jl"))
-using .IO
+# Cannot `import IO` — name clashes with Base.IO.
+# Load via PkgId to disambiguate, then alias for use in sub-files.
+const H5IO = Base.require(Base.PkgId(
+    Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
 
 include("trial_gen.jl")
 include("grid_refinement.jl")

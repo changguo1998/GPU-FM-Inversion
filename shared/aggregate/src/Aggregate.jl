@@ -143,8 +143,6 @@ function aggregate_misfits(
     return (total, best_idx, per_module)
 end
 
-end # module
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Uncertainty computation helpers
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -201,3 +199,5 @@ function compute_sdr_std(freq_accumulated::AbstractMatrix{Float64})
     end
     return (std(freq_accumulated[:, 1]), std(freq_accumulated[:, 2]), std(freq_accumulated[:, 3]))
 end
+
+end # module
