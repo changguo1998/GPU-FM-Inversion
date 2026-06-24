@@ -1,6 +1,3 @@
 name = "Config"
 uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 version = "0.1.0"
-
-[deps]
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"

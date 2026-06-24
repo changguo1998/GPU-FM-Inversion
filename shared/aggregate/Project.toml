@@ -1,3 +1,6 @@
 name = "Aggregate"
 uuid = "d899c1fe-439a-47d9-a1ba-d896c8e97e6b"
 version = "0.1.0"
+
+[deps]
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
