@@ -5,12 +5,10 @@ using Printf
 using Statistics: std
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module, writes to both stdout and output.log
+# Logging: uses shared StageLog module
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
-
-StageLog.setup_logger!("output", "output.log")
 
 # ── Load shared modules ──
 using IO, MT, Aggregate
@@ -39,10 +37,13 @@ status_dir, synthesize_waveforms, db_path = let sd = ".", sw = false, dp = ""
     (sd, sw, dp)
 end
 
+# Log to status dir (resolved after CLI parsing)
+output_log = joinpath(abspath(status_dir), "output.log")
+StageLog.setup_logger!("output", output_log)
+
 if isempty(db_path)
     @error "Usage: julia scripts/output.jl <database.h5> [--status-dir <dir>] [--waveforms]"
     exit(1)
-end
 end
 # (driver.sh handles file existence validation)
 

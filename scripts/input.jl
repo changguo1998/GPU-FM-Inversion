@@ -16,12 +16,10 @@ using Dates
 using Random
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module, writes to both stdout and input.log
+# Logging: uses shared StageLog module, writes to both stdout and <data_dir>/input.log
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
-
-StageLog.setup_logger!("input", "input.log")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Load shared modules
@@ -35,11 +33,17 @@ using IO, Signal, Config
 
 config_jl = ARGS[1]
 
+# Derive data directory from config path (config is always <data-dir>/config.jl)
+data_dir = dirname(abspath(config_jl))
+
+StageLog.setup_logger!("input", joinpath(data_dir, "input.log"))
+
 # ── Log header ──
 @info "─"^70
 @info "input stage started"
 @info "  config   = $config_jl"
-@info "  log file = input.log"
+@info "  data dir = $data_dir"
+@info "  log file = $(joinpath(data_dir, "input.log"))"
 
 include(abspath(config_jl))  # defines Config.misfit_modules(), Config.data_file(), …
 raw_path = Config.data_file()
@@ -331,8 +335,9 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Writing database.h5 …"
-IO.write_database("database.h5", greens, data, index, db_config)
-@info "  database.h5 written"
+db_path = joinpath(data_dir, "database.h5")
+IO.write_database(db_path, greens, data, index, db_config)
+@info "  $db_path written"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. Write status_0.h5
@@ -367,9 +372,10 @@ strategy = IO.Strategy(
     zeros(Float64, n_depths),
 )
 
-h5open("status_0.h5", "w") do f end  # create fresh file
-IO.write_strategy("status_0.h5", strategy)
-@info "  status_0.h5 written"
+status0_path = joinpath(data_dir, "status_0.h5")
+h5open(status0_path, "w") do f end  # create fresh file
+IO.write_strategy(status0_path, strategy)
+@info "  $status0_path written"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
@@ -377,10 +383,10 @@ IO.write_strategy("status_0.h5", strategy)
 
 @info ""
 @info "Stage complete:"
-@info "  database.h5  : /greens ($(length(greens)) phases × $n_depths depths)"
-@info "  database.h5  : /data ($n_frequencies frequencies × $(length(misfit_modules)) modules)"
-@info "  database.h5  : /config, /index"
-@info "  status_0.h5  : /strategy (initial grid, no trials)"
+@info "  $(basename(db_path)) : /greens ($(length(greens)) phases × $n_depths depths)"
+@info "  $(basename(db_path)) : /data ($n_frequencies frequencies × $(length(misfit_modules)) modules)"
+@info "  $(basename(db_path)) : /config, /index"
+@info "  $(basename(status0_path)) : /strategy (initial grid, no trials)"
 @info "  Phases: $n_phases | Stations: $n_stations_picks | Depths: $n_depths | Freqs: $n_frequencies"
 @info ""
 @info "─"^70

@@ -12,12 +12,10 @@ Usage:
 
 using HDF5
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module, writes to both stdout and preprocess.log
+# Logging: uses shared StageLog module
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
-
-StageLog.setup_logger!("preprocess", "preprocess.log")
 
 # ─────────────────────────────────────────────────────────
 # CLI
@@ -30,6 +28,10 @@ end
 
 status_file = ARGS[1]
 database_file = length(ARGS) >= 2 ? ARGS[2] : nothing
+
+# Log to the same directory as the status file (i.e. status/ subdir)
+prep_log = joinpath(dirname(abspath(status_file)), "preprocess.log")
+StageLog.setup_logger!("preprocess", prep_log)
 
 # (file existence validated by driver.sh)
 

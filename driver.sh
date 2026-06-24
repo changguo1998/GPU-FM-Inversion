@@ -169,8 +169,7 @@ while true; do
             exit 1
         fi
         run_stage "input.jl → database.h5 + status_0.h5" \
-            sh -c 'cd "$0" && julia "$1" "$2"' \
-            "$DATA_DIR" "$SCRIPT_DIR/scripts/input.jl" "$CONFIG_FILE"
+            julia --project="$SCRIPT_DIR" "$SCRIPT_DIR/scripts/input.jl" "$CONFIG_FILE"
         # Move status_0.h5 from data dir to status dir
         if [[ -f "$DATA_DIR/status_0.h5" ]]; then
             mv "$DATA_DIR/status_0.h5" "$STATUS_DIR/"

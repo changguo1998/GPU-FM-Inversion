@@ -3,12 +3,10 @@
 using HDF5
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module, writes to both stdout and assess.log
+# Logging: uses shared StageLog module
 # ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
-
-StageLog.setup_logger!("assess", "assess.log")
 
 # ── Load shared modules ────────────────────────────────────────────────────────
 using IO
@@ -26,6 +24,10 @@ end
 
 status_file = ARGS[1]
 database_file = ARGS[2]
+
+# Log to the same directory as the status file (i.e. status/ subdir)
+assess_log = joinpath(dirname(abspath(status_file)), "assess.log")
+StageLog.setup_logger!("assess", assess_log)
 
 m = match(r"status_(\d+)\.h5$", basename(status_file))
 if m === nothing
