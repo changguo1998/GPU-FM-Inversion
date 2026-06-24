@@ -20,7 +20,7 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 - `xcorr_phase_mask`: length `N_phases` — `true` = active, `false` = masked (skip)
 - `polarity_channel_mask`: length `N_channels` — `true` = active, `false` = masked
 - `psr_channel_mask`: length `N_channels` — `true` = active, `false` = masked
-- `module_weights`: `[3]` — weights for `[xcorr, polarity, psr]`
+- `module_weights`: `[2]` or `[3]` — weights for `[xcorr, polarity]` or `[xcorr, polarity, psr]`
 
 # Returns
 - `total`: `[N_trials]` — weighted misfit per trial
@@ -94,12 +94,18 @@ function aggregate_misfits(
     all_nan_xc = all(isnan, xc_per_trial)
     all_nan_pol = all(isnan, pol_per_trial)
     all_nan_psr = all(isnan, psr_per_trial)
-    if all_nan_xc && all_nan_pol && all_nan_psr
+    n_w = length(module_weights)
+    active_nan = [all_nan_xc, all_nan_pol]
+    n_w >= 3 && push!(active_nan, all_nan_psr)
+    if all(active_nan)
         error("aggregate_misfits: all trials are NaN across all modules — check input data and masks")
     end
 
     # ── Apply module weights ──
-    w_xc, w_pol, w_psr = module_weights[1], module_weights[2], module_weights[3]
+    # Accept 2 or 3 weights (XCorr, Polarity, [PSR])
+    w_xc = n_w >= 1 ? module_weights[1] : 0.0
+    w_pol = n_w >= 2 ? module_weights[2] : 0.0
+    w_psr = n_w >= 3 ? module_weights[3] : 0.0
 
     # ── Combine: weighted sum, treating NaN scores as 0 contribution ──
     function _add_weighted(a, w, b)
@@ -114,7 +120,9 @@ function aggregate_misfits(
     total = zeros(Float64, n_trials)
     _add_weighted(xc_per_trial, w_xc, total)
     _add_weighted(pol_per_trial, w_pol, total)
-    _add_weighted(psr_per_trial, w_psr, total)
+    if n_w >= 3
+        _add_weighted(psr_per_trial, w_psr, total)
+    end
 
     # Edge case: if all weights are 0, total is all zeros — find any valid trial
     if all(t -> t == 0.0, total) && all(module_weights .== 0.0)
@@ -139,6 +147,10 @@ function aggregate_misfits(
         :polarity => pol_per_trial,
         :psr => psr_per_trial,
     )
+    # Remove PSR from output if weight was 0 (module not in use)
+    if n_w < 3
+        pop!(per_module, :psr)
+    end
 
     return (total, best_idx, per_module)
 end

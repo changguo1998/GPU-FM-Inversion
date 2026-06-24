@@ -135,7 +135,7 @@ function make_synthetic_database()
         "freq_bands_low" => [0.05, 0.1],
         "freq_bands_high" => [0.5, 1.0],
         "minimum_stations" => Int32(3),
-        "freq_test_max_iter" => Int32(20),
+
         "xcorr" => Dict("maxlag_factor" => 0.5, "filter_order" => Int32(4),
                          "P_trim" => [-2.0, 60.0], "S_trim" => [-2.0, 80.0],
                          "select_threshold" => 0.7, "deselect_threshold" => 0.5),

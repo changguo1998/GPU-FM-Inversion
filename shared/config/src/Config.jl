@@ -13,7 +13,7 @@ module Config
 #   using .Config
 #
 #   function Config.misfit_modules()
-#       return ["XCorr", "Polarity", "PSR"]
+#       return ["XCorr", "Polarity"]
 #   end
 #   # ... etc for each function
 #
@@ -25,7 +25,6 @@ export misfit_modules, module_weights, minimum_stations
 export freq_bands, depths, grid_params
 export xcorr_params, polarity_params, greens_params
 export data_file
-export freq_test_max_iter
 
 # ─────────────────────────────────────────────────────────
 # Error for unimplemented interface functions
@@ -48,11 +47,11 @@ Base.showerror(io::IO, e::ConfigError) = print(io,
     misfit_modules() -> Vector{String}
 
 Return the list of active misfit module names.
-Example: `return [\"XCorr\", \"Polarity\", \"PSR\"]`
+Example: `return [\"XCorr\", \"Polarity\"]`
 """
 function misfit_modules()::Vector{String}
     throw(ConfigError("misfit_modules",
-        "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\", \"PSR\"])"))
+        "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\"])"))
 end
 
 """
@@ -196,16 +195,6 @@ Example: `return "data/my_event.h5"`
 function data_file()::String
     throw(ConfigError("data_file",
         "-> String  (e.g. return \"data/my_event.h5\")"))
-end
-
-"""
-    freq_test_max_iter() -> Int
-
-Maximum number of iterations for per-frequency convergence testing.
-"""
-function freq_test_max_iter()::Int
-    throw(ConfigError("freq_test_max_iter",
-        "-> Int  (e.g. return 3)"))
 end
 
 end # module
