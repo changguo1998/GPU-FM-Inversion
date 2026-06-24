@@ -46,12 +46,9 @@ echo "  config.jl: $(wc -l < "$DATA_DIR/config.jl") lines"
 # ==============================================================================
 echo ""
 echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
-(
-    cd "$DATA_DIR"
-    julia \
-        "$PROJECT_DIR/scripts/input.jl" \
-        "$DATA_DIR/config.jl"
-)
+julia --project="$PROJECT_DIR" \
+    "$PROJECT_DIR/scripts/input.jl" \
+    "$DATA_DIR/config.jl"
 
 [[ -f "$DATA_DIR/database.h5" ]] && pass "database.h5 created" \
     || fail "database.h5 missing"
@@ -64,7 +61,7 @@ echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
 # ==============================================================================
 echo ""
 echo "[Step 3] preprocess.jl → /trials into status_0.h5 ..."
-julia \
+julia --project="$PROJECT_DIR" \
     "$PROJECT_DIR/scripts/preprocess.jl" \
     "$DATA_DIR/status_0.h5" "$DATA_DIR/database.h5"
 
@@ -104,10 +101,6 @@ xcorr[:, best] .= 0.1
 polarity = fill(0.5, n_st, n_tr)
 polarity[:, best] .= 0.05
 
-# psr [3×81]: all 0.5 except best trial
-psr = fill(0.5, n_st, n_tr)
-psr[:, best] .= 0.05
-
 h5open(fname, "r+") do f
     if haskey(f, "misfits")
         delete_object(f, "misfits")
@@ -115,9 +108,8 @@ h5open(fname, "r+") do f
     mg = create_group(f, "misfits")
     write(mg, "xcorr", xcorr)
     write(mg, "polarity", polarity)
-    write(mg, "psr", psr)
 end
-println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))], psr[$(size(psr))]")
+println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))]")
 '
 
 has_xcorr=$(julia --project="$PROJECT_DIR/shared/io" -e "
@@ -134,7 +126,7 @@ has_xcorr=$(julia --project="$PROJECT_DIR/shared/io" -e "
 # ==============================================================================
 echo ""
 echo "[Step 5] assess.jl (echo y → continue) ..."
-echo "y" | julia \
+echo "y" | julia --project="$PROJECT_DIR" \
     "$PROJECT_DIR/scripts/assess.jl" \
     "$DATA_DIR/status_0.h5" "$DATA_DIR/database.h5"
 
@@ -175,7 +167,7 @@ fi
 # ==============================================================================
 echo ""
 echo "[Step 6] preprocess.jl → /trials into status_1.h5 ..."
-julia \
+julia --project="$PROJECT_DIR" \
     "$PROJECT_DIR/scripts/preprocess.jl" \
     "$DATA_DIR/status_1.h5" "$DATA_DIR/database.h5"
 
@@ -211,9 +203,6 @@ xcorr[:, best] .= 0.1
 polarity = fill(0.5, n_st, n_tr)
 polarity[:, best] .= 0.05
 
-psr = fill(0.5, n_st, n_tr)
-psr[:, best] .= 0.05
-
 h5open(fname, "r+") do f
     if haskey(f, "misfits")
         delete_object(f, "misfits")
@@ -221,9 +210,8 @@ h5open(fname, "r+") do f
     mg = create_group(f, "misfits")
     write(mg, "xcorr", xcorr)
     write(mg, "polarity", polarity)
-    write(mg, "psr", psr)
 end
-println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))], psr[$(size(psr))]")
+println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))]")
 '
 
 pass "Injected misfits into status_1.h5"
@@ -233,7 +221,7 @@ pass "Injected misfits into status_1.h5"
 # ==============================================================================
 echo ""
 echo "[Step 8] assess.jl (echo N → converged) ..."
-echo "N" | julia \
+echo "N" | julia --project="$PROJECT_DIR" \
     "$PROJECT_DIR/scripts/assess.jl" \
     "$DATA_DIR/status_1.h5" "$DATA_DIR/database.h5"
 
@@ -254,7 +242,7 @@ CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/io" -e "
 # ==============================================================================
 echo ""
 echo "[Step 9] output.jl → output.h5 ..."
-julia \
+julia --project="$PROJECT_DIR" \
     "$PROJECT_DIR/scripts/output.jl" \
     "$DATA_DIR/database.h5" --status-dir "$DATA_DIR"
 

@@ -106,8 +106,8 @@ config = """\
 # Auto-generated pipeline config for synthetic test event.
 # Loaded by input.jl via include() — Config module already loaded.
 
-Config.misfit_modules()   = ["XCorr", "Polarity", "PSR"]
-Config.module_weights()   = [0.5, 0.25, 0.25]
+Config.misfit_modules()   = ["XCorr", "Polarity"]
+Config.module_weights()   = [0.5, 0.5]
 Config.minimum_stations() = 2
 
 Config.data_file() = joinpath(@__DIR__, "raw.h5")
@@ -140,8 +140,6 @@ Config.xcorr_params() = (
 Config.polarity_params() = (trim = [0.0, 2.0],)
 
 Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic",)
-
-Config.freq_test_max_iter() = 3
 """
 
 write(cfg_jl, config)

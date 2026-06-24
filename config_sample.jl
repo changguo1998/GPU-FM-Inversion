@@ -20,8 +20,8 @@
 Config.data_file() = "data/my_event.h5"
 
 # ── Misfit modules ────────────────────────────────────────
-Config.misfit_modules()   = ["XCorr", "Polarity", "PSR"]
-Config.module_weights()   = [0.5, 0.25, 0.25]
+Config.misfit_modules()   = ["XCorr", "Polarity"]
+Config.module_weights()   = [0.5, 0.5]
 Config.minimum_stations() = 2
 
 # ── Frequency bands ──────────────────────────────────────
@@ -58,6 +58,3 @@ Config.polarity_params() = (trim = [0.0, 2.0],)
 
 # ── Green's functions ────────────────────────────────────
 Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic",)
-
-# ── Frequency test ───────────────────────────────────────
-Config.freq_test_max_iter() = 3
