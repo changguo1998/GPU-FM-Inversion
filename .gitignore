@@ -7,7 +7,6 @@ Manifest.toml
 forward/tests/test_mt_to_csv
 progress.md
 # Stray test outputs at project root
-/Project.toml
 /config.toml
 input.log
 forward/tests/test_cross_lang
