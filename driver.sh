@@ -12,48 +12,38 @@ set -euo pipefail
 #   output.jl     (once) → output.h5
 #
 # Usage:
-#   bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]
+#   bash driver.sh [--data-dir <dir>] [--dry-run]
 # ==============================================================================
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
 DATA_DIR="."
 CONFIG_FILE="$DATA_DIR/config.jl"
 DRY_RUN=false
-SYNTHETIC=false
-RAW_H5="$DATA_DIR/raw.h5"
 DATABASE_H5="$DATA_DIR/database.h5"
 
 # Project root (directory containing this script)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 FORWARD_BIN="$SCRIPT_DIR/build/forward/forward"
 
 # ── Parse CLI ──────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --data-dir)
-            DATA_DIR="$2"
-            CONFIG_FILE="$DATA_DIR/config.jl"
-            RAW_H5="$DATA_DIR/raw.h5"
-            DATABASE_H5="$DATA_DIR/database.h5"
-            shift 2
-            ;;
-        --config)
-            CONFIG_FILE="$2"
-            shift 2
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --synthetic)
-            SYNTHETIC=true
-            shift
-            ;;
-        *)
-            echo "[driver] ERROR: Unknown argument: $1" >&2
-            echo "Usage: bash driver.sh [--data-dir <dir>] [--config <path>] [--dry-run] [--synthetic]" >&2
-            exit 1
-            ;;
+    --data-dir)
+        DATA_DIR="$2"
+        CONFIG_FILE="$DATA_DIR/config.jl"
+        DATABASE_H5="$DATA_DIR/database.h5"
+        shift 2
+        ;;
+
+    --dry-run)
+        DRY_RUN=true
+        shift
+        ;;
+    *)
+        echo "[driver] ERROR: Unknown argument: $1" >&2
+        echo "Usage: bash driver.sh [--data-dir <dir>] [--dry-run]" >&2
+        exit 1
+        ;;
     esac
 done
 
@@ -73,7 +63,7 @@ find_latest_n() {
         basename_f=$(basename "$f")
         if [[ "$basename_f" =~ ^status_([0-9]+)\.h5$ ]]; then
             local n="${BASH_REMATCH[1]}"
-            if (( n > max_n )); then
+            if ((n > max_n)); then
                 max_n=$n
             fi
         fi
@@ -85,7 +75,7 @@ find_latest_n() {
 h5_group_exists() {
     local file="$1"
     local path="$2"
-    julia --project="$SCRIPT_DIR/shared/HDF5IO.jl" -e "
+    julia --project="$SCRIPT_DIR/shared/io" -e "
         using HDF5
         function hasgroup(fname, p)
             if !isfile(fname); println(\"false\"); return; end
@@ -113,7 +103,7 @@ h5_group_exists() {
 # Read /strategy/converged value from an HDF5 file
 h5_read_converged() {
     local file="$1"
-    julia --project="$SCRIPT_DIR/shared/HDF5IO.jl" -e "
+    julia --project="$SCRIPT_DIR/shared/io" -e "
         using HDF5
         if !isfile(\"$file\"); println(\"notfound\"); return; end
         h5open(\"$file\", \"r\") do f
@@ -146,16 +136,6 @@ run_stage() {
 }
 
 # ==============================================================================
-# Synthetic data generation
-# ==============================================================================
-
-if $SYNTHETIC; then
-    echo "[driver] Generating synthetic test data in $DATA_DIR ..."
-    julia "$SCRIPT_DIR/tests/synthetic_data.jl" "$DATA_DIR"
-    echo "[driver] Synthetic data ready: $RAW_H5, $CONFIG_FILE"
-fi
-
-# ==============================================================================
 # Main state detection and stage dispatch (loop until converged)
 #
 # State machine:
@@ -173,19 +153,15 @@ while true; do
 
     # ── Stage 1: input.jl (once, no database.h5) ──────────────────────────────
     if [[ ! -f "$DATABASE_H5" ]]; then
-        # Validate input files exist (script does not check — driver owns validation)
-        if [[ ! -f "$RAW_H5" ]]; then
-            echo "[driver] ERROR: raw.h5 not found: $RAW_H5" >&2
-            exit 1
-        fi
+        # Validate input files exist
         if [[ ! -f "$CONFIG_FILE" ]]; then
             echo "[driver] ERROR: config file not found: $CONFIG_FILE" >&2
             exit 1
         fi
         run_stage "input.jl → database.h5 + status_0.h5" \
             julia \
-                "$SCRIPT_DIR/scripts/input.jl" \
-                "$RAW_H5" "$CONFIG_FILE"
+            "$SCRIPT_DIR/scripts/input.jl" \
+            "$CONFIG_FILE"
         if $DRY_RUN; then break; fi
         continue
     fi
@@ -205,8 +181,8 @@ while true; do
         echo "[driver] Converged=1 detected in status_${N}.h5"
         run_stage "output.jl → output.h5" \
             julia --project="$SCRIPT_DIR/output" \
-                "$SCRIPT_DIR/output/src/output.jl" \
-                "$DATABASE_H5" --status-dir "$DATA_DIR"
+            "$SCRIPT_DIR/output/src/output.jl" \
+            "$DATABASE_H5" --status-dir "$DATA_DIR"
         break
     fi
 
@@ -216,8 +192,8 @@ while true; do
         NEXT_N=$((N + 1))
         run_stage "assess.jl → status_${NEXT_N}.h5" \
             julia --project="$SCRIPT_DIR/assess" \
-                "$SCRIPT_DIR/assess/src/assess.jl" \
-                "$SRC_STATUS" "$DATABASE_H5"
+            "$SCRIPT_DIR/assess/src/assess.jl" \
+            "$SRC_STATUS" "$DATABASE_H5"
         if $DRY_RUN; then
             echo "[DRY-RUN] Would loop to preprocess for status_${NEXT_N}.h5"
             break
@@ -237,10 +213,11 @@ while true; do
     # ── Stage 2: preprocess.jl (has /strategy, no /trials) ────────────────────
     run_stage "preprocess.jl → /trials into status_${N}.h5" \
         julia --project="$SCRIPT_DIR/preprocess" \
-            "$SCRIPT_DIR/preprocess/src/preprocess.jl" \
-            "$SRC_STATUS" "$DATABASE_H5"
+        "$SCRIPT_DIR/preprocess/src/preprocess.jl" \
+        "$SRC_STATUS" "$DATABASE_H5"
     if $DRY_RUN; then break; fi
 
 done
 
 echo "[driver] Pipeline complete."
+
