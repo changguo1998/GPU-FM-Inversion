@@ -71,7 +71,7 @@ grid = Grid.GridStrategy(
 # Get depth values (from database.h5 or fallback)
 # ─────────────────────────────────────────────────────────
 
-if database_file !== nothing && IO.h5exists(database_file, "config/depth_vals")
+if IO.h5exists(database_file, "config/depth_vals")
     depth_vals = h5open(database_file, "r") do f
         read(f["config/depth_vals"])
     end
@@ -80,7 +80,7 @@ else
     # Fallback: use 1:max_index as synthetic depth values
     max_idx = isempty(grid.depth_indices) ? grid.best_depth_index : maximum(grid.depth_indices)
     depth_vals = collect(Float64, 1:max(max_idx, 1))
-    @info "Using synthetic depth values [1:$max_idx] (no database.h5 provided)"
+    @info "Using synthetic depth values [1:$max_idx] (no depth_vals in database)"
 end
 
 # ─────────────────────────────────────────────────────────

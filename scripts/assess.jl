@@ -17,6 +17,53 @@ using Grid: refine_strategy, prompt_operator, TrialResult
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Query mode (for shell orchestration, no stage execution) ───────────────────
+if length(ARGS) >= 1 && ARGS[1] == "--query"
+    if length(ARGS) < 2
+        println(stderr, "Usage: assess.jl --query <group-exists|read-converged> <file> [path]")
+        exit(1)
+    end
+    cmd = ARGS[2]
+    f   = ARGS[3]
+    if cmd == "group-exists"
+        p = length(ARGS) >= 4 ? ARGS[4] : ""
+        if !isfile(f)
+            println("false"); exit(0)
+        end
+        h5open(f, "r") do h5
+            try
+                parts = split(p, '/'; keepempty=false)
+                node = h5
+                for part in parts
+                    if !haskey(node, part)
+                        println("false")
+                        return
+                    end
+                    node = node[part]
+                end
+                println("true")
+            catch
+                println("false")
+            end
+        end
+    elseif cmd == "read-converged"
+        if !isfile(f)
+            println("notfound"); exit(0)
+        end
+        h5open(f, "r") do h5
+            try
+                println(read(h5["strategy/converged"]))
+            catch
+                println("notfound")
+            end
+        end
+    else
+        println(stderr, "Unknown query: $cmd")
+        exit(1)
+    end
+    exit(0)
+end
+
 if length(ARGS) < 2
     @error "Usage: julia scripts/assess.jl <status_N.h5> <database.h5>"
     exit(1)

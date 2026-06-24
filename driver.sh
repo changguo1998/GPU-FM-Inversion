@@ -81,50 +81,14 @@ find_latest_n() {
     echo "$max_n"
 }
 
-# Check whether an HDF5 group exists via Julia
+# Check whether an HDF5 group exists (delegated to assess.jl --query)
 h5_group_exists() {
-    local file="$1"
-    local path="$2"
-    julia --project="$SCRIPT_DIR" -e "
-        using HDF5
-        function hasgroup(fname, p)
-            if !isfile(fname); println(\"false\"); return; end
-            h5open(fname, \"r\") do f
-                try
-                    parts = split(p, '/'; keepempty=false)
-                    node = f
-                    for part in parts
-                        if !haskey(node, part)
-                            println(\"false\")
-                            return
-                        end
-                        node = node[part]
-                    end
-                    println(\"true\")
-                catch
-                    println(\"false\")
-                end
-            end
-        end
-        hasgroup(\"$file\", \"$path\")
-    "
+    julia --project="$SCRIPT_DIR" "$SCRIPT_DIR/scripts/assess.jl" --query group-exists "$1" "$2"
 }
 
-# Read /strategy/converged value from an HDF5 file
+# Read /strategy/converged value from an HDF5 file (delegated to assess.jl --query)
 h5_read_converged() {
-    local file="$1"
-    julia --project="$SCRIPT_DIR" -e "
-        using HDF5
-        if !isfile(\"$file\"); println(\"notfound\"); return; end
-        h5open(\"$file\", \"r\") do f
-            try
-                val = read(f[\"strategy/converged\"])
-                println(val)
-            catch
-                println(\"notfound\")
-            end
-        end
-    "
+    julia --project="$SCRIPT_DIR" "$SCRIPT_DIR/scripts/assess.jl" --query read-converged "$1"
 }
 
 # Run a stage; if DRY_RUN, just echo the label
