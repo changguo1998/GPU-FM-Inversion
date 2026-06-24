@@ -6,3 +6,12 @@ IO = "4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"
 MT = "3b1331be-2437-4b71-957a-a72f97dae8bc"
 Signal = "c2443ae3-2a13-43e4-b75e-3c3d3ad453ec"
 StageLog = "ecfc2dc1-76c8-4655-a484-9f16dc439fc9"
+
+[paths]
+Aggregate = "shared/aggregate"
+Config = "shared/config"
+Grid = "shared/grid"
+IO = "shared/io"
+MT = "shared/mt"
+Signal = "shared/signal"
+StageLog = "shared/stage_log"
