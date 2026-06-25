@@ -13,13 +13,14 @@
 #endif
 
 struct MomentTensor {
-    double Mxx, Myy, Mzz, Mxy, Mxz, Myz;
+  double Mxx, Myy, Mzz, Mxy, Mxz, Myz;
 };
 
 // Host function: converts SDR (radians) → MomentTensor.
 MomentTensor sdr_to_mt(double strike_rad, double dip_rad, double rake_rad);
 
 // GPU device function (also callable from host).
-MT_HOST_DEVICE MomentTensor sdr_to_mt_device(double strike_rad, double dip_rad, double rake_rad);
+MT_HOST_DEVICE MomentTensor sdr_to_mt_device(double strike_rad, double dip_rad,
+                                             double rake_rad);
 
 #endif // MT_UTILS_H
