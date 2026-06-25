@@ -47,7 +47,9 @@ checkexe mdformat
 checkexe fnm
 checkexe markdown-table-formatter
 
-spack load llvm
+if ! command -v clang-format >/dev/null 2>&1; then
+	spack load llvm
+fi
 checkexe clang-format
 
 # ── Colors ───────────────────────────────────────────────────────────────────

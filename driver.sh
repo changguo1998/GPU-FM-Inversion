@@ -21,11 +21,10 @@ help() {
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-FORWARD_BIN="$SCRIPT_DIR/forward/build/forward"
 CMD_CALL_JULIA="julia --project=$SCRIPT_DIR"
 CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
 CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
-CALL_FORWARD="$SCRIPT_DIR/forward"
+CALL_FORWARD="$SCRIPT_DIR/forward/build/forward"
 CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
 CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
 
