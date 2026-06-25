@@ -21,6 +21,7 @@ Returns: (total::Vector{Float64}[N_trials], best_idx::Int, per_module::Dict)
 ```
 
 **Shapes:**
+
 - `xcorr`: `[N_phases × N_trials]`
 - `polarity`: `[N_channels × N_trials]`
 - `psr`: `[N_channels × N_trials]`
@@ -28,12 +29,14 @@ Returns: (total::Vector{Float64}[N_trials], best_idx::Int, per_module::Dict)
 - `module_weights`: `[2]` or `[3]` = `[w_xc, w_pol, (w_psr)]`
 
 **Algorithm:**
+
 1. Per-module masked sum — for each trial, sum non-NaN values where mask is `true`. If no values contribute (all NaN or all masked), trial score = NaN for that module.
-2. All-NaN check across all modules — throws `ErrorException` if every trial is NaN everywhere.
-3. Weighted combination — NaN contributions are skipped (treated as 0.0). Module with weight=0 contributes nothing.
-4. Best trial = minimum total (ignoring NaN-only trials).
+1. All-NaN check across all modules — throws `ErrorException` if every trial is NaN everywhere.
+1. Weighted combination — NaN contributions are skipped (treated as 0.0). Module with weight=0 contributes nothing.
+1. Best trial = minimum total (ignoring NaN-only trials).
 
 **NaN handling:**
+
 - Masked entries (mask=false) skipped entirely
 - NaN values in active rows skipped per-row (do not propagate to trial total)
 - Trial with zero contribution across all active rows per module → that module's score = NaN

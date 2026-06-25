@@ -43,47 +43,54 @@ Requires: C++17, OpenMP (required), HDF5 (serial, Ubuntu paths: `/usr/include/hd
 ## Kernel details
 
 ### XCorr (`launch_xcorr_misfit`)
+
 Work item per (phase × trial). Per item:
+
 1. Load 6-component MT for this trial
-2. Compute `syn_norm² = mᵀ · synamp[phase] · m` (6×6 quadratic form)
-3. For each lag `k`: `cc_syn[k] = Σᵢ m[i] · CC[phase][k][i]`
-4. Normalize: `cc_norm[k] = cc_syn[k] / √(obs_norm²[phase] · syn_norm²)`
-5. Misfit = `1.0 - max_k(|cc_norm[k]|)`
-Guarded: zero/negative norms → misfit = 1.0.
+1. Compute `syn_norm² = mᵀ · synamp[phase] · m` (6×6 quadratic form)
+1. For each lag `k`: `cc_syn[k] = Σᵢ m[i] · CC[phase][k][i]`
+1. Normalize: `cc_norm[k] = cc_syn[k] / √(obs_norm²[phase] · syn_norm²)`
+1. Misfit = `1.0 - max_k(|cc_norm[k]|)`
+   Guarded: zero/negative norms → misfit = 1.0.
 
 ### Polarity (`launch_polarity_kernel`)
+
 Work item per (station × trial). Per item:
+
 1. Compute `dot = Σᵢ pol_vec[station][i] · mt[trial][i]`
-2. `syn_pol = sign(dot)` (1/-1/0)
-3. Match check: `syn_pol == obs_pol ? 0.0 : 1.0`
-Guarded: NaN obs_pol or zero obs_pol with zero pol_vec → NaN (not applicable).
+1. `syn_pol = sign(dot)` (1/-1/0)
+1. Match check: `syn_pol == obs_pol ? 0.0 : 1.0`
+   Guarded: NaN obs_pol or zero obs_pol with zero pol_vec → NaN (not applicable).
 
 ### PSR (`launch_psr_kernel`)
+
 Work item per (station × trial). Per item:
+
 1. Compute `amp_P_quad = Σᵢⱼ amp_P[station][i][j] · mt[trial][i] · mt[trial][j]`
-2. Same for amp_S
-3. `syn_amp = √(quad)`, `syn_psr = log10(syn_amp_P / syn_amp_S)`
-4. Misfit = `(syn_psr - obs_psr)²`
-Guarded: NaN obs_psr or near-zero amplitudes → NaN. Negative quads clamped to 0.
+1. Same for amp_S
+1. `syn_amp = √(quad)`, `syn_psr = log10(syn_amp_P / syn_amp_S)`
+1. Misfit = `(syn_psr - obs_psr)²`
+   Guarded: NaN obs_psr or near-zero amplitudes → NaN. Negative quads clamped to 0.
 
 ## Data flow in main.cpp
 
 1. Read trials from `status_{N}.h5` → `vector<Trial>`
-2. SDR→MT conversion (host): produces two layouts — `mt_xcorr_host[6 × N_trials]` and `mt_pol_host[N_trials × 6]`
-3. Read phase index from `database.h5` → phase types, station→phase mapping
-4. `DataCache::load_from_database(database_path, trials)` → loads preprocessed data per combo
-5. For each (freq_idx, depth_idx) combo:
+1. SDR→MT conversion (host): produces two layouts — `mt_xcorr_host[6 × N_trials]` and `mt_pol_host[N_trials × 6]`
+1. Read phase index from `database.h5` → phase types, station→phase mapping
+1. `DataCache::load_from_database(database_path, trials)` → loads preprocessed data per combo
+1. For each (freq_idx, depth_idx) combo:
    - Build MT sub-views for combo's trials
    - Launch XCorr kernel (if XCorr data exists)
    - Launch Polarity kernel (if Polarity data exists)
    - Launch PSR kernel (if PSR data exists)
    - Write results back to global output arrays
-6. Write `/misfits/xcorr`, `/misfits/polarity`, `/misfits/psr` to `status_{N}.h5`
-7. Free GPU memory via `cache.release_all()`
+1. Write `/misfits/xcorr`, `/misfits/polarity`, `/misfits/psr` to `status_{N}.h5`
+1. Free GPU memory via `cache.release_all()`
 
 ## Memory layout conventions
 
 All flat `double*` arrays, column-major:
+
 - MT (XCorr): `[6 × N_trials]` — `mt[comp + trial * 6]`
 - MT (Polarity/PSR): `[N_trials × 6]` — `mt[trial + comp * N_trials]`
 - CC data: `[N_phases·cc_pp × 6]` — `cc[phase*cc_pp + lag + comp * (N_ph·cc_pp)]`

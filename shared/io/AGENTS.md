@@ -20,12 +20,14 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 ## Exports
 
 ### Readers (external HDF5)
+
 - `read_event(h5file)` → `EventInfo`
 - `read_phase_picks(h5file)` → `Vector{PhasePick}`
 - `read_stations(h5file)` → `Vector{StationInfo}`
 - `read_waveform(h5file, phase_id)` → `Vector{Float64}`
 
 ### Readers (pipeline HDF5)
+
 - `read_trials(h5file)` → `TrialSet`
 - `read_strategy(h5file)` → `Strategy`
 - `read_misfits(h5file)` → `Dict{Symbol, Matrix{Float64}}`
@@ -34,6 +36,7 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 - `read_config(h5file)` → `Dict{String, Any}` (recursive group reader)
 
 ### Writers
+
 - `write_database(h5file, greens, data, index, config)` — creates `database.h5` from scratch
 - `write_trials(h5file, trials::TrialSet)` — overwrites `/trials` in existing file
 - `write_strategy(h5file, strategy::Strategy)` — overwrites `/strategy`
@@ -41,14 +44,16 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 - `write_misfits(h5file, modname::Symbol, data)` — writes `/misfits/{modname}` (not used by current pipeline — forward.cpp writes misfits directly via HDF5 C API)
 
 ### Geophysics utilities
+
 - `parse_time_iso(t_str)` → `Float64` seconds-since-epoch (NaN on empty)
 - `haversine_distance(lat1, lon1, lat2, lon2)` → distance in km
-- `compute_azimuth(lat1, lon1, lat2, lon2)` → azimuth in degrees [0, 360)
+- `compute_azimuth(lat1, lon1, lat2, lon2)` → azimuth in degrees \[0, 360)
 - `extract_station(phase_id)` → `"NET.STA"` from `"NET.STA.COMP.TYPE"`
 - `extract_phase_type(phase_id)` → `"P"` or `"S"` from last segment
 - `find_latest_status(status_dir)` → `(filepath, iteration_int)` or error if none found
 
 ### Helpers
+
 - `h5create_group(h5file, path)` — create group with intermediates
 - `h5exists(h5file, path)` → `Bool`
 - `_read_group_recursive(gr)` → `Dict{String, Any}` — recursive group reader
