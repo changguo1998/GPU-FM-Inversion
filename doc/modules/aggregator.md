@@ -26,9 +26,9 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 ## Processing Steps
 
 1. **Per-module masking**: set masked phases/channels to NaN using the module-specific mask for each input shape
-2. **Per-module aggregation**: sum valid misfits → per-trial score per module
-3. **Apply module weight**: multiply by `module_weights[m]`
-4. **Combine modules**: sum weighted scores → `[N_trials]`
+1. **Per-module aggregation**: sum valid misfits → per-trial score per module
+1. **Apply module weight**: multiply by `module_weights[m]`
+1. **Combine modules**: sum weighted scores → `[N_trials]`
 
 ## NaN Handling
 

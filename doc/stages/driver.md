@@ -23,9 +23,9 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 ## Responsibilities
 
 1. **Stage invocation** — call `input.jl`, `preprocess.jl`, `forward.cpp`, `assess.jl`, `output.jl` in order
-2. **Loop control** — run preprocess→forward→assess repeatedly until assess exits with code 10 (converged)
-3. **File-level checks** — check `database.h5` existence (triggers input once). All state detection is delegated to assess.jl.
-4. **Error handling** — stop on failure, report error to stderr
+1. **Loop control** — run preprocess→forward→assess repeatedly until assess exits with code 10 (converged)
+1. **File-level checks** — check `database.h5` existence (triggers input once). All state detection is delegated to assess.jl.
+1. **Error handling** — stop on failure, report error to stderr
 
 ## Pipeline Stage Detection
 
@@ -42,7 +42,6 @@ All HDF5 group-level state detection (trials/misfits existence, converged flag) 
 - Bash (built-in file tests, loops, string parsing)
 - Julia runner (scripts use `include()` for shared packages; helpers use `julia --project=shared/io`)
 - Compiled `forward` binary
-
 
 ## CLI
 

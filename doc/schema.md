@@ -21,7 +21,7 @@ All datasets use `Float64` unless noted. Scalars are stored as scalar datasets u
 
 Phase key convention: `{network}.{station}.{component}.{phase_type}`.
 
----
+______________________________________________________________________
 
 ## 1. `database.h5` — Preprocessed Data (Static)
 
@@ -77,7 +77,7 @@ Structure: `/data/{freq_idx}/{module}/{phase_id}/`
 | `azimuth`          | Float64 | `[N_phases]`            | Event-to-station azimuth (°)                             |
 | `greens_depth_idx` | Int32   | `[N_phases × N_depths]` | GF dataset index per phase per depth (-1 if unavailable) |
 
----
+______________________________________________________________________
 
 ## 2. `status_{N}.h5` — Per-Iteration Workflow File
 
@@ -139,7 +139,7 @@ Raw per-module misfits (no weighting, no aggregation). Each module has a shape n
 
 Future: `absshift`, `relshift`, `cap` under `/misfits/`.
 
----
+______________________________________________________________________
 
 ## 3. `output.h5` — Final Results
 
@@ -207,7 +207,7 @@ Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag
 | `total_trials`       | Int32  | scalar | Total trials evaluated |
 | `convergence_reason` | String | scalar | Why pipeline stopped   |
 
----
+______________________________________________________________________
 
 ## 4. Signal Conventions
 

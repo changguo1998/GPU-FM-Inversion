@@ -23,17 +23,17 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase
 ## Responsibilities
 
 1. **Apply per-module masks**: each module has its own mask (XCorr: phase-level, Polarity: channel-level)
-2. **Weight and aggregate**: sum masked misfits per module, apply module weights, combine → per-trial total. PSR misfits are optional (zeros fallback if missing)
-3. **Find best trial**: argmin of aggregated misfit
-4. **Refine grid**: compute next search grid from current best SDR (halve step sizes, 3×3×3 fixed)
-5. **Prompt operator**: display current results, ask "Continue? [y/N]"
-6. **Signal driver via exit code**:
+1. **Weight and aggregate**: sum masked misfits per module, apply module weights, combine → per-trial total. PSR misfits are optional (zeros fallback if missing)
+1. **Find best trial**: argmin of aggregated misfit
+1. **Refine grid**: compute next search grid from current best SDR (halve step sizes, 3×3×3 fixed)
+1. **Prompt operator**: display current results, ask "Continue? [y/N]"
+1. **Signal driver via exit code**:
    - On continue (y): exit 0 — driver loops to next iteration
    - On break (N): exit 10 — driver breaks loop and runs output.jl
-7. **Write strategy**:
+1. **Write strategy**:
    - On continue: create `status_{N+1}.h5` with `/strategy` (refined grid, converged=0)
    - On break: set `/strategy/converged=1`, `convergence_reason="user"` on current `status_{N}.h5` (no new file)
-8. **Accumulate**: per-depth misfit history
+1. **Accumulate**: per-depth misfit history
 
 ## Script Style
 

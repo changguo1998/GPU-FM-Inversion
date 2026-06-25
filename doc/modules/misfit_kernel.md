@@ -30,6 +30,7 @@ void launch_xcorr_misfit(
 ## XCorr Kernel
 
 **Misfit formula:**
+
 ```
 cc_syn[k] = Σᵢ m[i] · CC[phase][k][i]        // weighted CC sum
 syn_norm² = mᵀ · synamp · m                   // 6×6 quadratic form
@@ -40,6 +41,7 @@ misfit = 1.0 - maxₖ(|cc_norm[k]|)
 **Verification invariant:** `mᵀ·synamp·m = ‖GF·m‖²` (Gram matrix identity). Tests must verify this for random `m` vectors.
 
 **Inputs/outputs:**
+
 ```cpp
 mt           // [N_trials × 6] column-major: mt[trial + comp * N_trials]
 cc_data      // [N_phases · cc_pp × 6] column-major
@@ -51,6 +53,7 @@ misfit       // [N_phases × N_trials] column-major: misfit[phase + trial * N_ph
 ## Polarity Kernel
 
 **Misfit formula:**
+
 ```
 syn_pol = sign(Σᵢ pol_vec[station][i] · mt[trial][i])
 misfit  = (syn_pol == obs_pol) ? 0.0 : 1.0
@@ -59,6 +62,7 @@ misfit  = (syn_pol == obs_pol) ? 0.0 : 1.0
 Missing polarity (obs_pol is NaN, or obs_pol == 0.0 with zero pol_vec) returns NaN to signal "not applicable".
 
 **Signature:**
+
 ```cpp
 namespace fm {
 template <Backend B>
@@ -74,6 +78,7 @@ void launch_polarity_kernel(
 ## PSR Kernel
 
 **Misfit formula:**
+
 ```
 syn_amp_P = √(mᵀ · amp_P · m)          // synthetic P amplitude
 syn_amp_S = √(mᵀ · amp_S · m)          // synthetic S amplitude
@@ -81,6 +86,7 @@ misfit = (log₁₀(syn_amp_P / syn_amp_S) - obs_psr)²
 ```
 
 **Signature:**
+
 ```cpp
 namespace fm {
 template <Backend B>

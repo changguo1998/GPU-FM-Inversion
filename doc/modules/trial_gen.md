@@ -23,6 +23,7 @@ Generate trials from strategy parameters (grid expansion). Cartesian product of 
 **Input**:
 
 Strategy from `status_{N}.h5`:
+
 - `strike0`, `dstrike`, `nstrike` (SDR grid)
 - `dip0`, `ddip`, `ndip` (SDR grid)
 - `rake0`, `drake`, `nrake` (SDR grid)
@@ -32,6 +33,7 @@ Strategy from `status_{N}.h5`:
 **Output**:
 
 `/trials` group in `status_{N}.h5`:
+
 - `strike[N]`, `dip[N]`, `rake[N]` (degrees)
 - `depth[N]` (km, actual depth values)
 - `depth_idx[N]` (indices into database)
@@ -73,6 +75,7 @@ Computes next iteration's grid parameters from current best trial.
 ### Output (Refinement)
 
 Updated strategy for `status_{N+1}.h5` (on continue):
+
 - `strike0`, `dstrike`, `nstrike`
 - `dip0`, `ddip`, `ndip`
 - `rake0`, `drake`, `nrake`
@@ -101,4 +104,3 @@ Updated strategy for `status_{N+1}.h5` (on continue):
 - Depth/freq subsets contain best indices
 - Edge case: single value on all axes (1 trial)
 - Edge case: all axes varying
-

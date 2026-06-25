@@ -22,10 +22,10 @@ This stage replaces the first-run responsibilities of the former `setup.jl`. It 
 ## Responsibilities
 
 1. **Preprocess raw data**: filter waveforms to frequency bands, trim time windows, extract XCorr and Polarity preprocessing output, store in `database.h5`
-2. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
-3. **Write algorithm config**: load `config.jl`, write into `database.h5`
-4. **Write initial strategy**: initial search grid from config → `/strategy` in `status_0.h5`
-5. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated, ready for `preprocess.jl` to add `/trials`. No config is written to status files — config lives only in `database.h5`.
+1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
+1. **Write algorithm config**: load `config.jl`, write into `database.h5`
+1. **Write initial strategy**: initial search grid from config → `/strategy` in `status_0.h5`
+1. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated, ready for `preprocess.jl` to add `/trials`. No config is written to status files — config lives only in `database.h5`.
 
 ## Script Style
 

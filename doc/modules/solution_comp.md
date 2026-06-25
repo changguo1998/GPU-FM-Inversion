@@ -27,6 +27,7 @@ Read `freq_accumulated` from strategy → compute std of the best SDR values acr
 ### 4. Depth Range
 
 Apply 5% tolerance to `depth_misfit_accumulated`:
+
 - Find depth with minimum misfit
 - Include all depths within 5% of minimum
 - Return `[min_depth, max_depth]`
@@ -42,6 +43,7 @@ Compute `synthetic = GF × best_MT` for visual QC.
 ## Output
 
 All groups in `output.h5`:
+
 - `/solution`: best-fit SDR, MT, misfit
 - `/uncertainty`: SDR std, depth range, freq misfit curve
 - `/per_phase`: misfit per module per phase, selection mask, CC values

@@ -103,12 +103,12 @@ config.jl ───────────► input.jl (once) ──► databas
 ## Key Design Rules
 
 1. **`forward.cpp` is stateless** — reads preprocessed data + trial params, writes raw misfits. No weighting, no aggregation, no strategy knowledge.
-2. **`assess.jl` owns all strategy** — weights, phase selection, grid refinement, and operator prompt for continue/break.
-3. **All frequency-band variants precomputed upfront** in `database.h5`. No runtime filtering.
-4. **Misfits are unweighted** — weights applied in assess. XCorr: `[N_ph × N_tr]` (phase-level). Polarity: `[N_ch × N_tr]` (channel-level, P-polarity per channel).
-5. **Green's functions pre-computed externally** — loaded by `input.jl`, never computed by the pipeline.
-6. **Linear decomposition** — cross-correlation precomputed on host CPU by `DataCache`: `CC(obs, GF[:,i])` for i=0..5. Per-trial: weighted sum of precomputed CCs on device via kernel.
-7. **Dynamic grid refinement** — `assess.jl` refines grid from results each iteration. Grid axes generate values as `var0 + i*dvar` (start model).
+1. **`assess.jl` owns all strategy** — weights, phase selection, grid refinement, and operator prompt for continue/break.
+1. **All frequency-band variants precomputed upfront** in `database.h5`. No runtime filtering.
+1. **Misfits are unweighted** — weights applied in assess. XCorr: `[N_ph × N_tr]` (phase-level). Polarity: `[N_ch × N_tr]` (channel-level, P-polarity per channel).
+1. **Green's functions pre-computed externally** — loaded by `input.jl`, never computed by the pipeline.
+1. **Linear decomposition** — cross-correlation precomputed on host CPU by `DataCache`: `CC(obs, GF[:,i])` for i=0..5. Per-trial: weighted sum of precomputed CCs on device via kernel.
+1. **Dynamic grid refinement** — `assess.jl` refines grid from results each iteration. Grid axes generate values as `var0 + i*dvar` (start model).
 
 ## Dimension Symbols
 

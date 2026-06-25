@@ -5,6 +5,7 @@
 Reads all files produced by prior pipeline stages and compiles the complete focal mechanism solution into `output.h5`. Uses `shared/mt/` for SDR→MT conversion and `shared/aggregate/` for misfit re-aggregation. Rearranges, summarizes, and gathers — performs no novel misfit computation.
 
 **Exceptions** (novel computation):
+
 - **Waveform synthesis** (`GF × MT`): generates synthetic seismograms for QC
 - **Depth range**: applies 5% threshold to per-depth misfit accumulated by `assess.jl`
 
@@ -26,12 +27,12 @@ This stage was renamed from `export.jl`.
 ## Responsibilities
 
 1. **Recompute best fit**: independently re-aggregate misfits to verify best trial matches `/strategy/best_sdr`
-2. **SDR → MT conversion**: compute final moment tensor
-3. **Synthesize frequency uncertainty**: read accumulated freq results from strategy → std of SDR across bands
-4. **Synthesize depth range**: apply 5% tolerance to `depth_misfit_accumulated` → depth bounds
-5. **Per-phase breakdown**: extract per-module misfit at best trial for each phase
-6. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC.
-7. **Write output**: compile all results into `output.h5`
+1. **SDR → MT conversion**: compute final moment tensor
+1. **Synthesize frequency uncertainty**: read accumulated freq results from strategy → std of SDR across bands
+1. **Synthesize depth range**: apply 5% tolerance to `depth_misfit_accumulated` → depth bounds
+1. **Per-phase breakdown**: extract per-module misfit at best trial for each phase
+1. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC.
+1. **Write output**: compile all results into `output.h5`
 
 ## Script Style
 

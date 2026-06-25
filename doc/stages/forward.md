@@ -20,10 +20,10 @@ GPU-accelerated core. Stateless misfit computation: reads preprocessed data + tr
 ## Responsibilities
 
 1. **Read inputs**: load trials and preprocessed data from HDF5
-2. **Transfer to device**: move all needed data to GPU (or keep on host for OpenMP)
-3. **Precompute on host (CPU)**: module-specific reduction via `DataCache` (time-domain CC for XCorr, summed GF for Polarity, amplitude covariances for PSR). All reductions run on the CPU.
-4. **Launch kernels**: for each enabled module, launch misfit kernel (trial × phase grid) via backend dispatch
-5. **Write results**: copy misfits back to host, write to `status_{N}.h5`
+1. **Transfer to device**: move all needed data to GPU (or keep on host for OpenMP)
+1. **Precompute on host (CPU)**: module-specific reduction via `DataCache` (time-domain CC for XCorr, summed GF for Polarity, amplitude covariances for PSR). All reductions run on the CPU.
+1. **Launch kernels**: for each enabled module, launch misfit kernel (trial × phase grid) via backend dispatch
+1. **Write results**: copy misfits back to host, write to `status_{N}.h5`
 
 ## Execution Model
 
@@ -74,10 +74,10 @@ Kernel functions in `namespace fm` are templates parameterized on `Backend B`. S
 ## Implementation Phasing
 
 1. Framework: main(), HDF5 I/O, trial reading + DataCache + misfit writing (all inline in main.cpp)
-2. XCorr kernel (most complex — validates full pipeline)
-3. Polarity kernel
-4. PSR kernel (present in C++ code, but not used at pipeline level — database.h5 has no PSR data)
-5. AbsShift + RelShift (deferred). CAP, FFT-based XCorr — cancelled.
+1. XCorr kernel (most complex — validates full pipeline)
+1. Polarity kernel
+1. PSR kernel (present in C++ code, but not used at pipeline level — database.h5 has no PSR data)
+1. AbsShift + RelShift (deferred). CAP, FFT-based XCorr — cancelled.
 
 ## What It Does NOT Do
 

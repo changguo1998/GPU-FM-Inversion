@@ -37,6 +37,7 @@ Output: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` in NED coordinate system.
 ## Interface
 
 **Julia (`MT` module):**
+
 ```julia
 function sdr_to_mt(strike::Float64, dip::Float64, rake::Float64)::Vector{Float64}
 # Returns 6-element vector. Batch version:
@@ -45,6 +46,7 @@ function sdr_to_mt_batch(strikes::Vector{Float64}, dips::Vector{Float64}, rakes:
 ```
 
 **C++ (header only, shared):**
+
 ```cpp
 // forward/src/mt_utils.h
 struct MomentTensor {

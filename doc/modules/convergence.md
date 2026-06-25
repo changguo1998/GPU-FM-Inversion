@@ -50,6 +50,7 @@ Computes next iteration's grid parameters from current best trial:
 ## Output
 
 Updated strategy for `status_{N+1}.h5` (on continue):
+
 - `strike0`, `dstrike`, `nstrike`
 - `dip0`, `ddip`, `ndip`
 - `rake0`, `drake`, `nrake`

@@ -22,8 +22,8 @@ This is the per-loop portion of the former `setup.jl`. It is **not** responsible
 ## Responsibilities
 
 1. **Read strategy**: load current grid parameters from `status_{N}.h5`
-2. **Expand grid**: Cartesian product of strike, dip, rake, depth indices, freq indices
-3. **Write trials**: store expanded trial table in `/trials` group of `status_{N}.h5`
+1. **Expand grid**: Cartesian product of strike, dip, rake, depth indices, freq indices
+1. **Write trials**: store expanded trial table in `/trials` group of `status_{N}.h5`
 
 ## Tool Stack
 
