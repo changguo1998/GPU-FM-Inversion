@@ -6,7 +6,7 @@
 #   Julia   → jlfmt        (JuliaFormatter.jl CLI)
 #   Bash    → shfmt
 #   C++/CUDA → clang-format (LLVM; optional, skips C++ if not found)
-#   Markdown → markdown-table-formatter (npm)
+#   Markdown → mdformat + markdown-table-formatter (npm)
 #
 # Usage:
 #   bash format.sh              # format all files
@@ -29,6 +29,26 @@ while [[ $# -gt 0 ]]; do
 		;;
 	esac
 done
+
+source ~/.bashrc
+echo "spack setup file: $SPACK_SETUP_ENV"
+source "$SPACK_SETUP_ENV"
+checkexe() {
+	local e
+	e="$1"
+	if [[ -z $e ]]; then
+		return 0
+	fi
+	echo "$e: $(command -v "$e")"
+}
+checkexe jlfmt
+checkexe shfmt
+checkexe mdformat
+checkexe fnm
+checkexe markdown-table-formatter
+
+spack load llvm
+checkexe clang-format
 
 # ── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -87,10 +107,11 @@ fmt_cxx() {
 fmt_md() {
 	local f="$1"
 	if [[ "$CHECK" == true ]]; then
-		if markdown-table-formatter --check "$f" &>/dev/null; then return 0; fi
-		fail "$f (would format tables)"
+		if mdformat --check "$f" &>/dev/null && markdown-table-formatter --check "$f" &>/dev/null; then return 0; fi
+		fail "$f (would be formatted)"
 		errors=$((errors + 1))
 	else
+		mdformat "$f" 2>/dev/null && ok "mdfmt   $f"
 		markdown-table-formatter "$f" 2>/dev/null && ok "mtf     $f"
 	fi
 }
