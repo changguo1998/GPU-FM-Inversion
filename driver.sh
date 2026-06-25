@@ -15,9 +15,19 @@ set -euo pipefail
 #   bash driver.sh --data-dir <dir>
 # ==============================================================================
 
+help() {
+	echo "Usage: bash driver.sh --data-dir <dir>"
+}
+
 # ── Defaults ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 FORWARD_BIN="$SCRIPT_DIR/forward/build/forward"
+CMD_CALL_JULIA="julia --project=$SCRIPT_DIR"
+CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
+CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
+CALL_FORWARD="$SCRIPT_DIR/forward"
+CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
+CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
 
 # ── Parse CLI ──────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -26,112 +36,124 @@ while [[ $# -gt 0 ]]; do
 		DATA_DIR="$2"
 		shift 2
 		;;
+	-h | --help)
+		help
+		exit 0
+		;;
 	*)
-		echo "[driver] ERROR: Unknown argument: $1" >&2
-		echo "Usage: bash driver.sh --data-dir <dir>" >&2
+		help
 		exit 1
 		;;
 	esac
 done
 
+CONFIG_FILE="$DATA_DIR/config.jl"
+LOG_FILE="$DATA_DIR/driver.log"
+ASSESS_DECISION_FILE="$DATA_DIR/.decision.txt"
+DATABASE_H5="$DATA_DIR/database.h5"
+STATUS_DIR="$DATA_DIR/status"
+
+# logging functions
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+	_WHITE=$'\033[0;37m'
+	_YELLOW=$'\033[0;33m'
+	_RED=$'\033[0;31m'
+	_END=$'\033[0m'
+else
+	_WHITE=""
+	_YELLOW=""
+	_RED=""
+	_END=""
+fi
+
+_msg() {
+	local level color txt
+	level="$1"
+	color="$2"
+	shift 2
+	txt="$*"
+	if [[ -n ${LOG_FILE:-} ]]; then
+		if [[ -f $LOG_FILE ]]; then
+			printf '[%s] %s%s: %s%s\n' "$(date '+%F %T')" "$color" "$level" "$txt" "$_END" | tee -a "$LOG_FILE"
+		fi
+	else
+		printf '[driver %s] %s%s: %s%s\n' "$(date '+%F %T')" "$color" "$level" "$txt" "$_END"
+	fi
+}
+
+info() {
+	_msg "INFO" "$_WHITE" "$@"
+}
+
+warn() {
+	_msg "WARN" "$_YELLOW" "$@"
+}
+
+error() {
+	_msg " ERR" "$_RED" "$@" >&2
+}
+
 if [[ -z "${DATA_DIR:-}" ]]; then
-	echo "[driver] ERROR: --data-dir is required" >&2
+	error "--data-dir is required"
 	exit 1
 fi
 
 if [[ ! -d "$DATA_DIR" ]]; then
-	echo "[driver] ERROR: data directory not found: $DATA_DIR" >&2
+	error "data directory not found: $DATA_DIR"
 	exit 1
 fi
 
-CONFIG_FILE="$DATA_DIR/config.jl"
-DATABASE_H5="$DATA_DIR/database.h5"
-STATUS_DIR="$DATA_DIR/status"
-mkdir -p "$STATUS_DIR"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+	error "config file not found: $CONFIG_FILE"
+	exit 1
+fi
 
-# ==============================================================================
-# Helpers
-# ==============================================================================
-
-find_latest_n() {
-	local max_n=-1
-	for f in "$STATUS_DIR"/status_*.h5; do
-		[[ -f "$f" ]] || continue
-		local basename_f
-		basename_f=$(basename "$f")
-		if [[ "$basename_f" =~ ^status_([0-9]+)\.h5$ ]]; then
-			local n="${BASH_REMATCH[1]}"
-			((n > max_n)) && max_n=$n
-		fi
-	done
-	echo "$max_n"
-}
-
-run_stage() {
-	local label="$1"
-	shift
-	echo "[driver] $label ..."
-	"$@"
-	echo "[driver] $label done."
-}
+if [[ -f "$DATABASE_H5" ]]; then
+	warn "database.h5 already exists"
+fi
 
 # ==============================================================================
 # Main
 # ==============================================================================
 
 # ── Stage 1: input (once) ─────────────────────────────────────────────────────
-if [[ ! -f "$DATABASE_H5" ]]; then
-	if [[ ! -f "$CONFIG_FILE" ]]; then
-		echo "[driver] ERROR: config file not found: $CONFIG_FILE" >&2
-		exit 1
-	fi
-	run_stage "input.jl → database.h5 + status_0.h5" \
-		julia --project="$SCRIPT_DIR" "$SCRIPT_DIR/scripts/input.jl" "$CONFIG_FILE"
-
-	if [[ -f "$DATA_DIR/status_0.h5" ]]; then
-		mv "$DATA_DIR/status_0.h5" "$STATUS_DIR/"
-	fi
+mkdir -p "$STATUS_DIR"
+: >"$LOG_FILE"
+: >"$ASSESS_DECISION_FILE"
+info "input"
+$CALL_INPUT "$CONFIG_FILE"
+if [[ -f "$DATA_DIR/status_0.h5" ]]; then
+	mv "$DATA_DIR/status_0.h5" "$STATUS_DIR/"
+else
+	error "failed to generate status_0.h5"
+	exit 1
 fi
 
+iteration=1
 # ── Loop: preprocess → forward → assess ───────────────────────────────────────
 while true; do
-	N=$(find_latest_n)
-	if [[ $N -lt 0 ]]; then
-		echo "[driver] ERROR: no status_N.h5 found." >&2
-		exit 1
-	fi
-	SRC_STATUS="$STATUS_DIR/status_${N}.h5"
-
-	run_stage "preprocess.jl (iteration $N)" \
-		julia --project="$SCRIPT_DIR" \
-		"$SCRIPT_DIR/scripts/preprocess.jl" "$SRC_STATUS" "$DATABASE_H5"
-
-	run_stage "forward.cpp (iteration $N)" \
-		"$FORWARD_BIN" "$DATABASE_H5" "$SRC_STATUS"
-
-	# assess.jl decides:
-	#   exit 0  = continue (writes status_{N+1}.h5)
-	#   exit 10 = converged (sets converged=1 on current file)
-	set +e
-	run_stage "assess.jl (iteration $N)" \
-		julia --project="$SCRIPT_DIR" \
-		"$SCRIPT_DIR/scripts/assess.jl" "$SRC_STATUS" "$DATABASE_H5"
-	ASSESS_EXIT=$?
-	set -e
-
-	if [[ $ASSESS_EXIT -eq 10 ]]; then
-		echo "[driver] assess.jl signalled converged."
+	if [[ ! -f "$ASSESS_DECISION_FILE" ]]; then
 		break
-	elif [[ $ASSESS_EXIT -ne 0 ]]; then
-		echo "[driver] ERROR: assess.jl failed (exit code $ASSESS_EXIT)." >&2
-		exit $ASSESS_EXIT
 	fi
+	DECISION="$(cat "$ASSESS_DECISION_FILE")"
+	if [[ -z $DECISION ]]; then
+		break
+	fi
+
+	info "($iteration) preprocess"
+	$CALL_PREPROCESS
+
+	info "($iteration) misfit"
+	$CALL_FORWARD
+
+	info "($iteration) assess"
+	$CALL_ASSESS
+
+	((iteration += 1))
 done
 
 # ── Stage 5: output ───────────────────────────────────────────────────────────
-run_stage "output.jl → output.h5" \
-	julia --project="$SCRIPT_DIR" \
-	"$SCRIPT_DIR/scripts/output.jl" \
-	"$DATABASE_H5" --status-dir "$STATUS_DIR"
+info "output"
+$CALL_OUTPUT
 
-echo "[driver] Pipeline complete."
+info "complete"
