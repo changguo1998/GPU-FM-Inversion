@@ -10,3 +10,5 @@ progress.md
 /config.toml
 input.log
 forward/tests/test_cross_lang
+config.jl
+output.log
