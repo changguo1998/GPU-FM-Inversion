@@ -9,9 +9,7 @@ export bandpass_filter!, trim_time_window!, trim_to_polarity_window!
 export preprocess_xcorr!, preprocess_polarity!, preprocess_psr!
 export envelope, rms_amplitude
 
-# ─────────────────────────────────────────────────────────
 # 1. Bandpass Filtering
-# ─────────────────────────────────────────────────────────
 
 """
     bandpass_filter!(x::AbstractVector{Float64}, dt::Float64, low_cut::Float64, high_cut::Float64;
@@ -45,9 +43,7 @@ function bandpass_filter!(
     return x
 end
 
-# ─────────────────────────────────────────────────────────
 # 2. Time-Window Trimming
-# ─────────────────────────────────────────────────────────
 
 """
     trim_time_window!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
@@ -92,9 +88,7 @@ function trim_to_polarity_window!(
     return gf[start_idx:end_idx, :]
 end
 
-# ─────────────────────────────────────────────────────────
 # 3. Per-Module Preprocessing
-# ─────────────────────────────────────────────────────────
 
 """
     preprocess_xcorr!(obs, gf, dt, arrival_sample, low_cut, high_cut, window_factor;
@@ -194,9 +188,7 @@ function preprocess_psr!(
     return amp_P, amp_S, obs_psr
 end
 
-# ─────────────────────────────────────────────────────────
 # Utility functions
-# ─────────────────────────────────────────────────────────
 
 """
     envelope(x) -> Vector{Float64}

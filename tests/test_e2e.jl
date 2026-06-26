@@ -24,7 +24,7 @@ function verify_output_h5(output_path::String)::Bool
 
     h5open(output_path, "r") do f
 
-        # ── /solution ─────────────────────────────────────────────────────
+        # /solution
         if haskey(f, "solution")
             sol = f["solution"]
             for key in ["strike", "dip", "rake", "depth", "misfit", "moment_tensor"]
@@ -76,7 +76,7 @@ function verify_output_h5(output_path::String)::Bool
             all_pass = false
         end
 
-        # ── /uncertainty ──────────────────────────────────────────────────
+        # /uncertainty
         if haskey(f, "uncertainty")
             unc = f["uncertainty"]
             has_depth_range = haskey(unc, "depth_range")
@@ -99,7 +99,7 @@ function verify_output_h5(output_path::String)::Bool
             all_pass = false
         end
 
-        # ── /per_phase ──────────────────────────────────────────────────
+        # /per_phase
         if haskey(f, "per_phase")
             println("  ✓ /per_phase group present")
             pp = f["per_phase"]
@@ -114,7 +114,7 @@ function verify_output_h5(output_path::String)::Bool
             all_pass = false
         end
 
-        # ── /per_station_summary ─────────────────────────────────────────
+        # /per_station_summary
         if haskey(f, "per_station_summary")
             println("  ✓ /per_station_summary group present")
             ps = f["per_station_summary"]
@@ -129,7 +129,7 @@ function verify_output_h5(output_path::String)::Bool
             all_pass = false
         end
 
-        # ── /summary ──────────────────────────────────────────────────────
+        # /summary
         if haskey(f, "summary")
             sm = f["summary"]
             required = ["total_iterations", "total_trials", "convergence_reason"]
@@ -170,7 +170,7 @@ function verify_output_h5(output_path::String)::Bool
     return all_pass
 end
 
-# ── Entry point ─────────────────────────────────────────
+# Entry point
 if length(ARGS) < 1
     println(stderr, "Usage: julia test_e2e.jl <output.h5>")
     exit(1)

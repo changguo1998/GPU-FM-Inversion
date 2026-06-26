@@ -15,21 +15,15 @@ using LinearAlgebra
 using Dates
 using Random
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Logging
-# ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Load shared modules
-# ═══════════════════════════════════════════════════════════════════════════════
 
 using IO, Signal, Config
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # CLI
-# ═══════════════════════════════════════════════════════════════════════════════
 
 config_jl = ARGS[1]
 
@@ -65,9 +59,7 @@ n_depths = length(depths)
 @info "  freq_bands     = $freq_bands"
 @info "  depths         = $depths"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 2. Read external data file
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Reading external data: $raw_path"
 event = IO.read_event(raw_path)
@@ -83,9 +75,7 @@ n_stations_picks = length(picks)
 @info "  phases   = $n_phases"
 @info "  stations = $n_stations_picks"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 3. Build /index
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Building index …"
 
@@ -117,9 +107,7 @@ index = IO.Index(phase_ids, phase_types, station_idx, distances, azimuths, green
 
 @info "  index built ($(length(phase_ids)) phases, $n_depths depths)"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 4. Preprocess waveforms
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Preprocessing waveforms …"
 
@@ -200,7 +188,7 @@ for freq_idx in 1:n_frequencies
         post_sec = abs(trim_cfg[2])
         window_factor = max(pre_sec, post_sec) * high_cut
 
-        # ── XCorr preprocessing ──
+        # XCorr preprocessing
         if "XCorr" in misfit_modules
             obs_proc, gf_proc, synamp, obs_norm2 = Signal.preprocess_xcorr!(
                 wf,
@@ -220,7 +208,7 @@ for freq_idx in 1:n_frequencies
             )
         end
 
-        # ── Polarity preprocessing ──
+        # Polarity preprocessing
         if "Polarity" in misfit_modules && ptype == "P"
             pick_pol = picks[st_idx].P_polarity
             gf_pol, obs_pol =
@@ -233,9 +221,7 @@ end
 
 @info "  preprocessing complete ($n_frequencies freqs, $(length(misfit_modules)) modules)"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 5. Build database config
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Building database config …"
 
@@ -263,18 +249,14 @@ if "Polarity" in misfit_modules
     db_config["polarity"] = Dict{String, Any}("trim" => Float64.(polarity_trim))
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 6. Write database.h5
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Writing database.h5 …"
 db_path = joinpath(data_dir, "database.h5")
 IO.write_database(db_path, greens, data, index, db_config)
 @info "  $db_path written"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 7. Write status_0.h5
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Writing status_0.h5 …"
 
@@ -311,9 +293,7 @@ end
 IO.write_strategy(status0_path, strategy)
 @info "  $status0_path written"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Summary
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info ""
 @info "Stage complete:"

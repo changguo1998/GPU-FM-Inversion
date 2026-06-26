@@ -1,6 +1,4 @@
-# ─────────────────────────────────────────────────────────
 # Trial Generation
-# ─────────────────────────────────────────────────────────
 
 """
     GridStrategy
@@ -37,9 +35,7 @@ struct TrialSet
     freq_idx::Vector{Int32}
 end
 
-# ─────────────────────────────────────────────────────────
 # Axis expansion helper
-# ─────────────────────────────────────────────────────────
 
 """
     expand_axis(var0, dvar, n) -> Vector{Float64}
@@ -54,9 +50,7 @@ function expand_axis(var0::Float64, dvar::Float64, n::Int32)::Vector{Float64}
     return [var0 + Float64(i) * dvar for i in 0:(n - 1)]
 end
 
-# ─────────────────────────────────────────────────────────
 # Main function
-# ─────────────────────────────────────────────────────────
 
 """
     generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64}) -> TrialSet

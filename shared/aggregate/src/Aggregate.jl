@@ -59,7 +59,7 @@ function aggregate_misfits(
 )
     n_trials = size(xcorr, 2)
 
-    # ── Per-module masked sum ──
+    # Per-module masked sum
     # For each trial: sum values where mask is true AND value is not NaN.
     function _masked_sum(data::Matrix{Float64}, mask::Vector{Bool})
         n_rows = size(data, 1)
@@ -90,7 +90,7 @@ function aggregate_misfits(
     pol_per_trial = _masked_sum(polarity, polarity_channel_mask)
     psr_per_trial = _masked_sum(psr, psr_channel_mask)
 
-    # ── All-NaN check across all modules ──
+    # All-NaN check across all modules
     all_nan_xc = all(isnan, xc_per_trial)
     all_nan_pol = all(isnan, pol_per_trial)
     all_nan_psr = all(isnan, psr_per_trial)
@@ -103,13 +103,13 @@ function aggregate_misfits(
         )
     end
 
-    # ── Apply module weights ──
+    # Apply module weights
     # Accept 2 or 3 weights (XCorr, Polarity, [PSR])
     w_xc = n_w >= 1 ? module_weights[1] : 0.0
     w_pol = n_w >= 2 ? module_weights[2] : 0.0
     w_psr = n_w >= 3 ? module_weights[3] : 0.0
 
-    # ── Combine: weighted sum, treating NaN scores as 0 contribution ──
+    # Combine: weighted sum, treating NaN scores as 0 contribution
     function _add_weighted(a, w, b)
         for j in 1:n_trials
             val = a[j]
@@ -157,9 +157,7 @@ function aggregate_misfits(
     return (total, best_idx, per_module)
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Uncertainty computation helpers
-# ═══════════════════════════════════════════════════════════════════════════════
 
 """
     compute_depth_range(

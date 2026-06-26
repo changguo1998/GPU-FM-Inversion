@@ -12,16 +12,16 @@ using HDF5
 using Random
 using Dates
 
-# ── Arguments ──────────────────────────────────────────────────────────────────
+# Arguments
 outdir = length(ARGS) > 0 ? ARGS[1] : "."
 mkpath(outdir)
 raw_h5 = joinpath(outdir, "raw.h5")
 cfg_jl = joinpath(outdir, "config.jl")
 
-# ── Deterministic RNG ─────────────────────────────────────────────────────────
+# Deterministic RNG
 Random.seed!(42)
 
-# ── 1. /event group ───────────────────────────────────────────────────────────
+# 1. /event group
 event = Dict(
     "longitude" => 120.0,
     "latitude" => 30.0,
@@ -30,13 +30,13 @@ event = Dict(
     "origintime" => "2024-01-01T00:00:00",
 )
 
-# ── 2. /phase_picks group ────────────────────────────────────────────────────
+# 2. /phase_picks group
 station_ids = ["NET.ST1", "NET.ST2", "NET.ST3"]
 P_time = ["2024-01-01T00:00:10", "2024-01-01T00:00:12", "2024-01-01T00:00:14"]
 S_time = ["2024-01-01T00:00:18", "2024-01-01T00:00:21", "2024-01-01T00:00:24"]
 P_polarity = Int8[1, -1, 0]
 
-# ── 3. /stations group ───────────────────────────────────────────────────────
+# 3. /stations group
 # Phase key: NET.STn.Z.{P|S}
 station_entries = [
     ("NET.ST1.Z.P", 30.5, 120.5, 500.0),
@@ -58,14 +58,14 @@ elevs = [e[4] for e in station_entries]
 dts = fill(0.01, n_phases)                # 100 Hz
 begin_t = ["2024-01-01T00:00:05" for _ in 1:n_phases]
 
-# ── 4. /waveforms group ──────────────────────────────────────────────────────
+# 4. /waveforms group
 n_samples = 2000
 waveforms = Dict{String, Vector{Float64}}()
 for id in ids
     waveforms[id] = randn(Float64, n_samples)   # seeded above
 end
 
-# ── Write raw.h5 ──────────────────────────────────────────────────────────────
+# Write raw.h5
 h5open(raw_h5, "w") do file
     # /event
     g_event = create_group(file, "/event")
@@ -101,7 +101,7 @@ h5open(raw_h5, "w") do file
     end
 end
 
-# ── Write config.jl ───────────────────────────────────────────────────────────
+# Write config.jl
 config = """\
 # Auto-generated pipeline config for synthetic test event.
 # Loaded by input.jl via include() — Config module already loaded.
@@ -144,7 +144,7 @@ Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic",)
 
 write(cfg_jl, config)
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# Summary
 println("Synthetic test data generated in: $(realpath(outdir))")
 println("  data file  — raw.h5 (/event, /phase_picks, /stations, /waveforms)")
 println("  config.jl  — pipeline config (3 stations, 1 freq band, 3 depths, 3x3x3 grid)")

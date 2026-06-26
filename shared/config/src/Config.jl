@@ -1,34 +1,26 @@
 module Config
 
-# =============================================================================
 # Config — Pipeline configuration interface (declarations only)
 #
 # Users write a config script that includes this module and implements
-# each function below.  Any function left unimplemented throws an error
+# each function below. Any function left unimplemented throws an error
 # at runtime with a clear message describing the required return type.
 #
 # Usage (user's config script, e.g. my_event.jl):
-#
 #   include("shared/config/src/Config.jl")
 #   using .Config
 #
-#   function Config.misfit_modules()
-#       return ["XCorr", "Polarity"]
-#   end
+#   function Config.misfit_modules()      return ["XCorr", "Polarity"]      end
 #   # ... etc for each function
 #
-# The stage scripts then include the user's config file and call the
-# interface functions.
-# =============================================================================
+# Stage scripts then include the user's config file and call interface functions.
 
 export misfit_modules, module_weights, minimum_stations
 export freq_bands, depths, grid_params
 export xcorr_params, polarity_params, greens_params
 export data_file
 
-# ─────────────────────────────────────────────────────────
 # Error for unimplemented interface functions
-# ─────────────────────────────────────────────────────────
 
 struct ConfigError <: Exception
     func::String
@@ -41,9 +33,7 @@ Base.showerror(io::IO, e::ConfigError) = print(
     "  Your config script must define:  $(e.func)()  $(e.msg)",
 )
 
-# ─────────────────────────────────────────────────────────
 # Interface functions (must be implemented by user config)
-# ─────────────────────────────────────────────────────────
 
 """
     misfit_modules() -> Vector{String}

@@ -2,20 +2,16 @@
 
 using HDF5
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Logging
-# ═══════════════════════════════════════════════════════════════════════════════
 
 using StageLog
 
-# ── Load shared modules ────────────────────────────────────────────────────────
+# Load shared modules
 using IO
 using Aggregate: aggregate_misfits
 using Grid: refine_strategy, prompt_operator, TrialResult
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # CLI
-# ═══════════════════════════════════════════════════════════════════════════════
 
 if length(ARGS) < 2
     @error "Usage: julia scripts/assess.jl <status_N.h5> <database.h5>"
@@ -36,9 +32,7 @@ end
 n = parse(Int, m.captures[1])
 next_status_file = joinpath(dirname(status_file), "status_$(n+1).h5")
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Read inputs
-# ═══════════════════════════════════════════════════════════════════════════════
 
 trials = IO.read_trials(status_file)
 misfits_map = IO.read_misfits(status_file)
@@ -65,9 +59,7 @@ if psr_mat === nothing
     psr_mat = zeros(Float64, N_stations_pol, N_trials)
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Convert Int32 masks to Bool
-# ═══════════════════════════════════════════════════════════════════════════════
 
 xcorr_phase_mask =
     length(strategy.xcorr_phase_mask) >= N_phases ?
@@ -81,9 +73,7 @@ psr_channel_mask =
     Vector{Bool}(strategy.psr_channel_mask[1:N_stations_pol] .== Int32(1)) :
     Vector{Bool}(trues(N_stations_pol))
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Aggregate misfits
-# ═══════════════════════════════════════════════════════════════════════════════
 
 total, best_idx, per_module = aggregate_misfits(
     xcorr_mat,
@@ -100,9 +90,7 @@ best_depth_idx = trials.depth_idx[best_idx]
 best_freq_idx = trials.freq_idx[best_idx]
 best_misfit_val = total[best_idx]
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Per-depth misfits
-# ═══════════════════════════════════════════════════════════════════════════════
 
 depth_vals = get(config, "depth_vals", Float64[])
 N_depths = length(depth_vals)
@@ -115,9 +103,7 @@ for j in 1:N_trials
 end
 depth_misfits[isinf.(depth_misfits)] .= NaN
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Per-frequency misfits
-# ═══════════════════════════════════════════════════════════════════════════════
 
 freq_bands_low = get(config, "freq_bands_low", Float64[])
 N_frequencies = length(freq_bands_low)
@@ -130,9 +116,7 @@ for j in 1:N_trials
 end
 freq_misfits[isinf.(freq_misfits)] .= NaN
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Refine + prompt
-# ═══════════════════════════════════════════════════════════════════════════════
 
 trial_result = TrialResult(
     best_sdr,
@@ -176,9 +160,7 @@ final_strategy = IO.Strategy(
     next_strategy.depth_misfit_accumulated,
 )
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Write output + signal driver via exit code
-# ═══════════════════════════════════════════════════════════════════════════════
 
 if continue_flag
     cp(status_file, next_status_file; force = true)

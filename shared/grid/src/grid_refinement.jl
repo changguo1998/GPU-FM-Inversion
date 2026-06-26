@@ -1,6 +1,4 @@
-# ─────────────────────────────────────────────────────────
 # Grid Refinement
-# ─────────────────────────────────────────────────────────
 
 """
     TrialResult
@@ -44,22 +42,22 @@ The caller (assess.jl) prompts the operator and writes the strategy to
 `status_{N+1}.h5`.
 """
 function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
-    # ── SDR center ← best trial ────────────────────────
+    # SDR center ← best trial
     new_strike0 = best_trial.sdr[1]
     new_dip0 = best_trial.sdr[2]
     new_rake0 = best_trial.sdr[3]
 
-    # ── Halve step sizes ───────────────────────────────
+    # Halve step sizes
     new_dstrike = current.dstrike / 2.0
     new_ddip = current.ddip / 2.0
     new_drake = current.drake / 2.0
 
-    # ── Fixed 3×3×3 SDR grid ──────────────────────────
+    # Fixed 3×3×3 SDR grid
     new_nstrike = Int32(3)
     new_ndip = Int32(3)
     new_nrake = Int32(3)
 
-    # ── Depth subset: within 20% of best depth misfit ──
+    # Depth subset: within 20% of best depth misfit
     best_depth_misfit = best_trial.depth_misfits[best_trial.depth_idx]
     depth_threshold = best_depth_misfit * 1.2
     new_depth_indices = Int32[]
@@ -72,7 +70,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
         new_depth_indices = Int32[best_trial.depth_idx]
     end
 
-    # ── Frequency subset: within 20% of best freq misfit ─
+    # Frequency subset: within 20% of best freq misfit
     best_freq_misfit = best_trial.freq_misfits[best_trial.freq_idx]
     freq_threshold = best_freq_misfit * 1.2
     new_freq_indices = Int32[]
@@ -85,7 +83,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
         new_freq_indices = Int32[best_trial.freq_idx]
     end
 
-    # ── Accumulate depth misfits (element-wise min) ────
+    # Accumulate depth misfits (element-wise min)
     if isempty(current.depth_misfit_accumulated)
         new_depth_misfit_accumulated = copy(best_trial.depth_misfits)
     else
@@ -93,7 +91,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
             min.(current.depth_misfit_accumulated, best_trial.depth_misfits)
     end
 
-    # ── Build output Strategy ──────────────────────────
+    # Build output Strategy
     return H5IO.Strategy(
         new_strike0,
         new_dstrike,
@@ -122,9 +120,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
     )
 end
 
-# ─────────────────────────────────────────────────────────
 # Operator Prompt
-# ─────────────────────────────────────────────────────────
 
 """
     prompt_operator(best_sdr, misfit, current::H5IO.Strategy; io_in=stdin, io_out=stdout) -> Bool
@@ -147,7 +143,7 @@ function prompt_operator(
         "Best SDR: (strike=$(best_sdr[1]), dip=$(best_sdr[2]), rake=$(best_sdr[3])), Misfit=$misfit",
     )
 
-    # ── Format current grid description ────────────────
+    # Format current grid description
     parts = String[]
     if current.nstrike > 0
         push!(parts, "strike=$(current.strike0)±$(current.dstrike)°")

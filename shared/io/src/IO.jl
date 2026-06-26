@@ -3,9 +3,7 @@ module IO
 using HDF5
 using Dates
 
-# ─────────────────────────────────────────────────────────
 # Type Structs
-# ─────────────────────────────────────────────────────────
 
 struct EventInfo
     longitude::Float64
@@ -79,9 +77,7 @@ struct Index
     greens_depth_idx::Matrix{Int32}
 end
 
-# ─────────────────────────────────────────────────────────
 # Exports
-# ─────────────────────────────────────────────────────────
 
 export EventInfo, StationInfo, PhasePick, TrialSet, Strategy, Index
 export h5create_group, h5exists
@@ -94,9 +90,7 @@ export parse_time_iso, haversine_distance, compute_azimuth
 export extract_station, extract_phase_type
 export find_latest_status
 
-# ─────────────────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────────────────
 
 """
     h5create_group(h5file, path)
@@ -165,9 +159,7 @@ function read_config(h5file)::Dict{String, Any}
     return h5open(f -> _read_group_recursive(f["config"]), h5file, "r")
 end
 
-# ─────────────────────────────────────────────────────────
 # Readers
-# ─────────────────────────────────────────────────────────
 
 function read_event(h5file)::EventInfo
     h5open(
@@ -320,9 +312,7 @@ function read_index(h5file)::Index
     )
 end
 
-# ─────────────────────────────────────────────────────────
 # Recursive write helper
-# ─────────────────────────────────────────────────────────
 
 """
     _write_group_recursive(parent::HDF5.Group, data::Dict)
@@ -340,9 +330,7 @@ function _write_group_recursive(parent, data)
     end
 end
 
-# ─────────────────────────────────────────────────────────
 # Writers
-# ─────────────────────────────────────────────────────────
 
 function write_database(h5file, greens, data, index, config)
     h5open(h5file, "w") do f

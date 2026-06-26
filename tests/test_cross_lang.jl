@@ -36,9 +36,7 @@ function run_cpp(mode, path; expected_code = 0)::Bool
     return true
 end
 
-# ════════════════════════════════════════════════════════════════
 # Part 1: MT CSV consistency
-# ════════════════════════════════════════════════════════════════
 function test_mt_csv()
     println("\n" * repeat("=", 60))
     println("Part 1: MT conversion consistency (Julia ↔ C++)")
@@ -77,9 +75,7 @@ function test_mt_csv()
     return ok
 end
 
-# ════════════════════════════════════════════════════════════════
-# Part 2: HDF5 round‑trip
-# ════════════════════════════════════════════════════════════════
+# Part 2: HDF5 round-trip
 function test_hdf5_roundtrip()
     println("\n" * repeat("=", 60))
     println("Part 2: HDF5 round‑trip (Julia writes → C++ reads)")
@@ -117,9 +113,7 @@ function test_hdf5_roundtrip()
     return ok
 end
 
-# ════════════════════════════════════════════════════════════════
 # Part 3: Trial format
-# ════════════════════════════════════════════════════════════════
 function test_trials()
     println("\n" * repeat("=", 60))
     println("Part 3: Trial generation format (Julia writes → C++ reads)")
@@ -162,9 +156,7 @@ function test_trials()
     return ok
 end
 
-# ════════════════════════════════════════════════════════════════
 # Runner
-# ════════════════════════════════════════════════════════════════
 
 function main()
     println("TMP_DIR = $TMP_DIR")

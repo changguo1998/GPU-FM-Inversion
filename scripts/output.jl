@@ -4,18 +4,14 @@
 using Printf
 using Statistics: std
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Logging: uses shared StageLog module
-# ═══════════════════════════════════════════════════════════════════════════════
+# Logging
 
 using StageLog
 
-# ── Load shared modules ──
+# Load shared modules
 using IO, MT, Aggregate
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # CLI
-# ═══════════════════════════════════════════════════════════════════════════════
 
 # Parse positional db path and flags
 status_dir, synthesize_waveforms, db_path = let sd = ".", sw = false, dp = ""
@@ -52,16 +48,12 @@ end
 @info "Database: $(abspath(db_path))"
 @info "Status dir: $(abspath(status_dir))"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Find latest status file
-# ═══════════════════════════════════════════════════════════════════════════════
 
 latest_status, max_n = IO.find_latest_status(status_dir)
 @info "Latest status: $latest_status (iteration $max_n)"
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Read inputs
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info "Reading final strategy, trials, misfits from $latest_status"
 strategy = IO.read_strategy(latest_status)
@@ -77,9 +69,7 @@ if strategy.converged == 0
     @warn "Final status file has converged=0 — proceeding anyway"
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Compile solution
-# ═══════════════════════════════════════════════════════════════════════════════
 
 n_trials = length(trials.strike)
 n_phases = length(index.phase_ids)
@@ -258,9 +248,7 @@ summary = Dict{String, Any}(
     "convergence_reason" => getfield(strategy, :convergence_reason),
 )
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Waveform synthesis (optional)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 waveforms = nothing
 if synthesize_waveforms
@@ -280,9 +268,7 @@ if synthesize_waveforms
     end
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Write output.h5
-# ═══════════════════════════════════════════════════════════════════════════════
 
 out_path = joinpath(status_dir, "output.h5")
 @info "Writing $out_path ..."
@@ -310,9 +296,7 @@ else
     IO.write_output(out_path, solution, uncertainty, per_phase, per_station_summary, summary)
 end
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # Summary
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @info ""
 @info "="^60

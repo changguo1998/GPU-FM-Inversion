@@ -14,23 +14,23 @@
 # (Uncomment only for standalone validation)
 # using Config
 
-# ── External data file ──────────────────────────────────────
+# External data file
 # Path to HDF5 file with event info, station metadata,
 # phase picks, and raw waveforms.
 Config.data_file() = "data/my_event.h5"
 
-# ── Misfit modules ────────────────────────────────────────
+# Misfit modules
 Config.misfit_modules() = ["XCorr", "Polarity"]
 Config.module_weights() = [0.5, 0.5]
 Config.minimum_stations() = 2
 
-# ── Frequency bands ──────────────────────────────────────
+# Frequency bands
 Config.freq_bands() = [(0.5, 2.0)]
 
-# ── Depth range ──────────────────────────────────────────
+# Depth range
 Config.depths() = [5.0, 10.0, 15.0]
 
-# ── Initial grid ─────────────────────────────────────────
+# Initial grid
 Config.grid_params() = (
     strike0 = 45.0,
     dstrike = 20.0,
@@ -43,7 +43,7 @@ Config.grid_params() = (
     nrake = 3,
 )
 
-# ── XCorr module ─────────────────────────────────────────
+# XCorr module
 Config.xcorr_params() = (
     maxlag_factor = 0.5,
     filter_order = 4,
@@ -53,8 +53,8 @@ Config.xcorr_params() = (
     deselect_threshold = 0.3,
 )
 
-# ── Polarity module ──────────────────────────────────────
+# Polarity module
 Config.polarity_params() = (trim = [0.0, 2.0],)
 
-# ── Green's functions ────────────────────────────────────
+# Green's functions
 Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic")
