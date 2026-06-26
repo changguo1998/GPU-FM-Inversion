@@ -20,16 +20,16 @@ config_sample.jl   Template pipeline configuration
 
 ## Per-module reference
 
-| Module    | AGENTS.md                    | Role                                         |
+| Module | AGENTS.md | Role |
 |-----------|------------------------------|----------------------------------------------|
-| IO        | `shared/io/AGENTS.md`        | HDF5 I/O, type structs, geophysics utilities |
-| MT        | `shared/mt/AGENTS.md`        | SDR ↔ MT conversion                          |
-| Grid      | `shared/grid/AGENTS.md`      | Trial generation + grid refinement           |
-| Signal    | `shared/signal/AGENTS.md`    | Waveform preprocessing                       |
-| Aggregate | `shared/aggregate/AGENTS.md` | Misfit aggregation, uncertainty              |
-| Config    | `shared/config/AGENTS.md`    | Pipeline configuration interface             |
-| StageLog  | `shared/stage_log/AGENTS.md` | Per-stage logging                            |
-| Forward   | `forward/AGENTS.md`          | C++ misfit computation                       |
+| IO | `shared/io/AGENTS.md` | HDF5 I/O, type structs, geophysics utilities |
+| MT | `shared/mt/AGENTS.md` | SDR ↔ MT conversion |
+| Grid | `shared/grid/AGENTS.md` | Trial generation + grid refinement |
+| Signal | `shared/signal/AGENTS.md` | Waveform preprocessing |
+| Aggregate | `shared/aggregate/AGENTS.md` | Misfit aggregation, uncertainty |
+| Config | `shared/config/AGENTS.md` | Pipeline configuration interface |
+| StageLog | `shared/stage_log/AGENTS.md` | Per-stage logging |
+| Forward | `forward/AGENTS.md` | C++ misfit computation |
 
 ## Pipeline (5 stages)
 
@@ -37,21 +37,21 @@ config_sample.jl   Template pipeline configuration
 driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat]] → output
 ```
 
-| Stage      | Language | File                    | Role                                                                           |
+| Stage | Language | File | Role |
 |------------|----------|-------------------------|--------------------------------------------------------------------------------|
-| input      | Julia    | `scripts/input.jl`      | Read config, preprocess data → `database.h5`; initial strategy → `status_0.h5` |
-| preprocess | Julia    | `scripts/preprocess.jl` | Generate trials from strategy → `status_{N}.h5`                                |
-| forward    | C++      | `forward/src/main.cpp`  | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation       |
-| assess     | Julia    | `scripts/assess.jl`     | Weights, aggregate, refine grid, prompt operator (exit 0/10 signaling)         |
-| output     | Julia    | `scripts/output.jl`     | Compile solution → `output.h5`                                                 |
+| input | Julia | `scripts/input.jl` | Read config, preprocess data → `database.h5`; initial strategy → `status_0.h5` |
+| preprocess | Julia | `scripts/preprocess.jl` | Generate trials from strategy → `status_{N}.h5` |
+| forward | C++ | `forward/src/main.cpp` | GPU misfit: per-module, per-phase, per-trial. No weights, no aggregation |
+| assess | Julia | `scripts/assess.jl` | Weights, aggregate, refine grid, prompt operator (exit 0/10 signaling) |
+| output | Julia | `scripts/output.jl` | Compile solution → `output.h5` |
 
 ## HDF5 files (4)
 
-| File            | Lifetime      | Contents                                                                                  |
+| File | Lifetime | Contents |
 |-----------------|---------------|-------------------------------------------------------------------------------------------|
-| `database.h5`   | Static        | Greens at all depths, all freq-band variants, per-module preprocessed data, config, index |
-| `status_{N}.h5` | Per-iteration | Strategy, trials, misfits for iteration N                                                 |
-| `output.h5`     | Final         | Best-fit parameters, uncertainties, per-phase/station breakdown                           |
+| `database.h5` | Static | Greens at all depths, all freq-band variants, per-module preprocessed data, config, index |
+| `status_{N}.h5` | Per-iteration | Strategy, trials, misfits for iteration N |
+| `output.h5` | Final | Best-fit parameters, uncertainties, per-phase/station breakdown |
 
 ## Domain concepts
 
@@ -91,6 +91,19 @@ These conventions apply across the entire project.
 01. **Compact style**: no unnecessary line breaks. Short blocks stay on fewer lines where readable. Functions multi-line (room for docstrings). Loops/conditionals compact.
 01. **Short docstrings**: every exported/public function gets 1-3 line docstring. Julia `"""..."""` above definition. C++ `///` or `//` above declaration. What it does, not how.
 
+### Bash
+
+16. **Shebang + strict**: `#!/usr/bin/env bash` on line 1, `set -euo pipefail` on line 2.
+01. **Section headers**: single `# Name` line, no decorative borders. Preceded by blank line.
+01. **Constants**: `UPPER_CASE` names, grouped by purpose. Internal vars/functions prefixed `_underscore`.
+01. **Function style**: `name() {` brace on same line. 4-space indent body. One-liner wrappers stay on one line (`info() { _msg "INFO" "$_WHITE" "$@"; }`).
+01. **Braced variables**: always `${VAR}`, never bare `$VAR`. Default fallback: `${VAR:-default}`.
+01. **File truncation**: `: >"$FILE"` instead of `touch` or `truncate`.
+01. **Test brackets**: `[[ ]]` over `[ ]`. Always `"${VAR}"` inside tests.
+01. **Compact blocks**: no unnecessary blank lines inside small conditionals/loops. Blank line between logical groups.
+01. **Inline comments**: `# comment` with tab alignment after code. Use for intent, not mechanics.
+01. **Command variables**: `CALL_STAGE` pattern — full command line in a variable, invoked directly (`$CALL_INPUT "$CONFIG_FILE"`).
+
 ### Data conventions
 
 16. All angles in degrees in HDF5 and Julia; radians only in C++ forward module internally.
@@ -99,7 +112,7 @@ These conventions apply across the entire project.
 
 ### Workflow
 
-19. **Format before stage or commit**: run formatter on all changed files before staging. Julia: `julia --project=. -e 'using JuliaFormatter; format(".")'`. C++: `clang-format -i` on changed headers and source files. Unformatted code blocks stage.
+19. **Format before stage or commit**: run `bash format.sh` on all changed files before staging (parallel, covers Julia/Bash/C++/Markdown). Use `bash format.sh --check` for dry-run. Falls back to per-language commands: Julia `julia --project=. -e 'using JuliaFormatter; format(".")'`, C++ `clang-format -i`, Bash `shfmt -w`, Markdown `mdformat`. Unformatted code blocks stage.
 01. **Docs follow code**: update or create relevant `doc/` and per-module `AGENTS.md` in same change as code modification, before staging. Stale docs treated as technical debt — no separate "docs PR" later.
 01. **Logical commit grouping**: split work into focused, independently-reviewable commits. No lumping unrelated changes (bugfix + refactor + feature) into single commit. Each commit message uses conventional prefix: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:`.
 01. **Parallelize independent work**: fan out independent tasks across available compute budget — subagents, parallel shell, concurrent pipeline stages. No sequential execution where parallelism safe. Constraint: shared resources (GPUs, HDF5 file locks, mutable state) serialize where necessary.
