@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
-#
-# tests/run_cross_lang.sh
-#
-# Orchestrates all cross‑language verification tests.
-# Compiles C++ binaries if needed, runs Julia test orchestrator,
-# and reports PASS / SKIP / FAIL for each test.
-#
-# Usage:  ./tests/run_cross_lang.sh
-#
-# Requirements: C++17 compiler, HDF5 development libraries.
-# If either is missing, C++ tests are SKIP'd gracefully.
-
 set -euo pipefail
+
+# tests/run_cross_lang.sh - Cross-language verification tests
+#
+# Orchestrates all cross-language verification tests. Compiles C++ binaries
+# if needed, runs Julia test orchestrator, reports PASS/SKIP/FAIL.
+# Usage: ./tests/run_cross_lang.sh
+# Requires: C++17 compiler, HDF5 dev libraries (graceful skip if missing)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FORWARD_DIR="$PROJECT_ROOT/forward"
 TESTS_DIR="$FORWARD_DIR/tests"
 
-# ── colours ──────────────────────────────────────────────
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -29,15 +24,15 @@ fail() { echo -e "${RED}FAIL${NC} — $*"; }
 skip() { echo -e "${YELLOW}SKIP${NC} — $*"; }
 info() { echo -e "INFO — $*"; }
 
-failures=0
-passes=0
-skips=0
+_failures=0
+_pass=0
+_skip=0
 
-record_pass() { passes=$((passes + 1)); }
-record_fail() { failures=$((failures + 1)); }
-record_skip() { skips=$((skips + 1)); }
+record_pass() { _pass=$((_pass + 1)); }
+record_fail() { _failures=$((_failures + 1)); }
+record_skip() { _skip=$((_skip + 1)); }
 
-# ── helpers ──────────────────────────────────────────────
+# Helpers
 have_command() { command -v "$1" &>/dev/null; }
 
 have_hdf5_cflags() {
@@ -45,7 +40,7 @@ have_hdf5_cflags() {
 		return 0
 	fi
 	# fallback: try to find hdf5.h
-	if [ -f /usr/include/hdf5.h ] || [ -f /usr/include/hdf5/serial/hdf5.h ]; then
+	if [[ -f /usr/include/hdf5.h || -f /usr/include/hdf5/serial/hdf5.h ]]; then
 		return 0
 	fi
 	return 1
@@ -82,7 +77,7 @@ get_ldflags() {
 	echo "$ld"
 }
 
-# ── compile test_cross_lang ─────────────────────────────
+# Compile test_cross_lang
 compile_cross_lang() {
 	local src="$FORWARD_DIR/tests/test_cross_lang.cpp"
 	local mt_utils="$FORWARD_DIR/src/mt_utils.cpp"
@@ -91,7 +86,7 @@ compile_cross_lang() {
 
 	local cxx
 	cxx=$(get_cxx)
-	if [ -z "$cxx" ]; then
+	if [[ -z "${cxx}" ]]; then
 		skip "no C++ compiler found (g++ or clang++). C++ cross‑lang tests will be SKIP'd."
 		return 1
 	fi
@@ -111,7 +106,7 @@ compile_cross_lang() {
 		"$src" "$mt_utils" "$hdf5_io" \
 		$ldflags
 
-	if [ $? -ne 0 ]; then
+	if [[ $? -ne 0 ]]; then
 		fail "compilation of test_cross_lang"
 		return 1
 	fi
@@ -120,7 +115,7 @@ compile_cross_lang() {
 	return 0
 }
 
-# ── run Julia cross‑lang test ──────────────────────────
+# Run Julia cross-lang test
 run_julia_cross_lang() {
 	local jl_script="$SCRIPT_DIR/test_cross_lang.jl"
 
@@ -143,12 +138,8 @@ run_julia_cross_lang() {
 	fi
 }
 
-# ════════════════════════════════════════════════════════════════
-# main
-# ════════════════════════════════════════════════════════════════
-echo "═══════════════════════════════════════════════"
-echo "  Cross‑language verification suite (T22)"
-echo "═══════════════════════════════════════════════"
+# Main
+echo "=== Cross-language verification suite ==="
 echo ""
 
 # Step 1 — compile.  If this cannot be done then the Julia
@@ -165,12 +156,10 @@ echo ""
 run_julia_cross_lang
 
 echo ""
-echo "═══════════════════════════════════════════════"
-echo -n "  Summary: "
-echo -e "${GREEN}${passes} passed${NC}  ${YELLOW}${skips} skipped${NC}  ${RED}${failures} failed${NC}"
-echo "═══════════════════════════════════════════════"
+echo -n "Summary: "
+echo -e "${GREEN}${_pass} passed${NC}  ${YELLOW}${_skip} skipped${NC}  ${RED}${_failures} failed${NC}"
 
-if [ "$failures" -gt 0 ]; then
+if [[ "${_failures}" -gt 0 ]]; then
 	exit 1
 fi
 exit 0

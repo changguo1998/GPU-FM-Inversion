@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ==============================================================================
-# driver.sh — Pipeline Orchestration for Focal Mechanism Inversion
+# Pipeline Orchestration for Focal Mechanism Inversion
 #
-# Stages:
-#   input (once) → loop: [preprocess → forward → assess] → output
+# Stages: input (once) → loop: [preprocess → forward → assess] → output
 #
-# State machine (assess.jl decides converged via exit code):
-#   exit 0  = continue → next loop iteration
-#   exit 10 = converged → proceed to output.jl
-#
-# Usage:
-#   bash driver.sh --data-dir <dir>
-# ==============================================================================
+# assess.jl exit codes: 0 = continue, 10 = converged → output.jl
+# Usage: bash driver.sh --data-dir <dir>
 
 help() {
 	echo "Usage: bash driver.sh --data-dir <dir>"
 }
 
-# ── Defaults ───────────────────────────────────────────────────────────────────
+# Defaults
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CMD_CALL_JULIA="julia --project=$SCRIPT_DIR"
 CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
@@ -28,7 +21,7 @@ CALL_FORWARD="$SCRIPT_DIR/forward/build/forward"
 CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
 CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
 
-# ── Parse CLI ──────────────────────────────────────────────────────────────────
+# Parse CLI
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--data-dir)
@@ -52,7 +45,7 @@ ASSESS_DECISION_FILE="$DATA_DIR/.decision.txt"
 DATABASE_H5="$DATA_DIR/database.h5"
 STATUS_DIR="$DATA_DIR/status"
 
-# logging functions
+# Logging helpers (color-aware, tee to LOG_FILE)
 if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
 	_WHITE=$'\033[0;37m'
 	_YELLOW=$'\033[0;33m'
@@ -65,6 +58,7 @@ else
 	_END=""
 fi
 
+# Internal message formatter
 _msg() {
 	local level color txt
 	level="$1"
@@ -111,11 +105,9 @@ if [[ -f "$DATABASE_H5" ]]; then
 	warn "database.h5 already exists"
 fi
 
-# ==============================================================================
-# Main
-# ==============================================================================
+# Main pipeline
 
-# ── Stage 1: input (once) ─────────────────────────────────────────────────────
+# Stage 1: input (once)
 mkdir -p "$STATUS_DIR"
 : >"$LOG_FILE"
 : >"$ASSESS_DECISION_FILE"
@@ -129,8 +121,9 @@ else
 fi
 
 iteration=1
-# ── Loop: preprocess → forward → assess ───────────────────────────────────────
+# Loop: preprocess → forward → assess
 while true; do
+	# Read decision from assess.jl; empty or missing file = stop
 	if [[ ! -f "$ASSESS_DECISION_FILE" ]]; then
 		break
 	fi
@@ -151,7 +144,7 @@ while true; do
 	((iteration += 1))
 done
 
-# ── Stage 5: output ───────────────────────────────────────────────────────────
+# Stage 5: output
 info "output"
 $CALL_OUTPUT
 

@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ==============================================================================
-# test_e2e.sh — Synthetic event end-to-end test
+# test_e2e.sh - Synthetic event end-to-end test
 #
-# Tests the complete pipeline: input → preprocess → (fake misfits) → assess →
-#   (loop) → output — without requiring a GPU or compiled forward binary.
-#
+# Tests complete pipeline: input → preprocess → (fake misfits) → assess →
+# (loop) → output. No GPU or compiled forward binary required.
 # Usage: bash tests/test_e2e.sh
-# ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -32,14 +29,9 @@ fail() {
 	FAIL=$((FAIL + 1))
 }
 
-echo "========================================================================"
-echo " E2E Test: Synthetic event end-to-end pipeline"
-echo " Temp dir: $TMPDIR"
-echo "========================================================================"
+echo "=== E2E Test: Synthetic event end-to-end pipeline (temp: ${TMPDIR}) ==="
 
-# ==============================================================================
 # Step 1: Generate synthetic data
-# ==============================================================================
 echo ""
 echo "[Step 1] Generating synthetic data ..."
 julia --project="$PROJECT_DIR/shared/io" \
@@ -47,9 +39,7 @@ julia --project="$PROJECT_DIR/shared/io" \
 echo "  raw.h5: $(ls -lh "$DATA_DIR/raw.h5" | awk '{print $5}')"
 echo "  config.jl: $(wc -l <"$DATA_DIR/config.jl") lines"
 
-# ==============================================================================
 # Step 2: input.jl → database.h5 + status_0.h5
-# ==============================================================================
 echo ""
 echo "[Step 2] input.jl → database.h5 + status_0.h5 ..."
 julia --project="$PROJECT_DIR" \
@@ -62,9 +52,7 @@ julia --project="$PROJECT_DIR" \
 [[ -f "$DATA_DIR/status_0.h5" ]] && pass "status_0.h5 created" ||
 	fail "status_0.h5 missing"
 
-# ==============================================================================
 # Step 3: preprocess.jl → /trials in status_0.h5
-# ==============================================================================
 echo ""
 echo "[Step 3] preprocess.jl → /trials into status_0.h5 ..."
 julia --project="$PROJECT_DIR" \
@@ -81,9 +69,7 @@ echo "  Iter 0 trials: $N_TRIALS_0"
 [[ "$N_TRIALS_0" -gt 0 ]] && pass "status_0 has /trials ($N_TRIALS_0 trials)" ||
 	fail "status_0 missing /trials"
 
-# ==============================================================================
 # Step 4: Inject fake misfits into status_0.h5
-# ==============================================================================
 echo ""
 echo "[Step 4] Injecting fake misfits into status_0.h5 ..."
 
@@ -127,9 +113,7 @@ has_xcorr=$(julia --project="$PROJECT_DIR/shared/io" -e "
 [[ "$has_xcorr" == "true" ]] && pass "status_0 has /misfits/xcorr" ||
 	fail "status_0 missing /misfits/xcorr"
 
-# ==============================================================================
 # Step 5: assess.jl (iteration 1, answer "y" to continue)
-# ==============================================================================
 echo ""
 echo "[Step 5] assess.jl (echo y → continue) ..."
 echo "y" | julia --project="$PROJECT_DIR" \
@@ -168,9 +152,7 @@ if [[ -n "$NEW_DSTRIKE" ]]; then
 	fi
 fi
 
-# ==============================================================================
 # Step 6: preprocess.jl → /trials in status_1.h5
-# ==============================================================================
 echo ""
 echo "[Step 6] preprocess.jl → /trials into status_1.h5 ..."
 julia --project="$PROJECT_DIR" \
@@ -187,9 +169,7 @@ echo "  Iter 1 trials: $N_TRIALS_1"
 [[ "$N_TRIALS_1" -gt 0 ]] && pass "status_1 has /trials ($N_TRIALS_1 trials)" ||
 	fail "status_1 missing /trials"
 
-# ==============================================================================
 # Step 7: Inject fake misfits into status_1.h5
-# ==============================================================================
 echo ""
 echo "[Step 7] Injecting fake misfits into status_1.h5 ..."
 
@@ -222,9 +202,7 @@ println("  Written xcorr[$(size(xcorr))], polarity[$(size(polarity))]")
 
 pass "Injected misfits into status_1.h5"
 
-# ==============================================================================
 # Step 8: assess.jl (iteration 2, answer "N" to stop → converged=1)
-# ==============================================================================
 echo ""
 echo "[Step 8] assess.jl (echo N → converged) ..."
 echo "N" | julia --project="$PROJECT_DIR" \
@@ -243,9 +221,7 @@ CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/io" -e "
 [[ "$CONVERGED_2" == "1" ]] && pass "status_2 converged=1 (stopped)" ||
 	fail "status_2 converged=$CONVERGED_2, expected 1"
 
-# ==============================================================================
 # Step 9: output.jl → output.h5
-# ==============================================================================
 echo ""
 echo "[Step 9] output.jl → output.h5 ..."
 julia --project="$PROJECT_DIR" \
@@ -255,25 +231,19 @@ julia --project="$PROJECT_DIR" \
 [[ -f "$DATA_DIR/output.h5" ]] && pass "output.h5 created" ||
 	fail "output.h5 missing"
 
-# ==============================================================================
 # Step 10: Verify output.h5 structure
-# ==============================================================================
 echo ""
 echo "[Step 10] Verifying output.h5 structure ..."
 julia --project="$PROJECT_DIR/shared/io" \
 	"$PROJECT_DIR/tests/test_e2e.jl" \
 	"$DATA_DIR/output.h5"
 
-# ==============================================================================
 # Summary
-# ==============================================================================
 echo ""
-echo "========================================================================"
-echo " E2E Test Results: $PASS passed, $FAIL failed"
-echo "========================================================================"
+echo "E2E Test Results: ${PASS} passed, ${FAIL} failed"
 
-if [[ $FAIL -gt 0 ]]; then
-	echo "FAILURE: $FAIL check(s) failed."
+if [[ ${FAIL} -gt 0 ]]; then
+	echo "FAILURE: ${FAIL} check(s) failed."
 	exit 1
 else
 	echo "SUCCESS: All checks passed."
