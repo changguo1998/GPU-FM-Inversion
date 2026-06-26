@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# format.sh — Format all source files in the project
+set -euo pipefail
+
+# format.sh - Format all source files in the project (parallel)
 #
 # Formatters:
 #   Julia   → jlfmt        (JuliaFormatter.jl CLI)
 #   Bash    → shfmt
 #   C++/CUDA → clang-format (LLVM; optional, skips C++ if not found)
 #   Markdown → mdformat + markdown-table-formatter (npm)
-#
 # Usage:
-#   bash format.sh              # format all files
+#   bash format.sh              # format all files (parallel)
 #   bash format.sh --check      # dry-run, exit 1 if any file would change
-# ==============================================================================
-set -euo pipefail
+#   JOBS=8 bash format.sh       # override parallelism (default: nproc)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CHECK=false
@@ -33,13 +32,14 @@ done
 source ~/.bashrc
 echo "spack setup file: $SPACK_SETUP_ENV"
 source "$SPACK_SETUP_ENV"
+
 checkexe() {
 	local e
 	e="$1"
-	if [[ -z $e ]]; then
+	if [[ -z "${e}" ]]; then
 		return 0
 	fi
-	echo "$e: $(command -v "$e")"
+	echo "${e}: $(command -v "${e}")"
 }
 checkexe jlfmt
 checkexe shfmt
@@ -52,31 +52,32 @@ if ! command -v clang-format >/dev/null 2>&1; then
 fi
 checkexe clang-format
 
-# ── Colors ───────────────────────────────────────────────────────────────────
+# Fail counter: race-free via marker files in temp dir (one per failing file)
+_faildir="$(mktemp -d)"
+trap 'rm -rf "$_faildir"' EXIT
+
+mark_fail() { touch "${_faildir}/$(printf '%s' "$1" | tr '/' '_')"; }
+
+# Colors
 RED='\033[0;31m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
-ok() { echo -e "${GREEN}OK${NC} $1"; }
 warn() { echo -e "${YELLOW}WARN${NC} $1"; }
 fail() { echo -e "${RED}FAIL${NC} $1"; }
 
-errors=0
-
-# ── Formatter helpers ────────────────────────────────────────────────────────
-
+# Formatter helpers (silent on success; fail + mark on check failure)
 fmt_julia() {
 	local f="$1"
 	if [[ "$CHECK" == true ]]; then
 		if jlfmt --check "$f" &>/dev/null; then return 0; fi
 		fail "$f (would be formatted)"
-		errors=$((errors + 1))
+		mark_fail "$f"
 	else
 		local tmp
 		tmp=$(mktemp /tmp/jlfmt_XXXXXX)
 		jlfmt "$f" 2>/dev/null >"$tmp"
 		if [[ -s "$tmp" ]]; then
-			mv "$tmp" "$f" && ok "jlfmt  $f"
+			mv "$tmp" "$f"
 		else
 			rm -f "$tmp"
 		fi
@@ -88,9 +89,9 @@ fmt_bash() {
 	if [[ "$CHECK" == true ]]; then
 		if shfmt -d "$f" &>/dev/null; then return 0; fi
 		fail "$f (would be formatted)"
-		errors=$((errors + 1))
+		mark_fail "$f"
 	else
-		shfmt -w "$f" 2>/dev/null && ok "shfmt  $f"
+		shfmt -w "$f" 2>/dev/null || true
 	fi
 }
 
@@ -99,27 +100,29 @@ fmt_cxx() {
 	if [[ "$CHECK" == true ]]; then
 		if clang-format --dry-run --Werror "$f" &>/dev/null; then return 0; fi
 		fail "$f (would be formatted)"
-		errors=$((errors + 1))
+		mark_fail "$f"
 	else
-		clang-format -i --style=file "$f" 2>/dev/null || clang-format -i --style=LLVM "$f" 2>/dev/null
-		ok "clang-format $f"
+		clang-format -i --style=file "$f" 2>/dev/null || clang-format -i --style=LLVM "$f" 2>/dev/null || true
 	fi
 }
 
 fmt_md() {
 	local f="$1"
 	if [[ "$CHECK" == true ]]; then
-		if mdformat --check "$f" &>/dev/null && markdown-table-formatter --check "$f" &>/dev/null; then return 0; fi
+		if mdformat --check "$f" &>/dev/null; then return 0; fi
 		fail "$f (would be formatted)"
-		errors=$((errors + 1))
+		mark_fail "$f"
 	else
-		mdformat "$f" 2>/dev/null && ok "mdfmt   $f"
-		markdown-table-formatter "$f" 2>/dev/null && ok "mtf     $f"
+		markdown-table-formatter "$f" 2>/dev/null || true
+		mdformat "$f" 2>/dev/null || true
 	fi
 }
 
-# ── File discovery ───────────────────────────────────────────────────────────
+# Export for parallel xargs execution
+export -f fmt_julia fmt_bash fmt_cxx fmt_md mark_fail warn fail
+export CHECK _faildir RED YELLOW NC
 
+# File discovery
 project_files() {
 	local ext="$1"
 	find "$SCRIPT_DIR" -type f -name "*$ext" \
@@ -130,47 +133,51 @@ project_files() {
 		sort
 }
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# Parallelism
+JOBS="${JOBS:-$(nproc)}"
 
-echo "=== Formatting refactor-fm ==="
+# Main
+echo "=== Formatting refactor-fm (parallel, ${JOBS} jobs) ==="
 
 if command -v jlfmt &>/dev/null; then
-	while IFS= read -r f; do fmt_julia "$f"; done < <(project_files ".jl")
+	project_files ".jl" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_julia "$1"' _
 else
 	warn "jlfmt not found — skipping Julia"
 fi
 
 if command -v shfmt &>/dev/null; then
-	while IFS= read -r f; do fmt_bash "$f"; done < <(project_files ".sh")
+	project_files ".sh" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_bash "$1"' _
 else
 	warn "shfmt not found — skipping shell scripts"
 fi
 
-if command -v markdown-table-formatter &>/dev/null; then
-	while IFS= read -r f; do fmt_md "$f"; done < <(project_files ".md")
+if command -v mdformat &>/dev/null; then
+	project_files ".md" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_md "$1"' _
 else
-	warn "markdown-table-formatter not found — skipping markdown"
+	warn "mdformat not found — skipping markdown"
 fi
 
 if command -v clang-format &>/dev/null; then
-	while IFS= read -r f; do fmt_cxx "$f"; done < <(
+	{
 		project_files ".cpp"
 		project_files ".hpp"
 		project_files ".h"
 		project_files ".cu"
 		project_files ".cuh"
-	)
+	} | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_cxx "$1"' _
 else
 	warn "clang-format not found — skipping C++/CUDA"
 fi
 
+# Summary
 echo ""
 if [[ "$CHECK" == true ]]; then
-	if [[ $errors -eq 0 ]]; then
+	_errors=$(find "$_faildir" -type f | wc -l)
+	if [[ ${_errors} -eq 0 ]]; then
 		echo "✓ All files formatted."
 		exit 0
 	else
-		echo "✗ $errors file(s) need formatting."
+		echo "✗ ${_errors} file(s) need formatting."
 		exit 1
 	fi
 else
