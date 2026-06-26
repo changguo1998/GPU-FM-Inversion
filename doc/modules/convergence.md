@@ -29,13 +29,13 @@ Continue? [y/N]
 
 Computes next iteration's grid parameters from current best trial:
 
-| Parameter                  | Source                     | Rule                                                       |
+| Parameter | Source | Rule |
 |----------------------------|----------------------------|------------------------------------------------------------|
-| `strike0`, `dip0`, `rake0` | Current best trial SDR     | New grid **start** values (not center)                     |
-| `dstrike`, `ddip`, `drake` | Current step sizes         | Halved: `new_step = current_step / 2`                      |
-| `nstrike`, `ndip`, `nrake` | Fixed                      | Always `[3, 3, 3]` (3 values per SDR axis around best)     |
-| `depth_indices`            | `depth_misfit_accumulated` | Indices of depths within 20% of best depth misfit          |
-| `freq_indices`             | `freq_misfit_curve`        | Indices of frequencies within 20% of best frequency misfit |
+| `strike0`, `dip0`, `rake0` | Current best trial SDR | New grid **start** values (not center) |
+| `dstrike`, `ddip`, `drake` | Current step sizes | Halved: `new_step = current_step / 2` |
+| `nstrike`, `ndip`, `nrake` | Fixed | Always `[3, 3, 3]` (3 values per SDR axis around best) |
+| `depth_indices` | `depth_misfit_accumulated` | Indices of depths within 20% of best depth misfit |
+| `freq_indices` | `freq_misfit_curve` | Indices of frequencies within 20% of best frequency misfit |
 
 **Refinement factor**: fixed at 0.5 (half step sizes each iteration).
 

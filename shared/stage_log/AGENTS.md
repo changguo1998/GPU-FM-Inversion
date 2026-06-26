@@ -8,7 +8,7 @@ Used by: all stage scripts (`input.jl`, `preprocess.jl`, `assess.jl`, `output.jl
 
 ## Exports
 
-| Function        | Signature                                    | Role                                                                                            |
+| Function | Signature | Role |
 |-----------------|----------------------------------------------|-------------------------------------------------------------------------------------------------|
 | `setup_logger!` | `(prefix::String, filename::AbstractString)` | Create `StageLogger` with prefix, set as global logger, register `atexit` handler to close file |
 
@@ -16,10 +16,10 @@ Used by: all stage scripts (`input.jl`, `preprocess.jl`, `assess.jl`, `output.jl
 
 `StageLogger <: AbstractLogger` — custom Julia `Logging` framework logger.
 
-| Field    | Type       | Description                                                   |
+| Field | Type | Description |
 |----------|------------|---------------------------------------------------------------|
-| `prefix` | `String`   | Stage label, e.g. `"input"` — rendered as `[input]` in output |
-| `io`     | `IOStream` | Log file handle                                               |
+| `prefix` | `String` | Stage label, e.g. `"input"` — rendered as `[input]` in output |
+| `io` | `IOStream` | Log file handle |
 
 ## Logging behavior
 
@@ -31,12 +31,12 @@ Used by: all stage scripts (`input.jl`, `preprocess.jl`, `assess.jl`, `output.jl
 
 ## Log file locations
 
-| Stage      | Log file                      |
+| Stage | Log file |
 |------------|-------------------------------|
-| input      | `<data_dir>/input.log`        |
+| input | `<data_dir>/input.log` |
 | preprocess | `<status_dir>/preprocess.log` |
-| assess     | `<status_dir>/assess.log`     |
-| output     | `<status_dir>/output.log`     |
+| assess | `<status_dir>/assess.log` |
+| output | `<status_dir>/output.log` |
 
 ## Coding conventions
 

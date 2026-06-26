@@ -16,7 +16,7 @@ Used by: `input.jl`.
 
 ### Filtering
 
-| Function                                              | Role                                            |
+| Function | Role |
 |-------------------------------------------------------|-------------------------------------------------|
 | `bandpass_filter!(x, dt, low_cut, high_cut; order=4)` | Zero-phase Butterworth bandpass filter in-place |
 
@@ -24,25 +24,25 @@ Butterworth `order=4`. Zero-phase via forward-backward `filtfilt`. Clamps high c
 
 ### Trimming
 
-| Function                                                                   | Role                                                                                                               |
+| Function | Role |
 |----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | `trim_time_window!(obs, gf, dt, arrival_sample, window_factor, band_high)` | Trim obs/gf to time window around arrival. Window = `(window_factor / band_high)` seconds. Returns trimmed arrays. |
-| `trim_to_polarity_window!(gf, dt, arrival_sample, t_source)`               | Trim GF to `[arrival, arrival + t_source]` window. Returns trimmed matrix.                                         |
+| `trim_to_polarity_window!(gf, dt, arrival_sample, t_source)` | Trim GF to `[arrival, arrival + t_source]` window. Returns trimmed matrix. |
 
 ### Per-module preprocessing
 
-| Function               | Input                                                                         | Output                                        | Used for                                                           |
+| Function | Input | Output | Used for |
 |------------------------|-------------------------------------------------------------------------------|-----------------------------------------------|--------------------------------------------------------------------|
-| `preprocess_xcorr!`    | obs waveform, GF matrix, dt, arrival_sample, low_cut, high_cut, window_factor | `(obs_proc, gf_proc, synamp[6×6], obs_norm2)` | XCorr module — filtered + trimmed obs/GF + auto-correlation matrix |
-| `preprocess_polarity!` | GF matrix, dt, arrival_sample, t_source, obs_polarity(Int8)                   | `(gf_pol[N_pol×6], obs_pol_float)`            | Polarity module — GF in polarity window; -128→NaN                  |
-| `preprocess_psr!`      | obs_P, obs_S, GF_P, GF_S, dt, arrival_P/S, pre/post seconds                   | `(amp_P[6×6], amp_S[6×6], obs_psr)`           | PSR module — GF auto-correlation matrices + log10 RMS ratio        |
+| `preprocess_xcorr!` | obs waveform, GF matrix, dt, arrival_sample, low_cut, high_cut, window_factor | `(obs_proc, gf_proc, synamp[6×6], obs_norm2)` | XCorr module — filtered + trimmed obs/GF + auto-correlation matrix |
+| `preprocess_polarity!` | GF matrix, dt, arrival_sample, t_source, obs_polarity(Int8) | `(gf_pol[N_pol×6], obs_pol_float)` | Polarity module — GF in polarity window; -128→NaN |
+| `preprocess_psr!` | obs_P, obs_S, GF_P, GF_S, dt, arrival_P/S, pre/post seconds | `(amp_P[6×6], amp_S[6×6], obs_psr)` | PSR module — GF auto-correlation matrices + log10 RMS ratio |
 
 ### Utilities
 
-| Function           | Role                                                 |
+| Function | Role |
 |--------------------|------------------------------------------------------|
-| `envelope(x)`      | Hilbert envelope (analytic signal magnitude) via FFT |
-| `rms_amplitude(x)` | Root-mean-square amplitude                           |
+| `envelope(x)` | Hilbert envelope (analytic signal magnitude) via FFT |
+| `rms_amplitude(x)` | Root-mean-square amplitude |
 
 ## Preprocessing sequence (per phase, per freq band)
 

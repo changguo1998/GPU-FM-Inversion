@@ -13,14 +13,14 @@ This stage was renamed from `export.jl`.
 
 ## Inputs
 
-| Source             | Description                                                                                             |
+| Source | Description |
 |--------------------|---------------------------------------------------------------------------------------------------------|
 | `status_{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` from all completed status files (including the converged file) |
-| `database.h5`      | Reads `/index`, `/greens`, `/data`, `/config`                                                           |
+| `database.h5` | Reads `/index`, `/greens`, `/data`, `/config` |
 
 ## Outputs
 
-| Source      | Description                                                                                                         |
+| Source | Description |
 |-------------|---------------------------------------------------------------------------------------------------------------------|
 | `output.h5` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms, summary |
 

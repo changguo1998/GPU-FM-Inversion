@@ -8,18 +8,18 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 
 ## Exports
 
-| Function             | Return type                       | Example return value                             |
+| Function | Return type | Example return value |
 |----------------------|-----------------------------------|--------------------------------------------------|
-| `data_file()`        | `String`                          | `"data/my_event.h5"`                             |
-| `misfit_modules()`   | `Vector{String}`                  | `["XCorr", "Polarity"]`                          |
-| `module_weights()`   | `Vector{Float64}`                 | `[0.5, 0.5]`                                     |
-| `minimum_stations()` | `Int`                             | `2`                                              |
-| `freq_bands()`       | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]`                                   |
-| `depths()`           | `Vector{Float64}`                 | `[5.0, 10.0, 15.0]`                              |
-| `grid_params()`      | NamedTuple{9}                     | `(strike0=45.0, dstrike=20.0, nstrike=3, ...)`   |
-| `xcorr_params()`     | NamedTuple{6}                     | `(maxlag_factor=0.5, filter_order=4, ...)`       |
-| `polarity_params()`  | NamedTuple{1}                     | `(trim=[0.0, 2.0],)`                             |
-| `greens_params()`    | NamedTuple{2}                     | `(gf_dir="tests/synthetic/", model="synthetic")` |
+| `data_file()` | `String` | `"data/my_event.h5"` |
+| `misfit_modules()` | `Vector{String}` | `["XCorr", "Polarity"]` |
+| `module_weights()` | `Vector{Float64}` | `[0.5, 0.5]` |
+| `minimum_stations()` | `Int` | `2` |
+| `freq_bands()` | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]` |
+| `depths()` | `Vector{Float64}` | `[5.0, 10.0, 15.0]` |
+| `grid_params()` | NamedTuple{9} | `(strike0=45.0, dstrike=20.0, nstrike=3, ...)` |
+| `xcorr_params()` | NamedTuple{6} | `(maxlag_factor=0.5, filter_order=4, ...)` |
+| `polarity_params()` | NamedTuple{1} | `(trim=[0.0, 2.0],)` |
+| `greens_params()` | NamedTuple{2} | `(gf_dir="tests/synthetic/", model="synthetic")` |
 
 ## Error handling
 

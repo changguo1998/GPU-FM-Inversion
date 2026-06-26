@@ -6,19 +6,19 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 
 ## Inputs
 
-| Source          | Purpose                                                                     |
+| Source | Purpose |
 |-----------------|-----------------------------------------------------------------------------|
-| `config.jl`     | Bootstrap config (passed to `input.jl` only; always `<data-dir>/config.jl`) |
-| `database.h5`   | Preprocessed data (path known to all stages)                                |
-| `status_{N}.h5` | Iteration snapshots (discovered by file inspection)                         |
+| `config.jl` | Bootstrap config (passed to `input.jl` only; always `<data-dir>/config.jl`) |
+| `database.h5` | Preprocessed data (path known to all stages) |
+| `status_{N}.h5` | Iteration snapshots (discovered by file inspection) |
 
 ## Outputs
 
-| Output          | Producer                                                                                                                                            |
+| Output | Producer |
 |-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `database.h5`   | `input.jl` (once)                                                                                                                                   |
+| `database.h5` | `input.jl` (once) |
 | `status_{N}.h5` | `input.jl` (strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence on break; creates `status_{N+1}.h5` on continue) |
-| `output.h5`     | `output.jl`                                                                                                                                         |
+| `output.h5` | `output.jl` |
 
 ## Responsibilities
 
@@ -29,11 +29,11 @@ Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. 
 
 ## Pipeline Stage Detection
 
-| Condition                | Action                                                           |
+| Condition | Action |
 |--------------------------|------------------------------------------------------------------|
-| No `database.h5`         | Run `input.jl` (once, with `config.jl`)                          |
-| `database.h5` exists     | Loop: `preprocess.jl` → `forward.cpp` → `assess.jl` indefinitely |
-| `assess.jl` exit code 10 | Break loop → run `output.jl`                                     |
+| No `database.h5` | Run `input.jl` (once, with `config.jl`) |
+| `database.h5` exists | Loop: `preprocess.jl` → `forward.cpp` → `assess.jl` indefinitely |
+| `assess.jl` exit code 10 | Break loop → run `output.jl` |
 
 All HDF5 group-level state detection (trials/misfits existence, converged flag) is handled by `assess.jl` internally. The driver only checks `database.h5` file existence.
 

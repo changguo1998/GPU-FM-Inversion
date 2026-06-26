@@ -8,14 +8,14 @@ This is the per-loop portion of the former `setup.jl`. It is **not** responsible
 
 ## Inputs
 
-| Source          | Description                                                                              |
+| Source | Description |
 |-----------------|------------------------------------------------------------------------------------------|
 | `status_{N}.h5` | Reads `/strategy` — current grid parameters (SDR center, step sizes, depth/freq indices) |
-| `database.h5`   | Read-only (for validation / config reference)                                            |
+| `database.h5` | Read-only (for validation / config reference) |
 
 ## Outputs
 
-| Source          | Description                                                                 |
+| Source | Description |
 |-----------------|-----------------------------------------------------------------------------|
 | `status_{N}.h5` | Writes `/trials` — Cartesian product of varying axes expanded from strategy |
 

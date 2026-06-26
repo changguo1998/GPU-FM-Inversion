@@ -1,0 +1,1 @@
+[output] ERROR: Usage: julia scripts/output.jl <database.h5> [--status-dir <dir>] [--waveforms]

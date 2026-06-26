@@ -8,16 +8,16 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase
 
 ## Inputs
 
-| Source          | Description                               |
+| Source | Description |
 |-----------------|-------------------------------------------|
-| `status_{N}.h5` | Reads `/trials`, `/misfits`, `/strategy`  |
-| `database.h5`   | Reads `/config`, `/index` (for reference) |
+| `status_{N}.h5` | Reads `/trials`, `/misfits`, `/strategy` |
+| `database.h5` | Reads `/config`, `/index` (for reference) |
 
 ## Outputs
 
-| Source                          | Description                                                                        |
+| Source | Description |
 |---------------------------------|------------------------------------------------------------------------------------|
-| `status_{N}.h5` (on break)      | Sets `/strategy/converged=1`, `convergence_reason="user"` — no new file created    |
+| `status_{N}.h5` (on break) | Sets `/strategy/converged=1`, `convergence_reason="user"` — no new file created |
 | `status_{N+1}.h5` (on continue) | New file with `/strategy` (refined grid, masks, weights, best result, converged=0) |
 
 ## Responsibilities

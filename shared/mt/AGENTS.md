@@ -8,10 +8,10 @@ Used by: `output.jl`.
 
 ## Exports
 
-| Function          | Signature                | Returns                                                |
+| Function | Signature | Returns |
 |-------------------|--------------------------|--------------------------------------------------------|
-| `sdr_to_mt`       | `(strike°, dip°, rake°)` | `Vector{Float64}[6]`: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` |
-| `sdr_to_mt_batch` | `(strikes, dips, rakes)` | `Matrix{Float64}[6 × N]`, each column = one MT         |
+| `sdr_to_mt` | `(strike°, dip°, rake°)` | `Vector{Float64}[6]`: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` |
+| `sdr_to_mt_batch` | `(strikes, dips, rakes)` | `Matrix{Float64}[6 × N]`, each column = one MT |
 
 ## Formula
 

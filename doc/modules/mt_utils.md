@@ -8,12 +8,12 @@ Double-couple SDR (strike, dip, rake) to 6-component moment tensor conversion. M
 
 ## Used By
 
-| Stage           | Language                                |
+| Stage | Language |
 |-----------------|-----------------------------------------|
-| `input.jl`      | Julia (preprocessing; initial strategy) |
-| `preprocess.jl` | Julia (generating trials)               |
-| `forward.cpp`   | C++ (SDR → MT on GPU, per trial)        |
-| `output.jl`     | Julia (recomputing best-fit MT)         |
+| `input.jl` | Julia (preprocessing; initial strategy) |
+| `preprocess.jl` | Julia (generating trials) |
+| `forward.cpp` | C++ (SDR → MT on GPU, per trial) |
+| `output.jl` | Julia (recomputing best-fit MT) |
 
 ## Algorithm
 

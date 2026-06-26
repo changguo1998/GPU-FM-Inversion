@@ -40,11 +40,11 @@ All fields are flat `double*` arrays allocated with `new[]` and freed by `CacheE
 
 ## Reduction by Module
 
-| Module   | Input from HDF5                         | Output (host-resident)                       | Size per unit | Unit    |
+| Module | Input from HDF5 | Output (host-resident) | Size per unit | Unit |
 |----------|-----------------------------------------|----------------------------------------------|---------------|---------|
-| XCorr    | `obs [N_samples]`, `gf [N_samples × 6]` | `cc [cc_pp × 6]`, `synamp [36]`, `obs_norm2` | ~0.5 KB       | phase   |
-| Polarity | `gf_pol [N_pol_samples × 6]`, `obs_pol` | `pol_vec [6]`, `obs_pol`                     | ~56 B         | channel |
-| PSR      | `amp_P [36]`, `amp_S [36]`, `obs_psr`   | `amp_P [36]`, `amp_S [36]`, `obs_psr`        | ~584 B        | channel |
+| XCorr | `obs [N_samples]`, `gf [N_samples × 6]` | `cc [cc_pp × 6]`, `synamp [36]`, `obs_norm2` | ~0.5 KB | phase |
+| Polarity | `gf_pol [N_pol_samples × 6]`, `obs_pol` | `pol_vec [6]`, `obs_pol` | ~56 B | channel |
+| PSR | `amp_P [36]`, `amp_S [36]`, `obs_psr` | `amp_P [36]`, `amp_S [36]`, `obs_psr` | ~584 B | channel |
 
 **Note:** PSR `amp_P` and `amp_S` are read directly from `database.h5` (already precomputed by input.jl) — no further reduction is needed; they're copied through unchanged.
 

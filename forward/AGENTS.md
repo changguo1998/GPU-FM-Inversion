@@ -17,28 +17,28 @@ Requires: C++17, OpenMP (required), HDF5 (serial, Ubuntu paths: `/usr/include/hd
 
 ## Targets (CMakeLists.txt)
 
-| Target                | Sources                                                  | Links        |
+| Target | Sources | Links |
 |-----------------------|----------------------------------------------------------|--------------|
-| `forward`             | `main.cpp, mt_utils.cpp, hdf5_io.cpp, data_cache.cpp`    | OpenMP, HDF5 |
-| `test_hdf5_roundtrip` | `tests/test_hdf5_roundtrip.cpp, hdf5_io.cpp`             | HDF5         |
-| `test_mt_utils`       | `tests/test_mt_to_csv.cpp, mt_utils.cpp`                 | —            |
-| `test_data_cache`     | `tests/test_data_cache.cpp, hdf5_io.cpp, data_cache.cpp` | OpenMP, HDF5 |
-| `test_xcorr`          | `tests/test_xcorr.cpp`                                   | OpenMP       |
-| `test_misfit_kernels` | `tests/test_misfit_kernels.cpp`                          | OpenMP       |
-| `test_cross_lang`     | `tests/test_cross_lang.cpp, mt_utils.cpp, hdf5_io.cpp`   | HDF5         |
+| `forward` | `main.cpp, mt_utils.cpp, hdf5_io.cpp, data_cache.cpp` | OpenMP, HDF5 |
+| `test_hdf5_roundtrip` | `tests/test_hdf5_roundtrip.cpp, hdf5_io.cpp` | HDF5 |
+| `test_mt_utils` | `tests/test_mt_to_csv.cpp, mt_utils.cpp` | — |
+| `test_data_cache` | `tests/test_data_cache.cpp, hdf5_io.cpp, data_cache.cpp` | OpenMP, HDF5 |
+| `test_xcorr` | `tests/test_xcorr.cpp` | OpenMP |
+| `test_misfit_kernels` | `tests/test_misfit_kernels.cpp` | OpenMP |
+| `test_cross_lang` | `tests/test_cross_lang.cpp, mt_utils.cpp, hdf5_io.cpp` | HDF5 |
 
 ## Source map
 
-| File                            | Role                                                                                                                                                         |
+| File | Role |
 |---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/main.cpp`                  | Entry point. Read trials, SDR→MT, iterate (freq,depth) combos, launch kernels, write misfits                                                                 |
-| `src/backends/device.h`         | Backend dispatch: `Device<OpenMP>` = `#pragma omp parallel for`; `Device<CUDA>` = `__global__` kernel. `DefaultDevice` = CUDA when `__CUDACC__`, else OpenMP |
-| `src/kernels/xcorr_kernel.h`    | XCorr misfit kernel. Formula: `1.0 - max_k(|cc_syn[k] / √(obs_norm² · syn_norm²)|)`                                                                          |
-| `src/kernels/polarity_kernel.h` | Polarity misfit kernel. Formula: `sign(dot(pol_vec, mt)) == obs_pol ? 0.0 : 1.0`                                                                             |
-| `src/kernels/psr_kernel.h`      | PSR misfit kernel. Formula: `(log10(√(mᵀ·amp_P·m) / √(mᵀ·amp_S·m)) - obs_psr)²`                                                                              |
-| `src/hdf5_io.h/.cpp`            | `Hdf5Handle` struct: open/close, read scalar/1D/2D, write 2D, group ops                                                                                      |
-| `src/data_cache.h/.cpp`         | `DataCache` class: loads preprocessed obs/GF from database.h5, computes CC(obs, GF[:,i]) reductions, synamp, obs_norm2 per (freq,depth) combo                |
-| `src/mt_utils.h/.cpp`           | `sdr_to_mt(radians)` → `MomentTensor{Mxx,Myy,Mzz,Mxy,Mxz,Myz}`. Identical formulas to Julia `MT.jl`.                                                         |
+| `src/main.cpp` | Entry point. Read trials, SDR→MT, iterate (freq,depth) combos, launch kernels, write misfits |
+| `src/backends/device.h` | Backend dispatch: `Device<OpenMP>` = `#pragma omp parallel for`; `Device<CUDA>` = `__global__` kernel. `DefaultDevice` = CUDA when `__CUDACC__`, else OpenMP |
+| `src/kernels/xcorr_kernel.h` | XCorr misfit kernel. Formula: `1.0 - max_k(|cc_syn[k] / √(obs_norm² · syn_norm²)|)` |
+| `src/kernels/polarity_kernel.h` | Polarity misfit kernel. Formula: `sign(dot(pol_vec, mt)) == obs_pol ? 0.0 : 1.0` |
+| `src/kernels/psr_kernel.h` | PSR misfit kernel. Formula: `(log10(√(mᵀ·amp_P·m) / √(mᵀ·amp_S·m)) - obs_psr)²` |
+| `src/hdf5_io.h/.cpp` | `Hdf5Handle` struct: open/close, read scalar/1D/2D, write 2D, group ops |
+| `src/data_cache.h/.cpp` | `DataCache` class: loads preprocessed obs/GF from database.h5, computes CC(obs, GF[:,i]) reductions, synamp, obs_norm2 per (freq,depth) combo |
+| `src/mt_utils.h/.cpp` | `sdr_to_mt(radians)` → `MomentTensor{Mxx,Myy,Mzz,Mxy,Mxz,Myz}`. Identical formulas to Julia `MT.jl`. |
 
 ## Kernel details
 
@@ -100,11 +100,11 @@ All flat `double*` arrays, column-major:
 
 ## Tests
 
-| Test                  | What it verifies                                                |
+| Test | What it verifies |
 |-----------------------|-----------------------------------------------------------------|
-| `test_hdf5_roundtrip` | Write then read scalar/1D/2D datasets, group ops                |
-| `test_mt_to_csv`      | MT conversion matches known values                              |
-| `test_data_cache`     | Cache loads combos, returns correct entry, handles missing data |
-| `test_xcorr`          | XCorr kernel: known-misfit cases, edge cases (zero norms)       |
-| `test_misfit_kernels` | Polarity + PSR kernels: match/mismatch cases, NaN guards        |
-| `test_cross_lang`     | C++ MT output matches Julia MT.jl output                        |
+| `test_hdf5_roundtrip` | Write then read scalar/1D/2D datasets, group ops |
+| `test_mt_to_csv` | MT conversion matches known values |
+| `test_data_cache` | Cache loads combos, returns correct entry, handles missing data |
+| `test_xcorr` | XCorr kernel: known-misfit cases, edge cases (zero norms) |
+| `test_misfit_kernels` | Polarity + PSR kernels: match/mismatch cases, NaN guards |
+| `test_cross_lang` | C++ MT output matches Julia MT.jl output |

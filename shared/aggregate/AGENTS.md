@@ -44,10 +44,10 @@ Returns: (total::Vector{Float64}[N_trials], best_idx::Int, per_module::Dict)
 
 ### Uncertainty helpers
 
-| Function              | Signature                                        | Returns                                                                |
+| Function | Signature | Returns |
 |-----------------------|--------------------------------------------------|------------------------------------------------------------------------|
-| `compute_depth_range` | `(depth_vals, depth_misfit_vec; tolerance=0.05)` | `[min_depth, max_depth]` or `[NaN, NaN]`                               |
-| `compute_sdr_std`     | `(freq_accumulated[N_freq×3])`                   | `(strike_std, dip_std, rake_std)` or `(NaN, NaN, NaN)` if ≤1 frequency |
+| `compute_depth_range` | `(depth_vals, depth_misfit_vec; tolerance=0.05)` | `[min_depth, max_depth]` or `[NaN, NaN]` |
+| `compute_sdr_std` | `(freq_accumulated[N_freq×3])` | `(strike_std, dip_std, rake_std)` or `(NaN, NaN, NaN)` if ≤1 frequency |
 
 `compute_depth_range`: depths within `tolerance` fraction of best misfit. `compute_sdr_std`: standard deviation of best SDR per frequency band.
 
