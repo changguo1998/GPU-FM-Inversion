@@ -33,7 +33,7 @@ read_greens(file, phase_id, depth_idx)::Matrix{Float64}
 read_index(file)::Index
 
 # Writing
-write_database(file, greens, data, index, config)
+write_database(file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)
 write_trials(file, trials::TrialSet)
 write_misfits(file, module::Symbol, data::AbstractArray)
 write_strategy(file, strategy::Strategy)

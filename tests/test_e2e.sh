@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# test_e2e.sh - Synthetic event end-to-end test
+# test_e2e.sh — Synthetic event end-to-end test
 #
 # Tests complete pipeline: input → preprocess → (fake misfits) → assess →
 # (loop) → output. No GPU or compiled forward binary required.
@@ -36,7 +36,8 @@ echo ""
 echo "[Step 1] Generating synthetic data ..."
 julia --project="$PROJECT_DIR/shared/io" \
 	"$PROJECT_DIR/tests/synthetic_data.jl" "$DATA_DIR"
-echo "  raw.h5: $(ls -lh "$DATA_DIR/raw.h5" | awk '{print $5}')"
+cp "$PROJECT_DIR/examples/synthetic/config.jl" "$DATA_DIR/config.jl"
+echo "  stations: $(ls -1 "$DATA_DIR"/*.dat | wc -l) waveform files"
 echo "  config.jl: $(wc -l <"$DATA_DIR/config.jl") lines"
 
 # Step 2: input.jl → database.h5 + status_0.h5
@@ -69,27 +70,27 @@ echo "  Iter 0 trials: $N_TRIALS_0"
 [[ "$N_TRIALS_0" -gt 0 ]] && pass "status_0 has /trials ($N_TRIALS_0 trials)" ||
 	fail "status_0 missing /trials"
 
-# Step 4: Inject fake misfits into status_0.h5
+# Step 4: Inject fake misfits into status_0.h5 (dynamic trial count)
 echo ""
 echo "[Step 4] Injecting fake misfits into status_0.h5 ..."
 
-# Dimensions: 6 phases, 3 stations, 81 trials
-# Place best misfit at trial 14 (strike=45,dip=30,rake=20,depth_idx=2,10km)
-# so depth refinement narrows to depth 2 only, and best SDR = (45,30,20)
 julia --project="$PROJECT_DIR/shared/io" -e '
 using HDF5
 
 fname = "'"$DATA_DIR"'/status_0.h5"
-n_ph = 6
-n_st = 3
-n_tr = 81
-best = 14   # 0-based: trial 14 (1-based Julia)
 
-# xcorr [6×81]: all 1.0 except best trial
+h5open(fname, "r") do f
+    global n_tr  = length(read(f["trials/strike"]))
+    global n_ph  = length(read(f["strategy/xcorr_phase_mask"]))
+    global n_st  = length(read(f["strategy/polarity_channel_mask"]))
+end
+
+# Best misfit at middle trial so refinement has a clear minimum
+best = Int(floor(n_tr / 2))
+
 xcorr = fill(1.0, n_ph, n_tr)
 xcorr[:, best] .= 0.1
 
-# polarity [3×81]: all 0.5 except best trial
 polarity = fill(0.5, n_st, n_tr)
 polarity[:, best] .= 0.05
 
@@ -120,9 +121,6 @@ echo "y" | julia --project="$PROJECT_DIR" \
 	"$PROJECT_DIR/scripts/assess.jl" \
 	"$DATA_DIR/status_0.h5" "$DATA_DIR/database.h5"
 
-# After refinement, best was (45,30,20) at depth 2 with all other depths poor
-# → depth_indices=[2] only, step sizes halved to 10°, nstrike/ndip/nrake=3
-
 [[ -f "$DATA_DIR/status_1.h5" ]] && pass "status_1.h5 created" ||
 	fail "status_1.h5 missing"
 
@@ -142,9 +140,13 @@ NEW_DSTRIKE=$(julia --project="$PROJECT_DIR/shared/io" -e "
         println(read(f[\"strategy/dstrike\"]))
     end
 ")
-if [[ -n "$NEW_DSTRIKE" ]]; then
-	OLD_DSTRIKE=20.0
-	# new step should be 10.0 (halved)
+OLD_DSTRIKE=$(julia --project="$PROJECT_DIR/shared/io" -e "
+    using HDF5
+    h5open(\"$DATA_DIR/status_0.h5\", \"r\") do f
+        println(read(f[\"strategy/dstrike\"]))
+    end
+")
+if [[ -n "$NEW_DSTRIKE" && -n "$OLD_DSTRIKE" ]]; then
 	if (($(echo "$NEW_DSTRIKE < $OLD_DSTRIKE" | bc -l))); then
 		pass "Step sizes decreased: dstrike=$OLD_DSTRIKE → $NEW_DSTRIKE"
 	else
@@ -169,19 +171,22 @@ echo "  Iter 1 trials: $N_TRIALS_1"
 [[ "$N_TRIALS_1" -gt 0 ]] && pass "status_1 has /trials ($N_TRIALS_1 trials)" ||
 	fail "status_1 missing /trials"
 
-# Step 7: Inject fake misfits into status_1.h5
+# Step 7: Inject fake misfits into status_1.h5 (dynamic trial count)
 echo ""
 echo "[Step 7] Injecting fake misfits into status_1.h5 ..."
 
-# Iter 1: 3×3×3×1×1 = 27 trials (only 1 depth). Best at trial 14 again.
 julia --project="$PROJECT_DIR/shared/io" -e '
 using HDF5
 
 fname = "'"$DATA_DIR"'/status_1.h5"
-n_ph = 6
-n_st = 3
-n_tr = 27
-best = 14   # trial 14 (1-based)
+
+h5open(fname, "r") do f
+    global n_tr  = length(read(f["trials/strike"]))
+    global n_ph  = length(read(f["strategy/xcorr_phase_mask"]))
+    global n_st  = length(read(f["strategy/polarity_channel_mask"]))
+end
+
+best = Int(floor(n_tr / 2))
 
 xcorr = fill(1.0, n_ph, n_tr)
 xcorr[:, best] .= 0.1
@@ -215,14 +220,14 @@ set -e
 	fail "assess exited with $ASSESS_EXIT, expected 10"
 
 # When converged, assess writes converged=1 to status_1.h5 (same file), not a new status file
-CONVERGED_1=$(julia --project="$PROJECT_DIR/shared/io" -e "
+CONVERGED_FINAL=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
     h5open(\"$DATA_DIR/status_1.h5\", \"r\") do f
         println(read(f[\"strategy/converged\"]))
     end
 ")
-[[ "$CONVERGED_1" == "1" ]] && pass "status_1 converged=1 (stopped)" ||
-	fail "status_1 converged=$CONVERGED_1, expected 1"
+[[ "$CONVERGED_FINAL" == "1" ]] && pass "status_1 converged=1 (stopped)" ||
+	fail "status_1 converged=$CONVERGED_FINAL, expected 1"
 
 # Step 9: output.jl → output.h5
 echo ""

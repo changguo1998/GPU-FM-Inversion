@@ -123,6 +123,19 @@ Polarity module preprocessed data.
 |----------|---------|---------------------------------------|---------------------------|
 | `gf_pol` | Float64 | `[N_channels, 6, N_polarity_samples]` | GF within polarity window |
 
+### `/index`
+
+Flat arrays indexed by `N_phases` (one row per phase entry).
+
+| Dataset | Type | Shape | Description |
+|--------------------|---------|-------------------------|------------------------------------------|
+| `phase_ids` | String | `[N_phases]` | Phase identifiers (`NET.ST1.Z.P`) |
+| `phase_type` | String | `[N_phases]` | `"P"` or `"S"` |
+| `station_idx` | Int32 | `[N_phases]` | Index into `/station` tables (1-based) |
+| `distance` | Float64 | `[N_phases]` | Epicentral distance (km) per phase |
+| `azimuth` | Float64 | `[N_phases]` | Event-to-station azimuth (deg) per phase |
+| `greens_depth_idx` | Int32 | `[N_phases × N_depths]` | GF depth index per phase per depth |
+
 ______________________________________________________________________
 
 ## `status_{N}.h5` — Per-Iteration Workflow File

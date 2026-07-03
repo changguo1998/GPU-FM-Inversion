@@ -345,6 +345,20 @@ end
 if "Polarity" in misfit_modules
     db_config["polarity"] = Dict{String, Any}("trim" => Float64.(polarity_trim))
 end
+# 7b. Build /index
+n_phases = length(phase_list)
+index_phase_ids = [p[1] for p in phase_list]
+index_phase_type = [p[2] for p in phase_list]
+index_station_idx = Int32[p[3] for p in phase_list]
+index_distance = [station_dict["distance"][p[3]] for p in phase_list]
+index_azimuth = [station_dict["azimuth"][p[3]] for p in phase_list]
+# greens_depth_idx: all depths valid for all phases -> row = phase, col = depth
+index_greens_depth_idx = zeros(Int32, n_phases, n_depths)
+for d in 1:n_depths
+    index_greens_depth_idx[:, d] .= Int32(d)
+end
+@info "  index built ($n_phases phases, $n_depths depths)"
+
 
 # 8. Write database.h5
 
@@ -363,6 +377,18 @@ IO.write_database(
     polarity_gf,
 )
 @info "  $db_path written"
+# Write /index to database.h5
+h5open(db_path, "r+") do f
+    gr = HDF5.create_group(f, "index")
+    write(gr, "phase_ids", index_phase_ids)
+    write(gr, "phase_type", index_phase_type)
+    write(gr, "station_idx", index_station_idx)
+    write(gr, "distance", index_distance)
+    write(gr, "azimuth", index_azimuth)
+    write(gr, "greens_depth_idx", index_greens_depth_idx)
+end
+@info "  /index written ($n_phases phases)"
+
 
 # 9. Write status_0.h5
 
