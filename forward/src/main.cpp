@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
 
         status_file.close();
 
-        // Free GPU memory
+        // Free host memory (DataCache uses new[] — no GPU allocation in OpenMP build)
         cache.release_all();
 
         std::cout << "fm_forward: " << N_trials << " trials × " << combos.size() << " combos → "

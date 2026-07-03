@@ -58,7 +58,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 - **Moment tensor**: 6 components in NED: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
 - **Source params**: strike \[0,360), dip [0,90], rake [-90,90] (degrees)
 - **Green's functions**: 6-component waveforms per station, pre-computed externally
-- **Misfit modules**: XCorr, Polarity (active). PSR — C++ kernel exists, Julia preprocessing optional. AbsShift, RelShift — deferred. CAP — cancelled.
+- **Misfit modules**: XCorr, Polarity (active). PSR — C++ kernel exists, Julia preprocessing not called by input.jl (no PSR data in current database.h5). AbsShift, RelShift — deferred. CAP — cancelled.
 - **Trial**: one combination of variable params (SDR, depth, frequency, etc.)
 - **Phase** = station + channel + wave type (P/S) — channels subsumed by phases
 - **Phase key**: `{network}.{station}.{channel}.{phase_type}` (e.g. `IU.COLA.00.P`)

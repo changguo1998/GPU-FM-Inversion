@@ -190,6 +190,9 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
     for (int i = 0; i < n_ph; ++i) {
         const std::string &pid = phase_ids[i];
+        // NOTE: path prefix matches legacy flat schema (/data/{freq}/{module}/{pid}/).
+        // Current database.h5 uses /xcorr/obs/{phase}-{band}/, /polarity/obs/, etc.
+        // Schema bridge needed before forward stage is functional.
         std::string prefix = "/data/" + freq_str + "/";
 
         // ── XCorr ─────────────────────────────────────────────────────────

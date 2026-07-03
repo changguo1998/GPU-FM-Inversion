@@ -34,7 +34,7 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when `include`
 
 Tooling functions (time parsing, distance/azimuth computation, phase ID extraction) live in `shared/io/` (module `IO`) and are called as `IO.parse_time_iso`, `IO.haversine_distance`, etc.
 
-- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). PSR preprocessing deferred at pipeline level.
+- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). PSR preprocessing not called by current input.jl (no PSR data stored in database.h5).
 - Butterworth bandpass filter (DSP.jl, zero-phase forward-backward)
 - Time-window trimming
 - Green's function loader

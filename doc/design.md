@@ -35,7 +35,7 @@ input (once) ──→ loop: [preprocess → forward → assess → [repeat]] �
 | `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
 | `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
 
-Stage scripts use `include()` to load shared packages from `shared/` — no `--project` flag needed. HDF5 state detection delegated to assess.jl (exit code signaling) — driver.sh does not introspect HDF5.
+Stage scripts use `using` to import shared packages from `shared/`. Config is loaded via `include(abspath(config_jl))`. All stages run under `julia --project=root` (the root `Project.toml` resolves shared packages). HDF5 state detection delegated to assess.jl (exit code signaling) — driver.sh does not introspect HDF5.
 
 Orchestration detail: `doc/stages/`
 

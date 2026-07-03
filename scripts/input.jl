@@ -299,7 +299,9 @@ for freq_idx in 1:n_bands
                 synamp_arr[i, :, :] = gf_list[i]' * gf_list[i]
             end
             xcorr_obs[key] = IO.XCorrObs(obs_mat, obs_norm2_list)
-            # /xcorr/gf per depth (reuse first-depth GF for now)
+            # /xcorr/gf per depth (reuse first-depth GF for all depths — 
+            # known limitation: frequency-dependent filtering should differ per depth combo,
+            # but input.jl uses the same filtered GF for all depths)
             for depth_val in depths
                 if !haskey(xcorr_gf, depth_val)
                     xcorr_gf[depth_val] = Dict{String, IO.XCorrGF}()

@@ -23,14 +23,15 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Data interface functions
 
 | Function | Return type | Description |
-|---------------------------|--------------------------|----------------------------------------|
+|----------------------------------------------------------|--------------------------|------------------------------------------------------------------|
 | `load_event()` | `IO.EventInfo` | Event location, magnitude, origin time |
 | `load_stations()` | `Vector{IO.StationInfo}` | Station metadata for all channels |
 | `load_phase_picks()` | `Vector{IO.PhasePick}` | P/S arrival times and P polarity |
 | `load_waveform(phase_id)` | `Vector{Float64}` | Raw observed waveform for a phase |
+| `load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon)` | `Union{Nothing, Tuple}` | GF array `(nt,6,3)`, dt, tp, ts; return `nothing` if unavailable |
 
 The initial search grid is automatically provided by the `Grid` module (`Grid.default_grid()`).
-Green's function loading is handled separately (future `Config.load_gf()`).
+Green's function loading is supported via `Config.load_gf()` (implemented in config.jl, exported by Config module).
 
 ## Error handling
 

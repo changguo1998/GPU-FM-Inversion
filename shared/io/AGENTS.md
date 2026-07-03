@@ -37,7 +37,7 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 
 ### Writers
 
-- `write_database(h5file, greens, data, index, config)` — creates `database.h5` from scratch
+- `write_database(h5file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)` — creates `database.h5` from scratch; writes `/config`, `/event`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity` groups
 - `write_trials(h5file, trials::TrialSet)` — overwrites `/trials` in existing file
 - `write_strategy(h5file, strategy::Strategy)` — overwrites `/strategy`
 - `write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)` — creates `output.h5`

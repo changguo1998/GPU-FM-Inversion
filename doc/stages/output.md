@@ -6,7 +6,7 @@ Reads all files produced by prior pipeline stages and compiles the complete foca
 
 **Exceptions** (novel computation):
 
-- **Waveform synthesis** (`GF × MT`): generates synthetic seismograms for QC
+- **Waveform synthesis** (`GF × MT`): generates synthetic seismograms for QC (flag `--waveforms`)
 - **Depth range**: applies 5% threshold to per-depth misfit accumulated by `assess.jl`
 
 This stage was renamed from `export.jl`.
@@ -15,14 +15,26 @@ This stage was renamed from `export.jl`.
 
 | Source | Description |
 |--------------------|---------------------------------------------------------------------------------------------------------|
-| `status_{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` from all completed status files (including the converged file) |
-| `database.h5` | Reads `/config`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity` |
+| `status/{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` from all completed status files (including the converged file) |
+| `database.h5` | Reads `/config`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity`, `/index` |
 
 ## Outputs
 
 | Source | Description |
 |-------------|---------------------------------------------------------------------------------------------------------------------|
 | `output.h5` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms, summary |
+
+## CLI
+
+```
+julia scripts/output.jl <database.h5> [--status-dir <dir>] [--waveforms]
+```
+
+- `<database.h5>` (positional, required): path to `database.h5`
+- `--status-dir <dir>` (optional): directory containing `status_N.h5` files (default: current dir)
+- `--waveforms` (optional flag): synthesize seismograms from best-fit MT × GF
+
+Log file: `<status_dir>/output.log`
 
 ## Responsibilities
 

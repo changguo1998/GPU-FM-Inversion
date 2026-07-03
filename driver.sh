@@ -119,7 +119,7 @@ else
 	error "failed to generate status_0.h5"
 	exit 1
 fi
-exit 0
+exit 0 # TEMP: only input.jl is finished — preprocess/forward/assess/output stages below are defined but unreachable (remove this exit when stages are ready)
 
 iteration=1
 # Loop: preprocess → forward → assess

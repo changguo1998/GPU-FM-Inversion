@@ -2,46 +2,43 @@
 
 ## Role
 
-Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files. Sequentially runs stages; `assess.jl` signals continue (exit 0) or converged (exit 10).
+Orchestrates the 5-stage pipeline. Stateless — all state lives in HDF5 files.
+
+**Current state:** stage 1 (input) only. The pipeline loop (preprocess→forward→assess) and output stage are defined but unreachable — `exit 0` at end of input stage. Restoring full pipeline is pending.
 
 ## Inputs
 
 | Source | Purpose |
-|-----------------|-----------------------------------------------------------------------------|
+|---------------|-----------------------------------------------------------------------------|
 | `config.jl` | Bootstrap config (passed to `input.jl` only; always `<data-dir>/config.jl`) |
-| `database.h5` | Preprocessed data (path known to all stages) |
-| `status_{N}.h5` | Iteration snapshots (discovered by file inspection) |
+| `database.h5` | Preprocessed data (produced by `input.jl`) |
 
 ## Outputs
 
 | Output | Producer |
-|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+|---------------------------------|----------------------------|
 | `database.h5` | `input.jl` (once) |
-| `status_{N}.h5` | `input.jl` (strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence on break; creates `status_{N+1}.h5` on continue) |
-| `output.h5` | `output.jl` |
+| `status_0.h5` → `status/<N>.h5` | `input.jl` (strategy only) |
 
-## Responsibilities
+## Responsibilities (current)
 
-1. **Stage invocation** — call `input.jl`, `preprocess.jl`, `forward.cpp`, `assess.jl`, `output.jl` in order
-1. **Loop control** — run preprocess→forward→assess repeatedly until assess exits with code 10 (converged)
-1. **File-level checks** — check `database.h5` existence (triggers input once). All state detection is delegated to assess.jl.
+1. **Stage 1 invocation** — call `input.jl` with config file path
+1. **File-level checks** — check data directory and config file existence
+1. **Status file location** — move `status_0.h5` into `status/` subdirectory
 1. **Error handling** — stop on failure, report error to stderr
 
-## Pipeline Stage Detection
+## Pipeline Stage Detection (current)
 
 | Condition | Action |
-|--------------------------|------------------------------------------------------------------|
-| No `database.h5` | Run `input.jl` (once, with `config.jl`) |
-| `database.h5` exists | Loop: `preprocess.jl` → `forward.cpp` → `assess.jl` indefinitely |
-| `assess.jl` exit code 10 | Break loop → run `output.jl` |
-
-All HDF5 group-level state detection (trials/misfits existence, converged flag) is handled by `assess.jl` internally. The driver only checks `database.h5` file existence.
+|------------------------------------------------|---------------------------------------|
+| No `--data-dir` / missing dir / missing config | Exit with error |
+| `database.h5` exists | Warn and continue (always runs input) |
+| All checks pass | Run `input.jl` once, then exit 0 |
 
 ## Tool Stack
 
-- Bash (built-in file tests, loops, string parsing)
-- Julia runner (scripts use `include()` for shared packages; helpers use `julia --project=shared/io`)
-- Compiled `forward` binary
+- Bash (built-in file tests, string parsing, tee logging)
+- Julia runner (`julia --project=root`)
 
 ## CLI
 
@@ -49,15 +46,26 @@ All HDF5 group-level state detection (trials/misfits existence, converged flag) 
 bash driver.sh --data-dir <dir>
 ```
 
-- `--data-dir <dir>` (required): data directory; holds `config.jl`, `database.h5`, `output.h5`; contains `status/` subdir with `status_{N}.h5` files
+- `--data-dir <dir>` (required): data directory; must contain `config.jl`
+- Log files: `driver.log`, per-stage logs (`input.log`, etc.) written to data dir
 
 ## Key Decisions
 
-- **Bootstrapping**: Config passed only to `input.jl`. Subsequent runs read strategy from `status_{N}.h5`.
-- **Resume**: Re-running driver picks up from current state. `database.h5` exists → skips input. Assess.jl checks iteration state internally.
-- **Convergence**: `assess.jl` prompts operator; on continue exit 0 → creates `status_{N+1}.h5` with refined strategy (converged=0). On break exit 10 → sets `/strategy/converged=1` on the **current** `status_{N}.h5` — no new file is created. Driver tests exit code to break to output.
+- **Bootstrapping**: Config passed only to `input.jl`. All config values written to `database.h5`; subsequent stages read from HDF5.
+- **Status files**: `status_0.h5` written by `input.jl` to data dir root, then moved into `status/` subdirectory.
+- **Convergence**: Assess.jl exit codes `0` (continue) / `10` (converged) — not yet wired in driver.
+- **Logging**: Color-aware when stdout is a terminal; always tee to `driver.log`.
+
+## Pending (defined but not wired)
+
+| Feature | Code exists | Driver wiring |
+|--------------------------------|-----------------|--------------------|
+| preprocess→forward→assess loop | Lines 124-146 | Behind `exit 0` |
+| Output stage | Lines 148-152 | Behind `exit 0` |
+| Assess exit code 10 | In `assess.jl` | Not read by driver |
+| Resume / skip input | Not implemented | — |
 
 ## What It Does NOT Do
 
 - Does NOT compute anything — pure orchestration
-- Does NOT generate or modify HDF5 data — only checks whether `database.h5` exists
+- Does NOT modify HDF5 data directly (only moves files)

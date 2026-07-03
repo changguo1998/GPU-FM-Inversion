@@ -85,7 +85,7 @@ Work item per (station × trial). Per item:
    - Launch PSR kernel (if PSR data exists)
    - Write results back to global output arrays
 1. Write `/misfits/xcorr`, `/misfits/polarity`, `/misfits/psr` to `status_{N}.h5`
-1. Free GPU memory via `cache.release_all()`
+1. Free host memory via `cache.release_all()`
 
 ## Memory layout conventions
 
