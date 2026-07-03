@@ -4,16 +4,14 @@ set -euo pipefail
 # Pipeline Orchestration for Focal Mechanism Inversion
 #
 # Stages: input (once) → loop: [preprocess → forward → assess] → output
-#
-# assess.jl exit codes: 0 = continue, 10 = converged → output.jl
-# Usage: bash driver.sh --data-dir <dir>
 
 help() {
-	echo "Usage: bash driver.sh --data-dir <dir>"
+	echo "Usage: bash driver.sh [--data-dir <dir>]"
 }
 
 # Defaults
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+DATA_DIR="$(pwd)"
 CMD_CALL_JULIA="julia --project=$SCRIPT_DIR"
 CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
 CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
@@ -120,32 +118,4 @@ else
 	exit 1
 fi
 
-iteration=1
-# Loop: preprocess → forward → assess
-while true; do
-	# Read decision from assess.jl; empty or missing file = stop
-	if [[ ! -f "$ASSESS_DECISION_FILE" ]]; then
-		break
-	fi
-	DECISION="$(cat "$ASSESS_DECISION_FILE")"
-	if [[ -z $DECISION ]]; then
-		break
-	fi
-
-	info "($iteration) preprocess"
-	$CALL_PREPROCESS
-
-	info "($iteration) misfit"
-	$CALL_FORWARD
-
-	info "($iteration) assess"
-	$CALL_ASSESS
-
-	((iteration += 1))
-done
-
-# Stage 5: output
-info "output"
-$CALL_OUTPUT
-
-info "complete"
+info "input stage complete — exiting after input stage"
