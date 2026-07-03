@@ -2,15 +2,26 @@
 #
 # synthetic_data.jl — Generate synthetic test data as plain files.
 #
+# Physics: far-field P/S waves in two-layer half-space.
+#   Upper layer (0–20 km): vp=6, vs=4 km/s
+#   Lower layer (20 km+):  vp=8, vs=6 km/s
+# GF = delta impulses at direct + reflected (interface at 20 km) arrivals,
+# amplitude scaled by A_const / r² / v³ with full moment-tensor radiation
+# pattern. Reflection coefficients from normal-incidence impedance contrast.
+# Observed = GF * MT + noise.
+#
+# Source at origin (lat=0, lon=0, depth=10 km).
+# Stations randomly placed around source.
+#
 # Outputs:
-#   1. stations.txt  — station list (table)
-#   2. {sta}.{ch}.dat — waveform per station+channel (one column)
-#   3. phases.txt   — phase picks table (station, P_time, S_time)
+#   stations.txt  — station_id  lat  lon
+#   {net}.{sta}.{ch}.dat — waveform (one column)
+#   phases.txt    — station_id  P_time  S_time
 #
 # Usage:
-#   julia tests/synthetic_data.jl                          # writes to CWD
+#   julia tests/synthetic_data.jl                    # writes to CWD
 #   julia tests/synthetic_data.jl /tmp/test_event
-#   julia tests/synthetic_data.jl --nsta 5 --npts 4000
+#   julia tests/synthetic_data.jl --strike 30 --dip 60 --rake 90 --nsta 6
 #
 # Deterministic: Random.seed!(42). Overwrites existing files.
 
@@ -18,12 +29,17 @@ using Random
 using Dates
 
 # ---------------------------------------------------------------------------
-# Key constants (overridable via CLI --key value)
+# Key constants
 # ---------------------------------------------------------------------------
 
 const DEFAULT_N_STATION = 6
 const DEFAULT_NPTS = 2000
 const DEFAULT_DT = 0.01
+const DEFAULT_STRIKE = 30.0
+const DEFAULT_DIP = 60.0
+const DEFAULT_RAKE = 90.0
+const DEFAULT_EVENT_DEPTH = 10.0  # km
+const AMPLITUDE_SCALE = 1.0e6    # A_const
 
 # ---------------------------------------------------------------------------
 # CLI parsing
@@ -33,6 +49,9 @@ _outdir = "."
 _n_station = DEFAULT_N_STATION
 _npts = DEFAULT_NPTS
 _dt = DEFAULT_DT
+_strike = DEFAULT_STRIKE
+_dip = DEFAULT_DIP
+_rake = DEFAULT_RAKE
 
 let
     local i = 1
@@ -40,6 +59,9 @@ let
     local ns = _n_station
     local np = _npts
     local d = _dt
+    local sk = _strike
+    local dp = _dip
+    local rk = _rake
     while i <= length(ARGS)
         if ARGS[i] == "--nsta"
             ns = parse(Int, ARGS[i + 1]);
@@ -49,6 +71,15 @@ let
             i += 2
         elseif ARGS[i] == "--dt"
             d = parse(Float64, ARGS[i + 1]);
+            i += 2
+        elseif ARGS[i] == "--strike"
+            sk = parse(Float64, ARGS[i + 1]);
+            i += 2
+        elseif ARGS[i] == "--dip"
+            dp = parse(Float64, ARGS[i + 1]);
+            i += 2
+        elseif ARGS[i] == "--rake"
+            rk = parse(Float64, ARGS[i + 1]);
             i += 2
         elseif startswith(ARGS[i], "--")
             error("Unknown flag: $(ARGS[i])")
@@ -61,12 +92,19 @@ let
     global _n_station = ns
     global _npts = np
     global _dt = d
+    global _strike = sk
+    global _dip = dp
+    global _rake = rk
 end
 
 outdir = _outdir
 n_station = _n_station
 npts = _npts
 dt = _dt
+strike = _strike
+dip = _dip
+rake = _rake
+event_depth = DEFAULT_EVENT_DEPTH
 
 mkpath(outdir)
 
@@ -77,153 +115,264 @@ mkpath(outdir)
 Random.seed!(42)
 
 # ---------------------------------------------------------------------------
-# 1. Source parameters
+# 1. Source parameters: SDR → MT
 # ---------------------------------------------------------------------------
 
-strike = 30.0
-dip = 60.0
-rake = 90.0
+function sdr_to_mt(s, d, r)
+    sd = sind(d)
+    cd = cosd(d)
+    ss = sind(s)
+    cs = cosd(s)
+    sr = sind(r)
+    cr = cosd(r)
+    Mxx = -(sd * cr * sind(2s) + sin(2d) * sr * ss^2)
+    Myy = sd * cr * sind(2s) - sin(2d) * sr * cs^2
+    Mzz = sin(2d) * sr
+    Mxy = sd * cr * cosd(2s) + 0.5 * sin(2d) * sr * sind(2s)
+    Mxz = -(cd * cr * cs + cosd(2d) * sr * ss)
+    Myz = -(cd * cr * ss - cosd(2d) * sr * cs)
+    return [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
+end
 
-# Simplified MT in NED: [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
-# 30/60/90 dip-slip → roughly [-0.2165, -0.6495, 0.866, 0.375, 0.25, -0.433]
-mt_true = [-0.2165, -0.6495, 0.866, 0.375, 0.25, -0.433]
+mt_true = sdr_to_mt(strike, dip, rake)
+norm_mt = sqrt(sum(mt_true .^ 2))
+if norm_mt > 1e-12
+    mt_true ./= norm_mt
+end
 
 # ---------------------------------------------------------------------------
-# 2. Station geometry
+# 2. Two-layer velocity model
 # ---------------------------------------------------------------------------
 
-azimuths = range(0.0, 315.0, length = n_station)
-dists_km = range(10.0, 80.0, length = n_station)
+const INTERFACE_DEPTH = 20.0  # km
+const VP_UPPER = 6.0   # km/s
+const VS_UPPER = 4.0   # km/s
+const VP_LOWER = 8.0   # km/s
+const VS_LOWER = 6.0   # km/s
+
+# Normal-incidence reflection coefficients (assume equal density)
+const R_PP = (VP_LOWER - VP_UPPER) / (VP_LOWER + VP_UPPER)  # ≈ 0.143
+const R_SS = (VS_LOWER - VS_UPPER) / (VS_LOWER + VS_UPPER)  # ≈ 0.2
+
+# ---------------------------------------------------------------------------
+# 3. Station geometry — random around origin
+# ---------------------------------------------------------------------------
 
 sta_ids = String[]
-nets = String[]
-stas = String[]
-chans = String[]
 lats = Float64[]
 lons = Float64[]
-elevs = Float64[]
 
-event_lat = 30.0
-event_lon = 120.0
-event_depth = 10.0
+dist_km_vals = 10.0 .+ rand(n_station) .* 90.0
+az_deg_vals = rand(n_station) .* 360.0
 
 for i in 1:n_station
-    az_rad = deg2rad(azimuths[i])
-    dist_deg = dists_km[i] / 111.0
-    lat = event_lat + dist_deg * cos(az_rad)
-    lon = event_lon + dist_deg * sin(az_rad)
+    az_rad = deg2rad(az_deg_vals[i])
+    dist_deg = dist_km_vals[i] / 111.0
+    lat = dist_deg * cos(az_rad)
+    lon = dist_deg * sin(az_rad)
     push!(sta_ids, "NET.ST$i")
-    push!(nets, "NET")
-    push!(stas, "ST$i")
-    push!(chans, "Z")
-    push!(lats, round(lat, digits = 4))
-    push!(lons, round(lon, digits = 4))
-    push!(elevs, 500.0 + i * 50.0)
-end
-
-begin_t = "2024-01-01T00:00:05"
-
-# Distance from event (km) — simple flat-earth approximation
-dists = Float64[]
-for i in 1:n_station
-    dlon = deg2rad(lons[i] - event_lon)
-    dlat = deg2rad(lats[i] - event_lat)
-    a = sin(dlat / 2)^2 + cos(deg2rad(event_lat)) * cos(deg2rad(lats[i])) * sin(dlon / 2)^2
-    d = 2 * 6371.0 * asin(sqrt(a))
-    push!(dists, round(d, digits = 1))
+    push!(lats, round(lat, digits = 5))
+    push!(lons, round(lon, digits = 5))
 end
 
 # ---------------------------------------------------------------------------
-# 3. Travel times (1D velocity model, straight-ray)
+# 4. Travel times + ray geometry
 # ---------------------------------------------------------------------------
 
-vp = 6.0
-vs = 3.5
+origin_dt = DateTime(2024, 1, 1, 0, 0, 0)
 
 P_times = String[]
 S_times = String[]
-origin_dt = DateTime(2024, 1, 1, 0, 0, 0)
+
+r_km = Float64[]         # horizontal distance (km)
+tp_dir_sec = Float64[]   # direct P travel time
+ts_dir_sec = Float64[]   # direct S travel time
+tp_ref_sec = Float64[]   # reflected P travel time
+ts_ref_sec = Float64[]   # reflected S travel time
+
+# Direction cosines for direct wave (source → station)
+γd_E = Float64[]
+γd_N = Float64[]
+γd_D = Float64[]
+
+# Direction cosines for reflected wave (source → interface, downward leg)
+# Using image source at depth (2*INTERFACE_DEPTH - event_depth) = 30 km
+γr_E = Float64[]
+γr_N = Float64[]
+γr_D = Float64[]
 
 for i in 1:n_station
-    dist_m = dists[i] * 1000.0
-    hypocentral = sqrt(dist_m^2 + (event_depth * 1000.0)^2)
-    tp = hypocentral / (vp * 1000.0)
-    ts = hypocentral / (vs * 1000.0)
-    p_time = origin_dt + Millisecond(round(Int, tp * 1000))
-    s_time = origin_dt + Millisecond(round(Int, ts * 1000))
+    # Horizontal distance (great-circle approximation)
+    dlon = deg2rad(lons[i])
+    dlat = deg2rad(lats[i])
+    a = sin(dlat / 2)^2 + cos(deg2rad(lats[i])) * sin(dlon / 2)^2
+    d_km = 2 * 6371.0 * asin(sqrt(a))
+    d_km = max(d_km, 0.001)
+    push!(r_km, d_km)
+
+    # Direct wave: hypocentral distance
+    rh_dir = sqrt(d_km^2 + event_depth^2)
+    push!(tp_dir_sec, rh_dir / VP_UPPER)
+    push!(ts_dir_sec, rh_dir / VS_UPPER)
+
+    # Direct wave direction cosines
+    ve = lons[i] * 111.0 * 1000.0
+    vn = lats[i] * 111.0 * 1000.0
+    vd = -event_depth * 1000.0
+    vnorm = sqrt(ve^2 + vn^2 + vd^2)
+    if vnorm > 0
+        push!(γd_E, ve / vnorm)
+        push!(γd_N, vn / vnorm)
+        push!(γd_D, vd / vnorm)
+    else
+        push!(γd_E, 0.0);
+        push!(γd_N, 0.0);
+        push!(γd_D, 1.0)
+    end
+
+    # Reflected wave: image source at depth (2*INTERFACE_DEPTH - event_depth)
+    z_image = 2 * INTERFACE_DEPTH - event_depth  # 30 km
+    rh_ref = sqrt(d_km^2 + z_image^2)
+    push!(tp_ref_sec, rh_ref / VP_UPPER)
+    push!(ts_ref_sec, rh_ref / VS_UPPER)
+
+    # Reflected wave direction cosines (source → interface, downward leg)
+    # Approximate: direction from source to midpoint of reflected path
+    # The reflection point is at horizontal offset d_km/3 from source (by image method)
+    # For the downward leg direction, use the same horizontal component as direct
+    # but with D component = +(INTERFACE_DEPTH - event_depth) (positive down)
+    # Actually use image source γ for simplicity — same horizontal, D = +z_image
+    vr_ve = lons[i] * 111.0 * 1000.0
+    vr_vn = lats[i] * 111.0 * 1000.0
+    vr_vd = z_image * 1000.0  # positive down
+    vr_norm = sqrt(vr_ve^2 + vr_vn^2 + vr_vd^2)
+    if vr_norm > 0
+        push!(γr_E, vr_ve / vr_norm)
+        push!(γr_N, vr_vn / vr_norm)
+        push!(γr_D, vr_vd / vr_norm)
+    else
+        push!(γr_E, 0.0);
+        push!(γr_N, 0.0);
+        push!(γr_D, 1.0)
+    end
+
+    # Phase picks: use DIRECT P and S times only
+    p_time = origin_dt + Millisecond(round(Int, tp_dir_sec[i] * 1000))
+    s_time = origin_dt + Millisecond(round(Int, ts_dir_sec[i] * 1000))
     push!(P_times, Dates.format(p_time, "yyyy-mm-ddTHH:MM:SS"))
     push!(S_times, Dates.format(s_time, "yyyy-mm-ddTHH:MM:SS"))
 end
 
 # ---------------------------------------------------------------------------
-# 4. Green's functions per (station, depth)
+# 5. Green's functions: delta at direct + reflected arrivals
 # ---------------------------------------------------------------------------
 
-depths = [5.0, 10.0, 15.0]
+# MT pair indices (j,k) in NED: 1=E, 2=N, 3=D
+MT_PAIRS = [(1, 1), (2, 2), (3, 3), (1, 2), (1, 3), (2, 3)]
 
-function _gf_seed(src_depth, sta_lat, sta_lon)::Int
-    round(Int, src_depth) + round(Int, sta_lat * 10) + round(Int, sta_lon * 10)
-end
-
-function _generate_gf(seed::Int, nt::Int)::Array{Float64, 3}
-    rng = Random.MersenneTwister(seed)
-    gf = randn(rng, Float64, nt, 6, 3)
-    decay = exp.(-(0:(nt - 1)) ./ (nt / 4))
-    for c in 1:3, m in 1:6
-        gf[:, m, c] .*= decay
+function add_phase!(gf, nt, dt, idx, r_km, γ, scale, v)
+    if r_km < 0.001 || idx < 1 || idx > nt
+        return
     end
-    return gf
-end
-
-gf_dict = Dict{Tuple{Int, Int}, Array{Float64, 3}}()
-for (di, depth) in enumerate(depths)
-    for si in 1:n_station
-        seed = _gf_seed(depth, lats[si], lons[si])
-        gf_dict[(di, si)] = _generate_gf(seed, npts)
+    amp = scale / r_km / v^3
+    for (m, (j, k)) in enumerate(MT_PAIRS)
+        for i in 1:3
+            # P-wave from image: u_i = γ_i * γ_j * γ_k
+            gf[idx, m, i] += amp * γ[i] * γ[j] * γ[k]
+        end
     end
 end
 
+function add_reflected_phase!(gf, nt, dt, idx, r_km, γ, scale, v, R)
+    add_phase!(gf, nt, dt, idx, r_km, γ, scale * R, v)
+end
+
+# Build GF for each station
+gf_dict = Dict{Int, Array{Float64, 3}}()
+
+for si in 1:n_station
+    gf = zeros(Float64, npts, 6, 3)
+    d_km = r_km[si]
+
+    # Direct P
+    tp_d = tp_dir_sec[si]
+    tp_d_idx = max(1, min(npts, round(Int, tp_d / dt)))
+    γd = [γd_E[si], γd_N[si], γd_D[si]]
+    add_phase!(gf, npts, dt, tp_d_idx, d_km, γd, AMPLITUDE_SCALE, VP_UPPER)
+
+    # Direct S
+    if d_km >= 0.001
+        ts_d = ts_dir_sec[si]
+        ts_d_idx = max(1, min(npts, round(Int, ts_d / dt)))
+        s_scale = AMPLITUDE_SCALE / d_km / VS_UPPER^3
+        for (m, (j, k)) in enumerate(MT_PAIRS)
+            for i in 1:3
+                δ_ij = i == j ? 1.0 : 0.0
+                gf[ts_d_idx, m, i] += s_scale * (δ_ij - γd[i] * γd[j]) * γd[k]
+            end
+        end
+    end
+
+    # Reflected P
+    tp_r = tp_ref_sec[si]
+    tp_r_idx = max(1, min(npts, round(Int, tp_r / dt)))
+    γr = [γr_E[si], γr_N[si], γr_D[si]]
+    add_reflected_phase!(gf, npts, dt, tp_r_idx, d_km, γr, AMPLITUDE_SCALE, VP_UPPER, R_PP)
+
+    # Reflected S
+    if d_km >= 0.001
+        ts_r = ts_ref_sec[si]
+        ts_r_idx = max(1, min(npts, round(Int, ts_r / dt)))
+        r_scale = AMPLITUDE_SCALE * R_SS / d_km / VS_UPPER^3
+        for (m, (j, k)) in enumerate(MT_PAIRS)
+            for i in 1:3
+                δ_ij = i == j ? 1.0 : 0.0
+                gf[ts_r_idx, m, i] += r_scale * (δ_ij - γr[i] * γr[j]) * γr[k]
+            end
+        end
+    end
+
+    gf_dict[si] = gf
+end
+
 # ---------------------------------------------------------------------------
-# 5. Synthetic observed waveforms: obs = GF * MT + noise
+# 6. Synthetic observed waveforms: obs = GF * MT + noise
 # ---------------------------------------------------------------------------
 
-ch_index = 3  # D/Z vertical
+CH_NAMES = ["E", "N", "D"]
 
 waveforms = Dict{String, Vector{Float64}}()
 noise_rng = Random.MersenneTwister(999)
 
 for si in 1:n_station
-    ch_id = sta_ids[si] * ".Z"
-    gf = gf_dict[(1, si)]
-    syn = zeros(Float64, npts)
-    for m in 1:6
-        syn .+= gf[:, m, ch_index] .* mt_true[m]
+    gf = gf_dict[si]
+    for ch in 1:3
+        ch_id = sta_ids[si] * "." * CH_NAMES[ch]
+        syn = zeros(Float64, npts)
+        for m in 1:6
+            syn .+= gf[:, m, ch] .* mt_true[m]
+        end
+        rms = sqrt(sum(syn .^ 2) / npts)
+        noise = randn(noise_rng, Float64, npts) .* (rms * 0.1)
+        waveforms[ch_id] = syn .+ noise
     end
-    rms = sqrt(sum(syn .^ 2) / npts)
-    noise = randn(noise_rng, Float64, npts) .* (rms * 0.1)
-    waveforms[ch_id] = syn .+ noise
 end
 
 # ---------------------------------------------------------------------------
-# 6. Write output files
+# 7. Write output files
 # ---------------------------------------------------------------------------
 
-# 6a. Station list file
+# 7a. Station list
 open(joinpath(outdir, "stations.txt"), "w") do f
-    write(
-        f,
-        "# station_id  network  station  channel  latitude  longitude  elevation  dt  begin_time\n",
-    )
+    write(f, "# station_id  lat  lon\n")
     for i in 1:n_station
-        write(
-            f,
-            "$(sta_ids[i])  $(nets[i])  $(stas[i])  $(chans[i])  $(lats[i])  $(lons[i])  $(elevs[i])  $dt  $begin_t\n",
-        )
+        write(f, "$(sta_ids[i])  $(lats[i])  $(lons[i])\n")
     end
 end
 
-# 6b. Waveform files — one per station+channel
-for (ch_id, data) in waveforms
+# 7b. Waveform files
+for ch_id in sort(collect(keys(waveforms)))
+    data = waveforms[ch_id]
     fn = ch_id * ".dat"
     open(joinpath(outdir, fn), "w") do f
         for v in data
@@ -232,7 +381,7 @@ for (ch_id, data) in waveforms
     end
 end
 
-# 6c. Phase picks file
+# 7c. Phase picks
 open(joinpath(outdir, "phases.txt"), "w") do f
     write(f, "# station_id  P_time  S_time\n")
     for i in 1:n_station
@@ -245,10 +394,16 @@ end
 # ---------------------------------------------------------------------------
 
 println("Synthetic test data generated in: $(realpath(outdir))")
-println("  stations.txt  — station list ($n_station stations)")
-println("  phases.txt    — phase picks table")
-for (ch_id, _) in waveforms
+println("  stations.txt  — $(n_station) stations")
+println("  phases.txt    — phase picks")
+for ch_id in sort(collect(keys(waveforms)))
     println("  $(ch_id).dat  — waveform ($npts samples)")
 end
-println("  SDR           — strike=$(strike), dip=$(dip), rake=$(rake)")
-println("  distances     : $(join(dists, ", ")) km")
+println("  SDR  strike=$(strike)  dip=$(dip)  rake=$(rake)")
+mt_str = join(round.(mt_true, digits = 4), ", ")
+println("  MT   [$mt_str]")
+println("  event  depth=$(event_depth) km  at origin")
+println(
+    "  velocity model: upper(0–20 km) vp=$(VP_UPPER) vs=$(VS_UPPER), lower vp=$(VP_LOWER) vs=$(VS_LOWER)",
+)
+println("  reflection coeff: P=$(round(R_PP, digits=4)) S=$(round(R_SS, digits=4))")
