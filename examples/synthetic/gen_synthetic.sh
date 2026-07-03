@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Usage:
 #   bash examples/synthetic/gen_synthetic.sh [data-dir]   # default: examples/synthetic/
-#   bash examples/synthetic/gen_synthetic.sh /tmp/test_event --nsta 6
+#   bash examples/synthetic/gen_synthetic.sh /tmp/test_event --nsta 12
 #   bash examples/synthetic/gen_synthetic.sh --strike 30 --dip 60 --rake 90
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

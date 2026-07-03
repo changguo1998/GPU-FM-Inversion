@@ -32,7 +32,7 @@ using Dates
 # Key constants
 # ---------------------------------------------------------------------------
 
-const DEFAULT_N_STATION = 6
+const DEFAULT_N_STATION = 12
 const DEFAULT_NPTS = 2000
 const DEFAULT_DT = 0.01
 const DEFAULT_STRIKE = 30.0
@@ -267,7 +267,8 @@ end
 # 5. Green's functions: delta at direct + reflected arrivals
 # ---------------------------------------------------------------------------
 
-# MT pair indices (j,k) in NED: 1=E, 2=N, 3=D
+# MT pair indices (j,k) in NED: 1=N, 2=E, 3=D
+# GF array channel order: [N, E, D] (index 1=N, 2=E, 3=D)
 MT_PAIRS = [(1, 1), (2, 2), (3, 3), (1, 2), (1, 3), (2, 3)]
 
 function add_phase!(gf, nt, dt, idx, r_km, γ, scale, v)
@@ -297,7 +298,7 @@ for si in 1:n_station
     # Direct P
     tp_d = tp_dir_sec[si]
     tp_d_idx = max(1, min(npts, round(Int, tp_d / dt)))
-    γd = [γd_E[si], γd_N[si], γd_D[si]]
+    γd = [γd_N[si], γd_E[si], γd_D[si]]  # [N, E, D] order for pipeline convention
     add_phase!(gf, npts, dt, tp_d_idx, d_km, γd, AMPLITUDE_SCALE, VP_UPPER)
 
     # Direct S
@@ -316,7 +317,7 @@ for si in 1:n_station
     # Reflected P
     tp_r = tp_ref_sec[si]
     tp_r_idx = max(1, min(npts, round(Int, tp_r / dt)))
-    γr = [γr_E[si], γr_N[si], γr_D[si]]
+    γr = [γr_N[si], γr_E[si], γr_D[si]]  # [N, E, D] order
     add_reflected_phase!(gf, npts, dt, tp_r_idx, d_km, γr, AMPLITUDE_SCALE, VP_UPPER, R_PP)
 
     # Reflected S
@@ -339,18 +340,25 @@ end
 # 6. Synthetic observed waveforms: obs = GF * MT + noise
 # ---------------------------------------------------------------------------
 
-CH_NAMES = ["E", "N", "D"]
+CH_NAMES = ["E", "N", "Z"]
+# For each output channel (E,N,Z), GF index 1=N, 2=E, 3=D
+const _CH_TO_GF = [2, 1, 3]
 
 waveforms = Dict{String, Vector{Float64}}()
 noise_rng = Random.MersenneTwister(999)
 
 for si in 1:n_station
     gf = gf_dict[si]
-    for ch in 1:3
-        ch_id = sta_ids[si] * "." * CH_NAMES[ch]
+    for (oci, ch_name) in enumerate(CH_NAMES)
+        gf_ch = _CH_TO_GF[oci]
+        ch_id = sta_ids[si] * "." * ch_name
         syn = zeros(Float64, npts)
         for m in 1:6
-            syn .+= gf[:, m, ch] .* mt_true[m]
+            syn .+= gf[:, m, gf_ch] .* mt_true[m]
+        end
+        # Z channel: output positive up (seismic convention), flip from GF D-down
+        if ch_name == "Z"
+            syn .= -syn
         end
         rms = sqrt(sum(syn .^ 2) / npts)
         noise = randn(noise_rng, Float64, npts) .* (rms * 0.1)
