@@ -205,21 +205,24 @@ pass "Injected misfits into status_1.h5"
 # Step 8: assess.jl (iteration 2, answer "N" to stop → converged=1)
 echo ""
 echo "[Step 8] assess.jl (echo N → converged) ..."
+set +e
 echo "N" | julia --project="$PROJECT_DIR" \
 	"$PROJECT_DIR/scripts/assess.jl" \
 	"$DATA_DIR/status_1.h5" "$DATA_DIR/database.h5"
+ASSESS_EXIT=$?
+set -e
+[[ "$ASSESS_EXIT" -eq 10 ]] && pass "assess exited with 10 (converged)" ||
+	fail "assess exited with $ASSESS_EXIT, expected 10"
 
-[[ -f "$DATA_DIR/status_2.h5" ]] && pass "status_2.h5 created" ||
-	fail "status_2.h5 missing"
-
-CONVERGED_2=$(julia --project="$PROJECT_DIR/shared/io" -e "
+# When converged, assess writes converged=1 to status_1.h5 (same file), not a new status file
+CONVERGED_1=$(julia --project="$PROJECT_DIR/shared/io" -e "
     using HDF5
-    h5open(\"$DATA_DIR/status_2.h5\", \"r\") do f
+    h5open(\"$DATA_DIR/status_1.h5\", \"r\") do f
         println(read(f[\"strategy/converged\"]))
     end
 ")
-[[ "$CONVERGED_2" == "1" ]] && pass "status_2 converged=1 (stopped)" ||
-	fail "status_2 converged=$CONVERGED_2, expected 1"
+[[ "$CONVERGED_1" == "1" ]] && pass "status_1 converged=1 (stopped)" ||
+	fail "status_1 converged=$CONVERGED_1, expected 1"
 
 # Step 9: output.jl → output.h5
 echo ""
