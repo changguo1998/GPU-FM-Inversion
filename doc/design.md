@@ -113,11 +113,11 @@ config.jl ───────────► input.jl (once) ──► databas
 ## Dimension Symbols
 
 | Symbol | Description | Typical Value |
-|-----------------|------------------------------------------|---------------------|
+|--------------|------------------------------------------|---------------------|
 | `N_stations` | Stations | 10–30 |
-| `N_channels` | Unique (station, component) pairs | 30–90 |
-| `N_phases` | Phase entries (channel + wave type: P/S) | 20–60 |
+| `N_channels` | Unique (station, channel) pairs | 30–90 |
+| `N_phases` | Phase entries (channel + wave type: P/S) | 20–180 |
 | `N_depths` | Depth levels for Greens | 10–40 |
-| `N_frequencies` | Frequency band combinations | configurable |
+| `N_bands` | Frequency band combinations | configurable |
 | `N_modules` | Active misfit modules | 2 (XCorr, Polarity) |
 | `N_trials` | Trials per iteration | 10–100000 |

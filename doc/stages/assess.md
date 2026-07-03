@@ -9,9 +9,9 @@ Reads raw misfits from `status_{N}.h5`, applies module weights and channel/phase
 ## Inputs
 
 | Source | Description |
-|-----------------|-------------------------------------------|
+|-----------------|-----------------------------------------------------------------------|
 | `status_{N}.h5` | Reads `/trials`, `/misfits`, `/strategy` |
-| `database.h5` | Reads `/config`, `/index` (for reference) |
+| `database.h5` | Reads `/config`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity` |
 
 ## Outputs
 

@@ -16,7 +16,7 @@ This stage was renamed from `export.jl`.
 | Source | Description |
 |--------------------|---------------------------------------------------------------------------------------------------------|
 | `status_{0..N}.h5` | Reads `/trials`, `/misfits`, `/strategy` from all completed status files (including the converged file) |
-| `database.h5` | Reads `/index`, `/greens`, `/data`, `/config` |
+| `database.h5` | Reads `/config`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity` |
 
 ## Outputs
 

@@ -61,7 +61,7 @@ driver.sh: input (once) → loop: [preprocess → forward → assess → [repeat
 - **Misfit modules**: XCorr, Polarity (active). PSR — C++ kernel exists, Julia preprocessing optional. AbsShift, RelShift — deferred. CAP — cancelled.
 - **Trial**: one combination of variable params (SDR, depth, frequency, etc.)
 - **Phase** = station + channel + wave type (P/S) — channels subsumed by phases
-- **Phase key**: `{network}.{station}.{component}.{phase_type}` (e.g. `IU.COLA.00.P`)
+- **Phase key**: `{network}.{station}.{channel}.{phase_type}` (e.g. `IU.COLA.00.P`)
 
 ## Coding assumptions
 
@@ -73,7 +73,7 @@ These conventions apply across the entire project.
 1. `assess.jl` owns all strategy: weights, channel selection, grid refinement, operator prompt. Signals continue/converged via exit code (0/10).
 1. All frequency-band variants precomputed upfront by `input.jl` — no runtime filtering.
 1. Green's functions pre-computed externally — loaded by `input.jl`, never computed by pipeline.
-1. Misfit shapes (unweighted): XCorr `[N_ph × N_tr]`, Polarity `[N_st × N_tr]`, PSR `[N_st × N_tr]`. Weights applied in assess.
+1. Misfit shapes (unweighted): XCorr `[N_ph × N_tr]`, Polarity `[N_ch × N_tr]`, PSR `[N_st × N_tr]`. Weights applied in assess.
 1. Config bootstrapped via `config.jl` (Julia script implementing `Config` module interface) — only `input.jl` reads it. All config written to `database.h5`; subsequent stages read from HDF5.
 1. **Flat scripts**: stage scripts have zero `function` definitions — straight-line top-level execution. No `main()` wrappers.
 1. **Shared packages**: utility code lives in `shared/` Julia packages imported via `using`. Each package has own `Project.toml`.
