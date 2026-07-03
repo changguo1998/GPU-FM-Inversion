@@ -15,10 +15,10 @@ module Config
 #
 # Stage scripts then include the user's config file and call interface functions.
 
-export misfit_modules, module_weights, minimum_stations
-export freq_bands, depths, grid_params
-export xcorr_params, polarity_params, greens_params
-export data_file
+export misfit_modules, minimum_stations
+export freq_bands, depths
+export xcorr_params, polarity_params
+export load_event, load_stations, load_phase_picks, load_waveform, load_gf
 
 # Error for unimplemented interface functions
 
@@ -39,23 +39,12 @@ Base.showerror(io::IO, e::ConfigError) = print(
     misfit_modules() -> Vector{String}
 
 Return the list of active misfit module names.
-Example: `return [\"XCorr\", \"Polarity\"]`
+Example: `return ["XCorr", "Polarity"]`
 """
 function misfit_modules()::Vector{String}
     throw(
         ConfigError("misfit_modules", "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\"])"),
     )
-end
-
-"""
-    module_weights() -> Vector{Float64}
-
-Return weights for each misfit module, in the same order as `misfit_modules()`.
-Must sum to 1.0 (validated by caller).
-Example: `return [0.5, 0.25, 0.25]`
-"""
-function module_weights()::Vector{Float64}
-    throw(ConfigError("module_weights", "-> Vector{Float64}  (e.g. return [0.5, 0.25, 0.25])"))
 end
 
 """
@@ -90,38 +79,6 @@ Example: `return [5.0, 10.0, 15.0]`
 """
 function depths()::Vector{Float64}
     throw(ConfigError("depths", "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
-end
-
-"""
-    grid_params() -> NamedTuple{(:strike0, :dstrike, :nstrike,
-                                 :dip0, :ddip, :ndip,
-                                 :rake0, :drake, :nrake), <:NTuple{9}}
-
-Return initial grid-search parameters. All angles in degrees.
-
-Fields:
-  strike0  :: Float64   start of strike range [0, 360)
-  dstrike  :: Float64   step size for strike
-  nstrike  :: Int       number of strike grid points
-  dip0     :: Float64   start of dip range [0, 90]
-  ddip     :: Float64   step size for dip
-  ndip     :: Int       number of dip grid points
-  rake0    :: Float64   start of rake range [-90, 90]
-  drake    :: Float64   step size for rake
-  nrake    :: Int       number of rake grid points
-
-Example:
-  return (strike0=45.0, dstrike=20.0, nstrike=3,
-          dip0=30.0, ddip=20.0, ndip=3,
-          rake0=0.0, drake=20.0, nrake=3)
-"""
-function grid_params()
-    throw(
-        ConfigError(
-            "grid_params",
-            "-> NamedTuple (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake)",
-        ),
-    )
 end
 
 """
@@ -169,31 +126,79 @@ function polarity_params()
 end
 
 """
-    greens_params() -> NamedTuple{(:gf_dir, :model), <:NTuple{2}}
+    load_event() -> IO.EventInfo
 
-Return Green's function file parameters.
-
-Fields:
-  gf_dir :: String   directory containing per-phase GF HDF5 files
-  model  :: String   velocity model identifier
-
-Example:
-  return (gf_dir=\"data/greens/\", model=\"iasp91\")
+Return event information (location, magnitude, origin time).
 """
-function greens_params()
-    throw(ConfigError("greens_params", "-> NamedTuple (gf_dir=\"path/\", model=\"name\")"))
+function load_event()
+    throw(
+        ConfigError(
+            "load_event",
+            "-> IO.EventInfo  (longitude, latitude, depth, magnitude, origintime)",
+        ),
+    )
 end
 
 """
-    data_file() -> String
+    load_stations() -> Vector{IO.StationInfo}
 
-Path to the external HDF5 data file containing event info, station metadata,
-phase picks, and raw waveforms. Same schema as the former `raw.h5`.
-
-Example: `return "data/my_event.h5"`
+Return station metadata for all stations/channels.
 """
-function data_file()::String
-    throw(ConfigError("data_file", "-> String  (e.g. return \"data/my_event.h5\")"))
+function load_stations()
+    throw(
+        ConfigError(
+            "load_stations",
+            "-> Vector{IO.StationInfo}  (id, network, station, channel, ...)",
+        ),
+    )
+end
+
+"""
+    load_phase_picks() -> Vector{IO.PhasePick}
+
+Return phase arrival picks (P/S times and P polarity) for each station.
+"""
+function load_phase_picks()
+    throw(
+        ConfigError(
+            "load_phase_picks",
+            "-> Vector{IO.PhasePick}  (station_id, P_time, S_time, P_polarity)",
+        ),
+    )
+end
+
+"""
+    load_waveform(phase_id::String) -> Vector{Float64}
+
+Return the raw observed waveform for a given phase identifier.
+Phase key format: `{network}.{station}.{channel}.{phase_type}`.
+"""
+function load_waveform(phase_id::String)::Vector{Float64}
+    throw(ConfigError("load_waveform", "-> Vector{Float64}  (raw waveform for the given phase_id)"))
+end
+
+"""
+    load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon) -> Union{Nothing, Tuple{Array{Float64,3}, Float64, Float64, Float64}}
+
+Return Green's functions for a source-station pair.
+
+Returns `nothing` if no GF is available for this combination (caller will
+skip with a warning). On success returns a tuple:
+
+  (gf_array, dt, tp, ts)
+
+  gf_array  :: Array{Float64,3}   shape (nt, 6, 3) — [N, E, D] channel order
+  dt        :: Float64             sampling interval (seconds)
+  tp        :: Float64             P arrival time from GF start (seconds)
+  ts        :: Float64             S arrival time from GF start (seconds)
+"""
+function load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon)
+    throw(
+        ConfigError(
+            "load_gf",
+            "-> Union{Nothing, Tuple{Array{Float64,3}, Float64, Float64, Float64}}",
+        ),
+    )
 end
 
 end # module

@@ -14,7 +14,7 @@ const H5IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209
 include("trial_gen.jl")
 include("grid_refinement.jl")
 
-export generate_trials, TrialSet, GridStrategy
+export generate_trials, TrialSet, GridStrategy, default_grid
 export TrialResult, refine_strategy, prompt_operator
 
 end # module

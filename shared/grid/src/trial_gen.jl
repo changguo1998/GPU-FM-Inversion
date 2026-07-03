@@ -1,6 +1,31 @@
 # Trial Generation
 
 """
+    default_grid() -> NamedTuple{(:strike0, :dstrike, :nstrike,
+                                 :dip0, :ddip, :ndip,
+                                 :rake0, :drake, :nrake)}
+
+Default initial search grid covering the full parameter space at 5° resolution.
+strike: 0:5:355  (71 values)
+dip:    0:5:90   (19 values)
+rake:   -90:5:90 (37 values)
+"""
+function default_grid()
+    return (
+        strike0 = 0.0,
+        dstrike = 5.0,
+        nstrike = Int32(71),
+        dip0 = 0.0,
+        ddip = 5.0,
+        ndip = Int32(19),
+        rake0 = -90.0,
+        drake = 5.0,
+        nrake = Int32(37),
+    )
+end
+
+
+"""
     GridStrategy
 
 Grid parameters extracted from the full Strategy struct in `IO.jl`.

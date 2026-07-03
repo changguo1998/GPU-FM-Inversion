@@ -14,14 +14,8 @@
 # (Uncomment only for standalone validation)
 # using Config
 
-# External data file
-# Path to HDF5 file with event info, station metadata,
-# phase picks, and raw waveforms.
-Config.data_file() = "data/my_event.h5"
-
 # Misfit modules
 Config.misfit_modules() = ["XCorr", "Polarity"]
-Config.module_weights() = [0.5, 0.5]
 Config.minimum_stations() = 2
 
 # Frequency bands
@@ -29,19 +23,6 @@ Config.freq_bands() = [(0.5, 2.0)]
 
 # Depth range
 Config.depths() = [5.0, 10.0, 15.0]
-
-# Initial grid
-Config.grid_params() = (
-    strike0 = 45.0,
-    dstrike = 20.0,
-    nstrike = 3,
-    dip0 = 30.0,
-    ddip = 20.0,
-    ndip = 3,
-    rake0 = 0.0,
-    drake = 20.0,
-    nrake = 3,
-)
 
 # XCorr module
 Config.xcorr_params() = (
@@ -56,5 +37,40 @@ Config.xcorr_params() = (
 # Polarity module
 Config.polarity_params() = (trim = [0.0, 2.0],)
 
-# Green's functions
-Config.greens_params() = (gf_dir = "tests/synthetic/", model = "synthetic")
+# ── Data interface ──
+# Implement these functions to provide raw data to the pipeline.
+# The initial search grid is automatically provided by the Grid module.
+
+# Event information
+Config.load_event() = begin
+    # Return IO.EventInfo(longitude, latitude, depth, magnitude, origintime)
+    # Example: read from your own data format
+    error("Implement load_event() in your config file")
+end
+
+# Station metadata
+Config.load_stations() = begin
+    # Return Vector{IO.StationInfo}
+    error("Implement load_stations() in your config file")
+end
+
+# Phase arrival picks
+Config.load_phase_picks() = begin
+    # Return Vector{IO.PhasePick}
+    error("Implement load_phase_picks() in your config file")
+end
+
+# Raw waveform for a given phase identifier
+Config.load_waveform(phase_id::String) = begin
+    # Return Vector{Float64}
+    # Phase key format: {network}.{station}.{channel}.{phase_type}
+    error("Implement load_waveform() in your config file")
+end
+
+# Green's functions for a source-station pair
+# Return nothing if no GF available for this combination.
+Config.load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon) = begin
+    # Return (gf_array::Array{Float64,3}, dt::Float64, tp::Float64, ts::Float64) or nothing
+    # gf_array shape: (nt, 6, 3) — channels in [N, E, D] order
+    error("Implement load_gf() in your config file")
+end
