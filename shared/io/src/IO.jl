@@ -17,12 +17,28 @@ struct StationInfo
     id::String
     network::String
     station::String
-    component::String
+    channel::String
     latitude::Float64
     longitude::Float64
     elevation::Float64
     dt::Float64
     begin_time::String
+end
+
+# Helper structs for new flat-schema write_database
+
+struct XCorrObs
+    obs::Matrix{Float64}
+    obs_norm2::Vector{Float64}
+end
+
+struct XCorrGF
+    gf::Array{Float64, 3}       # [N_phases, 6, N_samples]
+    synamp::Array{Float64, 3}   # [N_phases, 6, 6]
+end
+
+struct PolarityGF
+    gf_pol::Array{Float64, 3}   # [N_channels, 6, N_polarity_samples]
 end
 
 struct PhasePick
@@ -196,7 +212,7 @@ function read_stations(h5file)::Vector{StationInfo}
             ids = [String(x) for x in read(gr["id"])]
             nets = [String(x) for x in read(gr["network"])]
             stas = [String(x) for x in read(gr["station"])]
-            comps = [String(x) for x in read(gr["component"])]
+            chans = [String(x) for x in read(gr["channel"])]
             lats = read(gr["latitude"])
             lons = read(gr["longitude"])
             elevs = read(gr["elevation"])
@@ -207,7 +223,7 @@ function read_stations(h5file)::Vector{StationInfo}
                     ids[i],
                     nets[i],
                     stas[i],
-                    comps[i],
+                    chans[i],
                     lats[i],
                     lons[i],
                     elevs[i],
@@ -332,48 +348,79 @@ end
 
 # Writers
 
-function write_database(h5file, greens, data, index, config)
+function write_database(
+    h5file,
+    config,
+    event,
+    station,
+    channel_data,
+    gf_data,
+    xcorr_obs,
+    xcorr_gf,
+    polarity_obs,
+    polarity_gf,
+)
     h5open(h5file, "w") do f
-        # Write /index
-        idxgr = HDF5.create_group(f, "index")
-        write(idxgr, "phase_ids", index.phase_ids)
-        write(idxgr, "phase_type", index.phase_type)
-        write(idxgr, "station_idx", index.station_idx)
-        write(idxgr, "distance", index.distance)
-        write(idxgr, "azimuth", index.azimuth)
-        write(idxgr, "greens_depth_idx", index.greens_depth_idx)
-
-        # Write /greens — greens is Dict{String, Dict{Int32, Matrix{Float64}}}
-        grgreens = HDF5.create_group(f, "greens")
-        for (phase_id, depths) in greens
-            pgr = HDF5.create_group(grgreens, phase_id)
-            for (didx, mat) in depths
-                write(pgr, string(didx), mat)
-            end
-        end
-
-        # Write /data — data is Dict{Int, Dict{Symbol, Dict{String, ...}}}
-        grdata = HDF5.create_group(f, "data")
-        for (freq_idx, modules) in data
-            fgr = HDF5.create_group(grdata, string(freq_idx))
-            for (mod_name, phases) in modules
-                mgrp = HDF5.create_group(fgr, string(mod_name))
-                for (pid, contents) in phases
-                    pgr = HDF5.create_group(mgrp, pid)
-                    if contents isa Dict
-                        for (k, v) in contents
-                            write(pgr, k, v)
-                        end
-                    else
-                        write(pgr, "data", contents)
-                    end
-                end
-            end
-        end
-
-        # Write /config — recursive for arbitrary nesting
+        # /config — recursive write
         cfggr = HDF5.create_group(f, "config")
         _write_group_recursive(cfggr, config)
+
+        # /event — scalar datasets
+        evgr = HDF5.create_group(f, "event")
+        for (k, v) in event
+            write(evgr, string(k), v)
+        end
+
+        # /station — flat arrays
+        stgr = HDF5.create_group(f, "station")
+        for (k, v) in station
+            write(stgr, string(k), v)
+        end
+
+        # /channel — one dataset per channel_id
+        chgr = HDF5.create_group(f, "channel")
+        for (ch_id, wf) in channel_data
+            write(chgr, ch_id, wf)
+        end
+
+        # /gf/{depth}/{channel_id}
+        gfgr = HDF5.create_group(f, "gf")
+        for (depth, ch_data) in gf_data
+            dgr = HDF5.create_group(gfgr, string(depth))
+            for (ch_id, gf_mat) in ch_data
+                write(dgr, ch_id, gf_mat)
+            end
+        end
+
+        # /xcorr/obs/{phasetype}-{band}/ and /xcorr/gf/{depth}/{phasetype}-{band}/
+        xgr = HDF5.create_group(f, "xcorr")
+        xobsgr = HDF5.create_group(xgr, "obs")
+        for (key, data) in xcorr_obs
+            bgr = HDF5.create_group(xobsgr, key)  # key = "P-1", "S-2", etc
+            write(bgr, "obs", data.obs)
+            write(bgr, "obs_norm2", data.obs_norm2)
+        end
+
+        xgfgr = HDF5.create_group(xgr, "gf")
+        for (depth, bands) in xcorr_gf
+            dgr = HDF5.create_group(xgfgr, string(depth))
+            for (key, data) in bands
+                bgr = HDF5.create_group(dgr, key)
+                write(bgr, "gf", data.gf)
+                write(bgr, "synamp", data.synamp)
+            end
+        end
+
+        # /polarity/obs/ and /polarity/gf/{depth}/
+        pgr = HDF5.create_group(f, "polarity")
+        pobsgr = HDF5.create_group(pgr, "obs")
+        write(pobsgr, "obs_pol", polarity_obs)
+
+        pgfgr = HDF5.create_group(pgr, "gf")
+        for (depth, data) in polarity_gf
+            dgr = HDF5.create_group(pgfgr, string(depth))
+            write(dgr, "gf_pol", data)
+        end
     end
 end
 

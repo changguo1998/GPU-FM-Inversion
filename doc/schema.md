@@ -3,201 +3,233 @@
 ## Dimension Symbols
 
 | Symbol | Description | Typical Value |
-|----------------------|-----------------------------------------------------------------------|--------------------------|
-| `N_stations` | Stations | 10–30 |
-| `N_channels` | Unique (station, component) pairs (one station may have 1–3 channels) | 10–90 |
-| `N_phases` | Phase entries per channel + wave type (P/S) | 20–60 |
-| `N_samples_raw` | Raw waveform samples per phase before filtering/trimming | input-dependent |
-| `N_samples` | Waveform samples per phase | 200–20000 |
+|----------------------|--------------------------------------------------|-----------------|
+| `N_stations` | Unique stations | 10–30 |
+| `N_channels` | Unique (station, channel) pairs | 10–90 |
+| `N_phases_P` | P-phase entries (one per station per channel) | 10–90 |
+| `N_phases_S` | S-phase entries (one per station per channel) | 10–90 |
+| `N_phases` | Total phase entries = N_phases_P + N_phases_S | 20–180 |
+| `N_depths` | Depth levels for Green's functions | 10–40 |
+| `N_bands` | Frequency band combinations | configurable |
+| `N_modules` | Active misfit modules | 2–3 |
+| `N_samples_raw` | Raw waveform samples per channel before trimming | input-dependent |
+| `N_samples` | Trimmed waveform samples per phase | 200–20000 |
 | `N_polarity_samples` | Polarity window samples | 50–200 |
-| `N_depths` | Depth levels for Greens | 10–40 |
-| `N_frequencies` | Frequency band combinations | configurable |
-| `N_freq_test_mechs` | Mechanisms evaluated per frequency test | configurable |
-| `N_modules` | Active misfit modules | 3 (XCorr, Polarity, PSR) |
-| `N_trials` | Trials per iteration | 10–100000 |
-| `N_components` | MT components | 6 |
 
-All datasets use `Float64` unless noted. Scalars are stored as scalar datasets unless noted otherwise.
+All datasets use `Float64` unless noted. Scalars stored as scalar datasets.
 
-Phase key convention: `{network}.{station}.{component}.{phase_type}`.
+Phase key convention: `{network}.{station}.{channel}.{phase_type}`.
+Channel ID convention: `{station_id}.{channel}` (e.g. `NET.ST1.Z`).
 
 ______________________________________________________________________
 
-## 1. `database.h5` — Preprocessed Data (Static)
+## `database.h5` — Static Data (Written by input.jl)
 
 ### `/config`
 
 | Dataset | Type | Shape | Description |
-|--------------------|---------|-------------------|-----------------------------------------|
+|--------------------|---------|---------------|-----------------------------------------|
 | `misfit_modules` | String | `[N_modules]` | Active modules: `"XCorr"`, `"Polarity"` |
-| `module_weights` | Float64 | `[N_modules]` | Initial module weights |
 | `depth_vals` | Float64 | `[N_depths]` | All depth levels |
-| `freq_bands_low` | Float64 | `[N_frequencies]` | Low-cut corner frequencies (Hz) |
-| `freq_bands_high` | Float64 | `[N_frequencies]` | High-cut corner frequencies (Hz) |
+| `n_bands` | Int32 | scalar | Number of frequency bands |
+| `freq_bands_low` | Float64 | `[N_bands]` | Low-cut corner frequencies (Hz) |
+| `freq_bands_high` | Float64 | `[N_bands]` | High-cut corner frequencies (Hz) |
 | `minimum_stations` | Int32 | scalar | Minimum stations required |
 
 Per-module settings in sub-groups (present only when module is in `misfit_modules`):
 
-**`/config/xcorr/`**: `maxlag_factor` (scalar), `filter_order` (Int32), `P_trim` [2], `S_trim` [2], `select_threshold` (scalar), `deselect_threshold` (scalar)
+- **`/config/xcorr/`**: `maxlag_factor` (scalar), `filter_order` (Int32), `P_trim` [2], `S_trim` [2], `select_threshold` (scalar), `deselect_threshold` (scalar)
+- **`/config/polarity/`**: `trim` [2]
 
-**`/config/polarity/`**: `trim` [2]
-
-### `/greens`
-
-`{phase_id}/{depth_idx}` → Float64 `[N_samples × 6]` — GF columns: [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
-
-Attributes: `dt`, `tp`, `ts`, `model`
-
-### `/data`
-
-Structure: `/data/{freq_idx}/{module}/{phase_id}/`
-
-| Module | Datasets | Shape | Description | Status |
-|----------|-----------|----------------------------|------------------------------------------------------------------------------------------------|---------------|
-| XCorr | `obs` | `[N_samples]` | Filtered + trimmed observed waveform | active |
-| | `gf` | `[N_samples × 6]` | Filtered + trimmed Green's function | |
-| | `synamp` | `[6 × 6]` | GF auto-correlation matrix | |
-| Polarity | `gf_pol` | `[N_polarity_samples × 6]` | GF within polarity window. **Only written for P-wave phase_ids.** | active |
-| | `obs_pol` | Float64 | Observed polarity (-1.0, 0.0, +1.0, NaN = unavailable). **Only written for P-wave phase_ids.** | |
-| AbsShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
-| | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
-| RelShift | `obs` | `[3 × N_samples]` | Observed per spatial component | **deferred** |
-| | `gf` | `[3 × N_samples × 6]` | GF per spatial component | |
-| CAP | `obs` | `[3 × N_samples]` | Three-component observed | **cancelled** |
-| | `gf` | `[3 × N_samples × 6]` | Three-component GF | |
-
-### `/index`
+### `/event`
 
 | Dataset | Type | Shape | Description |
-|--------------------|---------|-------------------------|----------------------------------------------------------|
-| `phase_ids` | String | `[N_phases]` | All phase identifiers |
-| `phase_type` | String | `[N_phases]` | `"P"` or `"S"` |
-| `station_idx` | Int32 | `[N_phases]` | Index into station metadata |
-| `distance` | Float64 | `[N_phases]` | Epicentral distance (km) |
-| `azimuth` | Float64 | `[N_phases]` | Event-to-station azimuth (°) |
-| `greens_depth_idx` | Int32 | `[N_phases × N_depths]` | GF dataset index per phase per depth (-1 if unavailable) |
+|--------------|---------|--------|------------------------|
+| `longitude` | Float64 | scalar | Event longitude (deg) |
+| `latitude` | Float64 | scalar | Event latitude (deg) |
+| `depth` | Float64 | scalar | Event depth (km) |
+| `magnitude` | Float64 | scalar | Event magnitude |
+| `origintime` | String | scalar | Origin time (ISO 8601) |
+
+### `/station`
+
+Flat arrays indexed by `N_stations` (one row per unique station).
+
+| Dataset | Type | Shape | Description |
+|--------------|---------|----------------|---------------------------------------|
+| `id` | String | `[N_stations]` | Station identifier (`NET.ST1`) |
+| `network` | String | `[N_stations]` | Network code |
+| `station` | String | `[N_stations]` | Station name |
+| `latitude` | Float64 | `[N_stations]` | Station latitude (deg) |
+| `longitude` | Float64 | `[N_stations]` | Station longitude (deg) |
+| `elevation` | Float64 | `[N_stations]` | Station elevation (m) |
+| `dt` | Float64 | `[N_stations]` | Sampling interval (s) |
+| `begin_time` | String | `[N_stations]` | Recording start time (ISO 8601) |
+| `distance` | Float64 | `[N_stations]` | Epicentral distance (km) |
+| `azimuth` | Float64 | `[N_stations]` | Event-to-station azimuth (deg) |
+| `P_time` | String | `[N_stations]` | P-wave arrival time (ISO 8601) |
+| `S_time` | String | `[N_stations]` | S-wave arrival time (ISO 8601) |
+| `P_polarity` | Int8 | `[N_stations]` | P-wave first-motion polarity (1/-1/0) |
+
+### `/channel`
+
+One dataset per channel-station pair. Dataset name: `{station_id}.{channel}` (e.g. `NET.ST1.Z`).
+
+| Dataset | Type | Shape | Description |
+|--------------------------|---------|-------------------|-------------------------|
+| `{station_id}.{channel}` | Float64 | `[N_samples_raw]` | Raw continuous waveform |
+
+### `/gf`
+
+Green's functions, grouped by depth. One dataset per channel-station pair per depth.
+
+```
+/gf/{depth}/{station_id}.{channel}    Float64[N_samples_raw × 6]   GF matrix (time × MT components)
+```
+
+### `/xcorr`
+
+XCorr module preprocessed data. Observed data stored once (no depth dimension); GF data stored per depth.
+
+**`/xcorr/obs/{phasetype}-{band}/`**
+
+| Dataset | Type | Shape | Description |
+|-------------|---------|-------------------------|---------------------------------------|
+| `obs` | Float64 | `[N_phases, N_samples]` | Filtered + trimmed observed waveforms |
+| `obs_norm2` | Float64 | `[N_phases]` | Energy of each obs trace |
+
+Where `phasetype` ∈ {P, S}, `band` is the 1-indexed band number.
+
+**`/xcorr/gf/{depth}/{phasetype}-{band}/`**
+
+| Dataset | Type | Shape | Description |
+|----------|---------|----------------------------|-----------------------------------------|
+| `gf` | Float64 | `[N_phases, 6, N_samples]` | Filtered + trimmed Green's functions |
+| `synamp` | Float64 | `[N_phases, 6, 6]` | GF auto-correlation (gf^T gf) per phase |
+
+### `/polarity`
+
+Polarity module preprocessed data.
+
+**`/polarity/obs/`**
+
+| Dataset | Type | Shape | Description |
+|-----------|---------|----------------|-------------------------------------------------|
+| `obs_pol` | Float64 | `[N_channels]` | Observed polarity values (-1.0, 0.0, +1.0, NaN) |
+
+**`/polarity/gf/{depth}/`**
+
+| Dataset | Type | Shape | Description |
+|----------|---------|---------------------------------------|---------------------------|
+| `gf_pol` | Float64 | `[N_channels, 6, N_polarity_samples]` | GF within polarity window |
 
 ______________________________________________________________________
 
-## 2. `status_{N}.h5` — Per-Iteration Workflow File
+## `status_{N}.h5` — Per-Iteration Workflow File
 
-One file per iteration. Built up incrementally during each loop: starts with `/strategy` only from `input.jl`, then `/trials` from `preprocess.jl`, then `/misfits` from `forward.cpp`. Assess reads the completed file and either creates `status_{N+1}.h5` (continue) or sets `/strategy/converged=1` on the current file (break).
+(Unchanged from previous schema — one file per iteration, built incrementally.)
 
 ### `/strategy`
 
-Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar` for i = 0..n-1 (start model).
+Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar` for i = 0..n-1.
 
 | Dataset | Type | Shape | Description |
-|----------------------------|---------|--------------------------------------|-----------------------------------------------|
-| `strike0` | Float64 | scalar | Strike start (°) |
-| `dstrike` | Float64 | scalar | Strike step (°) |
+|----------------------------|---------|--------------------------------|------------------------------------------|
+| `strike0` | Float64 | scalar | Strike start (deg) |
+| `dstrike` | Float64 | scalar | Strike step (deg) |
 | `nstrike` | Int32 | scalar | Strike value count (0 = fixed) |
-| `dip0` | Float64 | scalar | Dip start (°) |
-| `ddip` | Float64 | scalar | Dip step (°) |
+| `dip0` | Float64 | scalar | Dip start (deg) |
+| `ddip` | Float64 | scalar | Dip step (deg) |
 | `ndip` | Int32 | scalar | Dip value count (0 = fixed) |
-| `rake0` | Float64 | scalar | Rake start (°) |
-| `drake` | Float64 | scalar | Rake step (°) |
+| `rake0` | Float64 | scalar | Rake start (deg) |
+| `drake` | Float64 | scalar | Rake step (deg) |
 | `nrake` | Int32 | scalar | Rake value count (0 = fixed) |
-| `depth_indices` | Int32 | `[n]` | Depth indices to search (missing = fixed) |
-| `freq_indices` | Int32 | `[n]` | Freq band indices to search (missing = fixed) |
+| `depth_indices` | Int32 | `[n]` | Depth indices to search |
+| `freq_indices` | Int32 | `[n]` | Freq band indices to search |
 | `xcorr_phase_mask` | Int32 | `[N_phases]` | XCorr phase selection (1=active, 0=skip) |
-| `polarity_channel_mask` | Int32 | `[N_channels]` | Polarity channel selection (1=active, 0=skip) |
-| `psr_channel_mask` | Int32 | `[N_channels]` | PSR channel selection (1=active, 0=skip) |
+| `polarity_channel_mask` | Int32 | `[N_channels]` | Polarity channel selection |
+| `psr_channel_mask` | Int32 | `[N_channels]` | PSR channel selection |
 | `module_weights` | Float64 | `[N_modules]` | Current module weights |
 | `best_sdr` | Float64 | `[3]` | Best (strike, dip, rake) |
-| `best_depth_index` | Int32 | scalar | Best depth index into `/config/depth_vals` |
+| `best_depth_index` | Int32 | scalar | Best depth index |
 | `best_misfit` | Float64 | scalar | Best weighted misfit |
 | `iteration` | Int32 | scalar | Iteration number |
 | `converged` | Int32 | scalar | Convergence flag (0/1) |
-| `convergence_reason` | String | scalar | Stop reason (present when converged=1) |
-| `freq_accumulated` | Float64 | `[N_frequencies, 3]` | Best SDR per frequency band |
-| `freq_misfit_curve` | Float64 | `[N_frequencies, N_freq_test_mechs]` | Misfit vs frequency vs mechanism |
+| `convergence_reason` | String | scalar | Stop reason |
+| `freq_accumulated` | Float64 | `[N_bands, 3]` | Best SDR per frequency band |
+| `freq_misfit_curve` | Float64 | `[N_bands, N_freq_test_mechs]` | Misfit vs frequency |
 | `depth_misfit_accumulated` | Float64 | `[N_depths]` | Best misfit per depth |
-
-Total trials: `max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1)`.
 
 ### `/trials`
 
 | Dataset | Type | Shape | Description |
-|-------------|---------|--------------|-------------------------------------------|
-| `strike` | Float64 | `[N_trials]` | Strike angles (°) |
-| `dip` | Float64 | `[N_trials]` | Dip angles (°) |
-| `rake` | Float64 | `[N_trials]` | Rake angles (°) |
+|-------------|---------|--------------|----------------------|
+| `strike` | Float64 | `[N_trials]` | Strike angles (deg) |
+| `dip` | Float64 | `[N_trials]` | Dip angles (deg) |
+| `rake` | Float64 | `[N_trials]` | Rake angles (deg) |
 | `depth` | Float64 | `[N_trials]` | Depth (km) |
-| `freq_idx` | Int32 | `[N_trials]` | Frequency band index (into `database.h5`) |
-| `depth_idx` | Int32 | `[N_trials]` | GF depth index (into `database.h5`) |
+| `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
+| `depth_idx` | Int32 | `[N_trials]` | GF depth index |
 
 ### `/misfits`
 
-Raw per-module misfits (no weighting, no aggregation). Each module has a shape natural to its computation:
+Raw per-module misfits (unweighted, unaggregated).
 
 | Dataset | Type | Shape | Level |
-|------------|---------|---------------------------|--------------------|
+|------------|---------|---------------------------|---------|
 | `xcorr` | Float64 | `[N_phases × N_trials]` | phase |
-| `polarity` | Float64 | `[N_channels × N_trials]` | channel P-polarity |
-| `psr` | Float64 | `[N_channels × N_trials]` | channel P/S ratio |
-
-Future: `absshift`, `relshift`, `cap` under `/misfits/`.
+| `polarity` | Float64 | `[N_channels × N_trials]` | channel |
+| `psr` | Float64 | `[N_channels × N_trials]` | channel |
 
 ______________________________________________________________________
 
-## 3. `output.h5` — Final Results
+## `output.h5` — Final Results
+
+(Unchanged from previous schema.)
 
 ### `/solution`
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|---------------------------|
-| `strike` | Float64 | scalar | Best-fit strike (°) |
-| `dip` | Float64 | scalar | Best-fit dip (°) |
-| `rake` | Float64 | scalar | Best-fit rake (°) |
+|-----------------|---------|--------|--------------------------------|
+| `strike` | Float64 | scalar | Best-fit strike (deg) |
+| `dip` | Float64 | scalar | Best-fit dip (deg) |
+| `rake` | Float64 | scalar | Best-fit rake (deg) |
 | `depth` | Float64 | scalar | Best-fit depth (km) |
-| `moment_tensor` | Float64 | `[6]` | [Mxx,Myy,Mzz,Mxy,Mxz,Myz] |
+| `moment_tensor` | Float64 | `[6]` | [Mxx, Myy, Mzz, Mxy, Mxz, Myz] |
 | `misfit` | Float64 | scalar | Final weighted misfit |
 
 ### `/uncertainty`
 
 | Dataset | Type | Shape | Description |
-|--------------------------|---------|--------------------------------------|-------------------------|
+|--------------------------|---------|--------------------------------|-------------------------|
 | `strike_std` | Float64 | scalar | Strike uncertainty |
 | `dip_std` | Float64 | scalar | Dip uncertainty |
 | `rake_std` | Float64 | scalar | Rake uncertainty |
 | `depth_range` | Float64 | `[2]` | Depth bounds [min, max] |
-| `freq_test_misfit_curve` | Float64 | `[N_frequencies, N_freq_test_mechs]` | Misfit vs frequency |
+| `freq_test_misfit_curve` | Float64 | `[N_bands, N_freq_test_mechs]` | Misfit vs frequency |
 
 ### `/per_phase`
 
 Phase-level misfit breakdown for the best trial.
 
 | Dataset | Type | Shape | Description |
-|---------------------|---------|--------------------------|-----------------------------------------|
-| `phase_id` | String | `[N_phases]` | Phase identifiers (`NET.STA.COMP.TYPE`) |
-| `channel_id` | String | `[N_phases]` | Channel identifier (`NET.STA.COMP`) |
-| `station_id` | String | `[N_phases]` | Station identifier (`NET.STA`) |
-| `phase_type` | String | `[N_phases]` | `"P"` or `"S"` |
+|---------------------|---------|--------------------------|-----------------------------------|
+| `phase_id` | String | `[N_phases]` | Phase identifiers |
+| `station_id` | String | `[N_phases]` | Station identifiers |
+| `phase_type` | String | `[N_phases]` | "P" or "S" |
 | `misfit_per_module` | Float64 | `[N_modules × N_phases]` | Final misfit per module per phase |
 | `selected` | Int32 | `[N_phases]` | Phase selected in final solution |
 | `cross_correlation` | Float64 | `[N_phases]` | Best XCorr per phase |
 
 ### `/per_station_summary`
 
-Station-level summary across all of a station's channels.
-
 | Dataset | Type | Shape | Description |
-|--------------------------|---------|----------------|--------------------------------------|
+|--------------------------|---------|----------------|----------------------------------|
 | `station_id` | String | `[N_stations]` | Station identifiers |
-| `n_channels` | Int32 | `[N_stations]` | Number of channels per station |
 | `n_phases` | Int32 | `[N_stations]` | Number of phases per station |
 | `mean_cross_correlation` | Float64 | `[N_stations]` | Mean XCorr across station phases |
-| `polarity_match` | Int32 | `[N_stations]` | Number of polarity-matching channels |
+| `polarity_match` | Int32 | `[N_stations]` | Polarity-matching channels |
 | `misfit_total` | Float64 | `[N_stations]` | Aggregate misfit per station |
-
-### `/waveforms` (optional)
-
-Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag). Synthesized from Greens in `database.h5`.
-
-| Dataset | Type | Shape | Description |
-|--------------|---------|---------------|-------------------------------------|
-| `{phase_id}` | Float64 | `[N_samples]` | Synthetic seismogram (GF × best_MT) |
 
 ### `/summary`
 
@@ -206,30 +238,3 @@ Present only when waveform synthesis is enabled (e.g., `--waveforms-output` flag
 | `total_iterations` | Int32 | scalar | Total iterations |
 | `total_trials` | Int32 | scalar | Total trials evaluated |
 | `convergence_reason` | String | scalar | Why pipeline stopped |
-
-______________________________________________________________________
-
-## 4. Signal Conventions
-
-### Convergence Signal
-
-`assess.jl` signals convergence:
-
-- **Continue**: creates `status_{N+1}.h5` with `/strategy/converged=0` and refined grid parameters.
-- **Break**: writes `/strategy/converged=1` and `convergence_reason="user"` to the **current** `status_{N}.h5` in-place (no new file is created).
-
-Driver detects convergence by reading `/strategy/converged` from the latest status file.
-
-### Pipeline Stage Detection (Driver)
-
-| File State | Action |
-|------------------------------------------------------|-----------------------------------------------------|
-| No `database.h5` | Run `input.jl` (once, with config) |
-| `status_{N}.h5` exists, no `/trials` | Run `preprocess.jl` (generate trials from strategy) |
-| `status_{N}.h5` exists, has `/trials`, no `/misfits` | Run `forward.cpp` |
-| `status_{N}.h5` exists, has `/misfits` | Run `assess.jl` |
-| `status_{N}.h5` exists, `/strategy/converged == 1` | Run `output.jl` |
-
-### Config Bootstrap
-
-`config.jl` is a bootstrap-only input read by `input.jl` on the first run. All configuration is written to `database.h5`. Subsequent stages read config from HDF5 only.
