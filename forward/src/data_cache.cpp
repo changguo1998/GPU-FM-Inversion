@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -166,7 +167,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     h5.open(database_path.c_str(), H5F_ACC_RDONLY);
 
     std::string freq_str = std::to_string(freq_idx);
-    std::string depth_str = std::to_string(depth_idx);
+    std::string depth_str; // will be set from depth_vals below
 
     int n_ph = entry.n_phases;
 
@@ -188,52 +189,167 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     bool has_polarity = false;
     bool has_psr = false;
 
+    // ── Map depth_idx -> depth_val from config ────────────────────────────
+    std::vector<double> depth_vals;
+    try {
+        depth_vals = h5.read_double_1d("/config/depth_vals");
+    } catch (...) {
+        depth_vals = {};
+    }
+    double depth_val = 0.0;
+    if (depth_idx >= 1 && depth_idx <= static_cast<int>(depth_vals.size())) {
+        depth_val = depth_vals[depth_idx - 1]; // 1-based index -> 0-based
+    } else {
+        std::cerr << "DataCache: depth_idx " << depth_idx
+                  << " out of range (depth_vals size=" << depth_vals.size() << ")" << std::endl;
+    }
+    std::ostringstream depth_ss;
+    depth_ss << std::fixed << std::setprecision(1) << depth_val;
+    depth_str = depth_ss.str();
+
+    // ── Read station_idx for phase->channel mapping (polarity) ─────────────
+    std::vector<int> station_idx;
+    try {
+        station_idx = h5.read_int_1d("/index/station_idx");
+    } catch (...) {
+        station_idx.resize(n_ph, 0);
+    }
+
+    // ── Determine phase type (P/S) for each phase ─────────────────────────
+    // Phase ID format: "NET.STA.CHANNEL.TYPE"
+    // Group phases by type; P phases come first in the index, then S.
+    std::vector<int> p_indices, s_indices;
     for (int i = 0; i < n_ph; ++i) {
         const std::string &pid = phase_ids[i];
-        // NOTE: path prefix matches legacy flat schema (/data/{freq}/{module}/{pid}/).
-        // Current database.h5 uses /xcorr/obs/{phase}-{band}/, /polarity/obs/, etc.
-        // Schema bridge needed before forward stage is functional.
-        std::string prefix = "/data/" + freq_str + "/";
+        size_t last_dot = pid.rfind('.');
+        std::string ptype = (last_dot != std::string::npos) ? pid.substr(last_dot + 1) : "";
+        if (ptype == "P")
+            p_indices.push_back(i);
+        else if (ptype == "S")
+            s_indices.push_back(i);
+    }
+    int n_p = static_cast<int>(p_indices.size());
+    int n_s = static_cast<int>(s_indices.size());
 
-        // ── XCorr ─────────────────────────────────────────────────────────
-        std::string xcorr_path = prefix + "XCorr/" + pid + "/";
-        try {
-            std::string obs_path = xcorr_path + "obs";
-            if (h5.group_exists(obs_path.c_str())) {
-                host_data[i].obs = h5.read_double_1d(obs_path.c_str());
-                host_data[i].n_xcorr = static_cast<int>(host_data[i].obs.size());
-                host_data[i].gf = h5.read_double_1d((xcorr_path + "gf").c_str());
+    // ── Read XCorr data from new schema ───────────────────────────────────
+    std::string freq_str = std::to_string(freq_idx);
+
+    // Process P phases
+    if (n_p > 0 && h5.group_exists((std::string("/xcorr/obs/P-") + freq_str).c_str())) {
+        // Read obs: [N_samples, N_phases_P]
+        int n_obs, n_ph_p;
+        std::vector<double> obs_p = h5.read_double_2d(
+            (std::string("/xcorr/obs/P-") + freq_str + "/obs").c_str(), n_obs, n_ph_p);
+        if (n_ph_p == n_p) {
+            // Read GF: [N_samples, 6, N_phases_P]
+            std::string gf_path = "/xcorr/gf/" + depth_str + "/P-" + freq_str + "/gf";
+            int n_gf, n_comp, n_ph_gf;
+            std::vector<double> gf_p;
+            if (h5.group_exists(gf_path.c_str())) {
+                gf_p = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
+            }
+            bool gf_ok = (!gf_p.empty() && n_gf == n_obs && n_comp == 6 && n_ph_gf == n_p);
+
+            for (int j = 0; j < n_p; ++j) {
+                int i = p_indices[j];
+                auto &hd = host_data[i];
+                // obs: column-major in file is row-major C order: [n_obs, n_p]
+                // Column j is at offsets: j, j+n_p, j+2*n_p, ...
+                hd.obs.resize(n_obs);
+                for (int t = 0; t < n_obs; ++t)
+                    hd.obs[t] = obs_p[t * n_p + j];
+                hd.n_xcorr = n_obs;
+
+                if (gf_ok) {
+                    // gf: [n_obs, 6, n_p] in C order
+                    // For phase j, component c, time t:
+                    //   offset = t*6*n_p + c*n_p + j
+                    hd.gf.resize(n_obs * 6);
+                    for (int t = 0; t < n_obs; ++t)
+                        for (int c = 0; c < 6; ++c)
+                            hd.gf[t * 6 + c] = gf_p[t * 6 * n_p + c * n_p + j];
+                }
                 has_xcorr = true;
             }
-        } catch (...) { /* module not present for this phase */
+        }
+    }
+
+    // Process S phases (same approach)
+    if (n_s > 0 && h5.group_exists((std::string("/xcorr/obs/S-") + freq_str).c_str())) {
+        int n_obs, n_ph_s;
+        std::vector<double> obs_s = h5.read_double_2d(
+            (std::string("/xcorr/obs/S-") + freq_str + "/obs").c_str(), n_obs, n_ph_s);
+        if (n_ph_s == n_s) {
+            std::string gf_path = "/xcorr/gf/" + depth_str + "/S-" + freq_str + "/gf";
+            int n_gf, n_comp, n_ph_gf;
+            std::vector<double> gf_s;
+            if (h5.group_exists(gf_path.c_str())) {
+                gf_s = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
+            }
+            bool gf_ok = (!gf_s.empty() && n_gf == n_obs && n_comp == 6 && n_ph_gf == n_s);
+
+            for (int j = 0; j < n_s; ++j) {
+                int i = s_indices[j];
+                auto &hd = host_data[i];
+                hd.obs.resize(n_obs);
+                for (int t = 0; t < n_obs; ++t)
+                    hd.obs[t] = obs_s[t * n_s + j];
+                hd.n_xcorr = n_obs;
+
+                if (gf_ok) {
+                    hd.gf.resize(n_obs * 6);
+                    for (int t = 0; t < n_obs; ++t)
+                        for (int c = 0; c < 6; ++c)
+                            hd.gf[t * 6 + c] = gf_s[t * 6 * n_s + c * n_s + j];
+                }
+                has_xcorr = true;
+            }
+        }
+    }
+
+    // ── Read Polarity data from new schema ────────────────────────────────
+    if (h5.group_exists("/polarity/obs")) {
+        // Obs: [N_channels] — map per-channel to per-phase via station_idx
+        std::vector<double> pol_obs_all;
+        try {
+            pol_obs_all = h5.read_double_1d("/polarity/obs/obs_pol");
+        } catch (...) {
         }
 
-        // ── Polarity ──────────────────────────────────────────────────────
-        std::string pol_path = prefix + "Polarity/" + pid + "/";
-        try {
-            std::string gf_pol_path = pol_path + "gf_pol";
-            if (h5.group_exists(gf_pol_path.c_str())) {
-                int r, c;
-                host_data[i].gf_pol = h5.read_double_2d(gf_pol_path.c_str(), r, c);
-                host_data[i].n_pol = r;
-                host_data[i].obs_pol = h5.read_int_scalar((pol_path + "obs_pol").c_str());
-                has_polarity = true;
+        // GF: [N_pol_samples, 6, N_channels]
+        std::string pol_gf_path = "/polarity/gf/" + depth_str + "/gf_pol";
+        int n_pol_samp = 0, n_pol_comp = 0, n_pol_ch = 0;
+        std::vector<double> pol_gf_all;
+        if (h5.group_exists(pol_gf_path.c_str())) {
+            try {
+                pol_gf_all =
+                    h5.read_double_3d(pol_gf_path.c_str(), n_pol_samp, n_pol_comp, n_pol_ch);
+            } catch (...) {
             }
-        } catch (...) { /* module not present */
         }
+        bool pol_gf_ok = (!pol_gf_all.empty() && n_pol_comp == 6);
 
-        // ── PSR ───────────────────────────────────────────────────────────
-        std::string psr_path = prefix + "PSR/" + pid + "/";
-        try {
-            std::string ampP_path = psr_path + "amp_P";
-            if (h5.group_exists(ampP_path.c_str())) {
-                int r, c;
-                host_data[i].ampP = h5.read_double_2d(ampP_path.c_str(), r, c);
-                host_data[i].ampS = h5.read_double_2d((psr_path + "amp_S").c_str(), r, c);
-                host_data[i].obs_psr = h5.read_double_scalar((psr_path + "obs_psr").c_str());
-                has_psr = true;
+        if (!pol_obs_all.empty()) {
+            has_polarity = true;
+            // Map each phase to its polarity channel via station_idx (1-based)
+            for (int i = 0; i < n_ph; ++i) {
+                auto &hd = host_data[i];
+                int ch =
+                    (station_idx[i] >= 1 && station_idx[i] <= static_cast<int>(pol_obs_all.size()))
+                        ? station_idx[i] - 1
+                        : -1;
+                if (ch >= 0) {
+                    hd.obs_pol = static_cast<int>(pol_obs_all[ch]);
+                    if (pol_gf_ok && n_pol_ch > ch) {
+                        hd.n_pol = n_pol_samp;
+                        hd.gf_pol.resize(n_pol_samp * 6);
+                        for (int t = 0; t < n_pol_samp; ++t)
+                            for (int c = 0; c < 6; ++c)
+                                hd.gf_pol[t * 6 + c] =
+                                    pol_gf_all[t * 6 * n_pol_ch + c * n_pol_ch + ch];
+                    }
+                }
             }
-        } catch (...) { /* module not present */
         }
     }
 

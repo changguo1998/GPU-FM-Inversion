@@ -307,7 +307,16 @@ function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
 end
 
 function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
-    h5open(f -> read(f["greens/$(phase_id)/$(depth_idx)"]), h5file, "r")
+    # New schema: /gf/{depth_val}/{channel_id}
+    # Extract channel_id from phase_id (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
+    parts = split(phase_id, ".")
+    ch_id = join(parts[1:3], ".")
+    # Read depth_vals from config to map index -> depth value
+    config = read_config(h5file)
+    depth_vals = config["depth_vals"]
+    depth_val = depth_vals[depth_idx]
+    gf_path = "/gf/$(depth_val)/$(ch_id)"
+    return h5open(f -> read(f[gf_path]), h5file, "r")
 end
 
 function read_index(h5file)::Index
@@ -436,6 +445,7 @@ function write_trials(h5file, trials::TrialSet)
         write(gr, "depth", trials.depth)
         write(gr, "depth_idx", trials.depth_idx)
         write(gr, "freq_idx", trials.freq_idx)
+        write(gr, "N_trials", Int32(length(trials.strike)))
     end
 end
 

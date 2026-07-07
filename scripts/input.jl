@@ -231,9 +231,17 @@ for freq_idx in 1:n_bands
             post_sec = abs(trim_cfg[2])
             window_factor = max(pre_sec, post_sec) * high_cut
 
+            # Load GF from first depth (shared by XCorr and Polarity preprocessing)
+            # NOTE: known limitation — uses first-depth GF for all depths; frequency-dependent
+            # filtering and polarity window should ideally differ per depth combo
+            gf_full = get(gf_data[depths[1]], ch_id, nothing)
+            if gf_full === nothing
+                @warn "No GF for $ch_id at depth $(depths[1]), skipping preprocessing for $pid"
+                continue
+            end
+
             # XCorr preprocessing
             if "XCorr" in misfit_modules
-                gf_full = gf_data[depths[1]][ch_id]  # first depth for preprocessing
                 obs_proc, gf_proc, synamp_mat, obs_n2 = Signal.preprocess_xcorr!(
                     wf,
                     gf_full,
@@ -249,8 +257,8 @@ for freq_idx in 1:n_bands
                 push!(gf_list, gf_proc)
             end
 
-            # Polarity preprocessing (P-wave only)
-            if "Polarity" in misfit_modules && ptype == "P"
+            # Polarity preprocessing (P-wave only, first band only — polarity is frequency-independent)
+            if "Polarity" in misfit_modules && ptype == "P" && freq_idx == 1
                 obs_pol_val = Float64(pick.P_polarity)
                 if obs_pol_val == -128.0
                     obs_pol_val = NaN
@@ -263,7 +271,7 @@ for freq_idx in 1:n_bands
                     t_source,
                     pick.P_polarity,
                 )
-                # Collect gf_pol per depth
+                # Collect gf_pol per depth (reuse first-depth GF for all depths — see note above)
                 for depth_val in depths
                     if !haskey(polarity_gf, depth_val)
                         polarity_gf[depth_val] = zeros(Float64, 0, 6, 0)

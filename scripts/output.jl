@@ -258,13 +258,13 @@ if synthesize_waveforms
     waveforms = Dict{String, Vector{Float64}}()
 
     for ph_id in phase_ids
-        gp = "greens/$ph_id/$best_depth_idx"
-        if IO.h5exists(db_path, gp)
-            gf = IO.read_greens(db_path, ph_id, best_depth_idx)
-            waveforms[ph_id] = gf * best_mt
-        else
-            @warn "No GF found for phase $ph_id at depth $best_depth_idx"
+        gf = try
+            IO.read_greens(db_path, ph_id, best_depth_idx)
+        catch
+            @warn "No GF found for phase $ph_id at depth index $best_depth_idx"
+            continue
         end
+        waveforms[ph_id] = gf * best_mt
     end
 end
 

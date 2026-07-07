@@ -142,6 +142,39 @@ std::vector<double> Hdf5Handle::read_double_2d(const char *path, int &rows, int 
     return result;
 }
 
+// --- 3D reader ---
+
+std::vector<double> Hdf5Handle::read_double_3d(const char *path, int &dim1, int &dim2, int &dim3) {
+    hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
+    check_null("H5Dopen (double_3d)", dset);
+
+    hid_t space = H5Dget_space(dset);
+    check_null("H5Dget_space (double_3d)", space);
+
+    int ndims = H5Sget_simple_extent_ndims(space);
+    if (ndims != 3) {
+        H5Sclose(space);
+        H5Dclose(dset);
+        throw std::runtime_error("read_double_3d: dataset is not 3-dimensional");
+    }
+
+    hsize_t dims[3] = {0, 0, 0};
+    check_herr("H5Sget_simple_extent_dims (double_3d)",
+               H5Sget_simple_extent_dims(space, dims, nullptr));
+
+    dim1 = static_cast<int>(dims[0]);
+    dim2 = static_cast<int>(dims[1]);
+    dim3 = static_cast<int>(dims[2]);
+
+    std::vector<double> result(dim1 * dim2 * dim3);
+    check_herr("H5Dread (double_3d)",
+               H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, result.data()));
+
+    check_herr("H5Sclose (double_3d)", H5Sclose(space));
+    check_herr("H5Dclose (double_3d)", H5Dclose(dset));
+    return result;
+}
+
 // --- Group ops ---
 
 bool Hdf5Handle::group_exists(const char *path) {

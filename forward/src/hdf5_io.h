@@ -24,6 +24,9 @@ struct Hdf5Handle {
     // 2D reader — returns data as flat vector, outputs rows/cols
     std::vector<double> read_double_2d(const char *path, int &rows, int &cols);
 
+    // 3D reader — returns data as flat vector, outputs all three dims
+    std::vector<double> read_double_3d(const char *path, int &dim1, int &dim2, int &dim3);
+
     // Group ops
     bool group_exists(const char *path);
     void create_group(const char *path);
