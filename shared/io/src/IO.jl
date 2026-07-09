@@ -386,7 +386,8 @@ function write_database(
             write(stgr, string(k), v)
         end
 
-        # /channel — one dataset per channel_id
+        # /channel — raw waveforms, verification only (not used by forward stage;
+        # forward consumes preprocessed /xcorr and /polarity products)
         chgr = HDF5.create_group(f, "channel")
         for (ch_id, wf) in channel_data
             write(chgr, ch_id, wf)

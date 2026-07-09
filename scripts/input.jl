@@ -70,6 +70,13 @@ station_to_idx = Dict(pick.station_id => i for (i, pick) in enumerate(picks))
 n_stations = length(stations)
 n_picks = length(picks)
 
+# Validate: every station must have a corresponding phase pick (picks/stations
+# ordering may differ; mismatched entries would silently misalign /station fields)
+missing_picks = [s.id for s in stations if !haskey(station_to_idx, s.id)]
+if !isempty(missing_picks)
+    error("Stations without phase picks: $missing_picks")
+end
+
 # Build phase list: for each station, create P and S phase entries
 # phase_list entries: (phase_id, phasetype, station_idx)
 
@@ -82,7 +89,7 @@ end
 
 phase_list = Tuple{String, String, Int}[]
 for (si, s) in enumerate(stations)
-    pick = picks[get(station_to_idx, s.id, 1)]
+    pick = picks[station_to_idx[s.id]]
     ch_name = s.channel
     if !isempty(pick.P_time)
         pid = "$(s.network).$(s.station).$(ch_name).P"
@@ -118,13 +125,17 @@ station_dict["distance"] = [
 ]
 station_dict["azimuth"] =
     [IO.compute_azimuth(event.latitude, event.longitude, s.latitude, s.longitude) for s in stations]
-station_dict["P_time"] = [pick.P_time for pick in picks]
-station_dict["S_time"] = [pick.S_time for pick in picks]
-station_dict["P_polarity"] = [pick.P_polarity for pick in picks]
+station_dict["P_time"] = [picks[station_to_idx[s.id]].P_time for s in stations]
+station_dict["S_time"] = [picks[station_to_idx[s.id]].S_time for s in stations]
+station_dict["P_polarity"] = [picks[station_to_idx[s.id]].P_polarity for s in stations]
 
 @info "  station dict built ($n_stations stations)"
 
 # 4. Build /channel — raw waveforms per channel
+# NOTE: /channel stores raw (un-preprocessed) waveforms for verification/debugging only.
+# These do NOT participate in forward misfit computation. The forward stage consumes
+# the preprocessed products under /xcorr (cross-correlation obs+gf, synamp = gf'@gf
+# auto-correlation matrices) and /polarity (obs + gf_pol).
 
 @info "Building /channel — raw waveforms ..."
 
@@ -203,12 +214,14 @@ for freq_idx in 1:n_bands
 
         obs_list = Vector{Vector{Float64}}()
         obs_norm2_list = Float64[]
-        gf_list = Vector{Matrix{Float64}}()
+        # gf preprocessed independently per depth (previously all depths reused depths[1])
+        gf_lists =
+            Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
 
         for (pid, si) in phases_pt
             s = stations[si]
             dt = s.dt
-            pick = picks[get(station_to_idx, s.id, 1)]
+            pick = picks[station_to_idx[s.id]]
             ch_id = "$(s.network).$(s.station).$(s.channel)"
             wf = channel_data[ch_id]
             n_samples = length(wf)
@@ -231,20 +244,28 @@ for freq_idx in 1:n_bands
             post_sec = abs(trim_cfg[2])
             window_factor = max(pre_sec, post_sec) * high_cut
 
-            # Load GF from first depth (shared by XCorr and Polarity preprocessing)
-            # NOTE: known limitation — uses first-depth GF for all depths; frequency-dependent
-            # filtering and polarity window should ideally differ per depth combo
-            gf_full = get(gf_data[depths[1]], ch_id, nothing)
-            if gf_full === nothing
-                @warn "No GF for $ch_id at depth $(depths[1]), skipping preprocessing for $pid"
+            # Load GF for all depths — skip phase if any depth is missing (keeps obs/gf aligned)
+            gf_per_depth = Dict{Float64, Matrix{Float64}}()
+            all_gf_ok = true
+            for depth_val in depths
+                gf_full = get(gf_data[depth_val], ch_id, nothing)
+                if gf_full === nothing
+                    @warn "No GF for $ch_id at depth $depth_val, skipping preprocessing for $pid"
+                    all_gf_ok = false
+                    break
+                end
+                gf_per_depth[depth_val] = gf_full
+            end
+            if !all_gf_ok
                 continue
             end
 
-            # XCorr preprocessing
+            # XCorr preprocessing — obs is depth-independent (preprocessed once with depths[1] GF);
+            # GF is preprocessed per depth so filtering/window reflects each depth's GF.
             if "XCorr" in misfit_modules
-                obs_proc, gf_proc, synamp_mat, obs_n2 = Signal.preprocess_xcorr!(
+                obs_proc, gf_proc0, _, obs_n2 = Signal.preprocess_xcorr!(
                     wf,
-                    gf_full,
+                    gf_per_depth[depths[1]],
                     dt,
                     arrival_sample,
                     low_cut,
@@ -254,7 +275,20 @@ for freq_idx in 1:n_bands
                 )
                 push!(obs_list, obs_proc)
                 push!(obs_norm2_list, obs_n2)
-                push!(gf_list, gf_proc)
+                push!(gf_lists[depths[1]], gf_proc0)
+                for depth_val in depths[2:end]
+                    _, gf_proc_d, _, _ = Signal.preprocess_xcorr!(
+                        wf,
+                        gf_per_depth[depth_val],
+                        dt,
+                        arrival_sample,
+                        low_cut,
+                        high_cut,
+                        window_factor;
+                        filter_order = filter_order,
+                    )
+                    push!(gf_lists[depth_val], gf_proc_d)
+                end
             end
 
             # Polarity preprocessing (P-wave only, first band only — polarity is frequency-independent)
@@ -264,15 +298,14 @@ for freq_idx in 1:n_bands
                     obs_pol_val = NaN
                 end
                 push!(polarity_obs, obs_pol_val)
-                gf_pol, _ = Signal.preprocess_polarity!(
-                    gf_full,
-                    dt,
-                    arrival_sample,
-                    t_source,
-                    pick.P_polarity,
-                )
-                # Collect gf_pol per depth (reuse first-depth GF for all depths — see note above)
                 for depth_val in depths
+                    gf_pol, _ = Signal.preprocess_polarity!(
+                        gf_per_depth[depth_val],
+                        dt,
+                        arrival_sample,
+                        t_source,
+                        pick.P_polarity,
+                    )
                     if !haskey(polarity_gf, depth_val)
                         polarity_gf[depth_val] = zeros(Float64, 0, 6, 0)
                     end
@@ -296,21 +329,24 @@ for freq_idx in 1:n_bands
             nt_xc = minimum(length.(obs_list))
             for i in 1:length(obs_list)
                 obs_list[i] = obs_list[i][1:nt_xc]
-                gf_list[i] = gf_list[i][1:nt_xc, :]
             end
             obs_mat = zeros(Float64, np, nt_xc)
-            gf_arr = zeros(Float64, np, 6, nt_xc)
-            synamp_arr = zeros(Float64, np, 6, 6)
             for i in 1:np
                 obs_mat[i, :] = obs_list[i]
-                gf_arr[i, :, :] = gf_list[i]'
-                synamp_arr[i, :, :] = gf_list[i]' * gf_list[i]
             end
             xcorr_obs[key] = IO.XCorrObs(obs_mat, obs_norm2_list)
-            # /xcorr/gf per depth (reuse first-depth GF for all depths — 
-            # known limitation: frequency-dependent filtering should differ per depth combo,
-            # but input.jl uses the same filtered GF for all depths)
+            # /xcorr/gf per depth — each depth stacked from its own preprocessed gf_proc
             for depth_val in depths
+                gfl = gf_lists[depth_val]
+                for i in 1:length(gfl)
+                    gfl[i] = gfl[i][1:nt_xc, :]
+                end
+                gf_arr = zeros(Float64, np, 6, nt_xc)
+                synamp_arr = zeros(Float64, np, 6, 6)
+                for i in 1:np
+                    gf_arr[i, :, :] = gfl[i]'
+                    synamp_arr[i, :, :] = gfl[i]' * gfl[i]
+                end
                 if !haskey(xcorr_gf, depth_val)
                     xcorr_gf[depth_val] = Dict{String, IO.XCorrGF}()
                 end

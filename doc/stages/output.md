@@ -42,7 +42,7 @@ Log file: `<status_dir>/output.log`
 1. **SDR → MT conversion**: compute final moment tensor
 1. **Synthesize frequency uncertainty**: read accumulated freq results from strategy → std of SDR across bands
 1. **Synthesize depth range**: apply 5% tolerance to `depth_misfit_accumulated` → depth bounds
-1. **Per-phase breakdown**: extract per-module misfit at best trial for each phase
+1. **Per-phase breakdown**: extract per-module misfit at best trial for each phase (currently XCorr only — Polarity/PSR per-phase indexing deferred to TODO(#3))
 1. **Waveform synthesis** (optional): compute final synthetic seismograms (`GF × MT`) for QC.
 1. **Write output**: compile all results into `output.h5`
 
@@ -61,3 +61,10 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down. Solution comp
 - Does NOT compute misfits
 - Does NOT run grid search
 - Does NOT modify any input files
+
+## Known Limitations
+
+| # | Description |
+|----|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| #3 | Polarity/PSR misfit not wired: `output.jl` supplies zero-filled placeholders for polarity and PSR modules — needs per-channel / per-station misfit indexing from forward stage status files. |
+| #3 | `polarity_match` removed from per_station_summary: pending polarity misfit re-integration. |

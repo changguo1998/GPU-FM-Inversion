@@ -241,7 +241,6 @@ Phase-level misfit breakdown for the best trial.
 | `station_id` | String | `[N_stations]` | Station identifiers |
 | `n_phases` | Int32 | `[N_stations]` | Number of phases per station |
 | `mean_cross_correlation` | Float64 | `[N_stations]` | Mean XCorr across station phases |
-| `polarity_match` | Int32 | `[N_stations]` | Polarity-matching channels |
 | `misfit_total` | Float64 | `[N_stations]` | Aggregate misfit per station |
 
 ### `/summary`

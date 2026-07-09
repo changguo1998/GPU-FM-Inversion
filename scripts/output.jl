@@ -81,33 +81,24 @@ if length(module_weights) < 3
 end
 
 xc = get(misfits, :xcorr, zeros(Float64, n_phases, n_trials))
-pol = get(misfits, :polarity, zeros(Float64, length(unique(index.station_idx)), n_trials))
-psr = get(misfits, :psr, zeros(Float64, length(unique(index.station_idx)), n_trials))
-
+# TODO(#3): polarity/psr aggregation not yet developed — forward misfit dimension is
+# N_ch (polarity) / N_st (psr), NOT n_stations. Re-add when forward-stage misfit
+# output is wired through status files.
 xmask = strategy.xcorr_phase_mask
-polmask = strategy.polarity_channel_mask
-psrmask = strategy.psr_channel_mask
-n_stations = size(pol, 1)
-
 if length(xmask) < n_phases
-    ;
-    xmask = ones(Int32, n_phases);
+    xmask = ones(Int32, n_phases)
 end
-if length(polmask) < n_stations
-    ;
-    polmask = ones(Int32, n_stations);
-end
-if length(psrmask) < n_stations
-    ;
-    psrmask = ones(Int32, n_stations);
-end
-
 xcorr_bool = Vector{Bool}(xmask .== Int32(1))
-pol_bool = Vector{Bool}(polmask .== Int32(1))
-psr_bool = Vector{Bool}(psrmask .== Int32(1))
 
-total, best_idx, per_module =
-    Aggregate.aggregate_misfits(xc, pol, psr, xcorr_bool, pol_bool, psr_bool, module_weights)
+total, best_idx, per_module = Aggregate.aggregate_misfits(
+    xc,
+    zeros(Float64, 0, n_trials),
+    zeros(Float64, 0, n_trials),
+    xcorr_bool,
+    Bool[],
+    Bool[],
+    module_weights,
+)
 
 best_strike = trials.strike[best_idx]
 best_dip = trials.dip[best_idx]
@@ -160,7 +151,7 @@ uncertainty = Dict{String, Any}(
 # 5. Per-phase breakdown
 phase_ids = index.phase_ids
 phase_types = index.phase_type
-station_indices = index.station_idx
+# station_indices (index.station_idx) reserved for #3 re-implementation
 
 station_ids = [join(split(pid, ".")[1:2], ".") for pid in phase_ids]
 channel_ids = [join(split(pid, ".")[1:3], ".") for pid in phase_ids]
@@ -169,17 +160,8 @@ misfit_per_module = zeros(Float64, 3, n_phases)
 for ph in 1:n_phases
     misfit_per_module[1, ph] = xc[ph, best_idx]
 end
-for ph in 1:n_phases
-    si = station_indices[ph]
-    if 1 <= si <= size(pol, 1)
-        ;
-        misfit_per_module[2, ph] = pol[si, best_idx];
-    end
-    if 1 <= si <= size(psr, 1)
-        ;
-        misfit_per_module[3, ph] = psr[si, best_idx];
-    end
-end
+# TODO(#3): rows 2-3 (polarity/psr) need per-channel / per-station misfit
+# indexing — not yet developed; left as zeros placeholder.
 
 selected = length(xmask) < n_phases ? ones(Int32, n_phases) : xmask
 cross_correlation = [1.0 - misfit_per_module[1, ph] for ph in 1:n_phases]
@@ -200,7 +182,7 @@ sta_ids = String[]
 sta_n_ch = Int32[]
 sta_n_ph = Int32[]
 sta_cc = Float64[]
-sta_pol = Int32[]
+# TODO(#3): polarity_match dropped — needs per-channel polarity misfit indexing.
 sta_mis = Float64[]
 
 for sta in unique_stations
@@ -209,14 +191,6 @@ for sta in unique_stations
     n_ch = length(unique([channel_ids[i] for i in idx_in_sta]))
     cc_vals = [cross_correlation[i] for i in idx_in_sta]
     mean_cc = sum(cc_vals) / length(cc_vals)
-    pol_match = 0
-    for i in idx_in_sta
-        si = station_indices[i]
-        if 1 <= si <= size(pol, 1) && pol[si, best_idx] == 0.0
-            ;
-            pol_match += 1;
-        end
-    end
     total_misfit = 0.0
     for i in idx_in_sta
         for m in 1:3
@@ -228,7 +202,6 @@ for sta in unique_stations
     push!(sta_n_ch, Int32(n_ch))
     push!(sta_n_ph, Int32(n_ph_sta))
     push!(sta_cc, mean_cc)
-    push!(sta_pol, Int32(pol_match))
     push!(sta_mis, total_misfit)
 end
 
@@ -237,7 +210,6 @@ per_station_summary = Dict{String, Any}(
     "n_channels" => sta_n_ch,
     "n_phases" => sta_n_ph,
     "mean_cross_correlation" => sta_cc,
-    "polarity_match" => sta_pol,
     "misfit_total" => sta_mis,
 )
 
