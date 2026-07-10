@@ -2,6 +2,8 @@
 
 **Location**: `shared/aggregate/` (Julia package `Aggregate`)
 
+> **当前状态**: 开发第一阶段。本模块未被当前 `input.jl` 使用，预留供 assess/output 阶段开发。
+
 ## Purpose
 
 Apply per-module masks, weight, and aggregate raw misfits into per-trial total scores. Used by assess.jl (primary) and output.jl (verification).

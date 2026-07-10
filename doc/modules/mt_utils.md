@@ -2,6 +2,8 @@
 
 **Location**: `shared/mt/` (Julia package `MT`)
 
+> **当前状态**: 开发第一阶段。Julia 端 (`shared/mt/`) 已可用。C++ 端 (`forward/src/mt_utils.*`) 保留为历史参考，未在当前开发中使用。
+
 ## Description
 
 Double-couple SDR (strike, dip, rake) to 6-component moment tensor conversion. Must produce identical results in both Julia and C++ to 6 decimal places.

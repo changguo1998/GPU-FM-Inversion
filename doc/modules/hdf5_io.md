@@ -4,6 +4,8 @@
 
 ## Purpose
 
+> **当前状态**: 开发第一阶段。`input.jl` 使用本模块写入 `database.h5`。以下为完整管道的设计描述——preprocess/forward/assess/output 阶段待开发。
+
 HDF5 file read/write operations shared across all stages. Provides typed accessors that abstract HDF5 group/dataset traversal.
 
 ## Used By

@@ -1,114 +1,64 @@
-# Design: CUDA-Accelerated Focal Mechanism Inversion
+# Design: 震源机制反演管道（从头开发）
 
 ## Overview
 
-CUDA-accelerated pipeline for determining earthquake focal mechanisms through iterative grid search. A 5-stage pipeline: one-time initialization, then a 3-stage loop with GPU-accelerated misfit computation and Julia-based preprocessing, strategy, and output compilation.
+震源机制反演管道。当前为从头开发第一阶段，仅完成数据接入与初始化。Julia 数据接入 + 预处理，HDF5 数据交换。后续阶段（试次生成、失配计算、加权聚合、输出编译）待开发。
 
-## Project Layout
-
-```
-scripts/                    ← Flat stage scripts (one file per stage)
-  input.jl, preprocess.jl, assess.jl, output.jl
-shared/                     ← Julia packages by function (not stage)
-  io/        (module: IO)      ← HDF5 I/O abstractions
-  mt/        (module: MT)      ← SDR ↔ MT conversion
-  grid/      (module: Grid)    ← Trial generation + grid refinement
-  signal/    (module: Signal)  ← Waveform preprocessing (filtering, trimming)
-  aggregate/ (module: Aggregate) ← Misfit masking, weighting, aggregation
-forward/                    ← C++ executable (OpenMP/CUDA), unchanged
-driver.sh                   ← Bash orchestration
-tests/                      ← Test scripts and data
-```
-
-## Stage Partitioning
+## Current Project Layout
 
 ```
-input (once) ──→ loop: [preprocess → forward → assess → [repeat]] ──→ output
+scripts/        Flat stage scripts (当前仅 input.jl)
+shared/         Julia packages by function (not stage)
+  io/           (module: IO)      ← HDF5 I/O abstractions
+  mt/           (module: MT)      ← SDR ↔ MT conversion
+  grid/         (module: Grid)    ← Trial generation + grid refinement
+  signal/       (module: Signal)  ← Waveform preprocessing (filtering, trimming)
+  aggregate/    (module: Aggregate) ← Misfit masking, weighting, aggregation
+  config/       (module: Config)  ← Pipeline configuration interface
+  stage_log/    (module: StageLog) ← Per-stage logging
+config_sample.jl   Template pipeline configuration
 ```
 
-| Stage | Language | Runs | Responsibility |
-|-----------------|-------------------|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `input.jl` | Julia | Once (before loop) | Data ingestion → `database.h5`; initial strategy → `status_0.h5` |
-| `preprocess.jl` | Julia | Each loop | Trial generation from strategy → `status_{N}.h5` |
-| `forward.cpp` | C++ (OpenMP/CUDA) | Each loop | GPU misfit computation: per-module, per-phase, per-trial. Stateless. No weights. |
-| `assess.jl` | Julia | Each loop | Weighting, aggregation, grid refinement, operator prompt → creates `status_{N+1}.h5` (continue) or marks current `status_{N}.h5` converged (break) |
-| `output.jl` | Julia | Once (after loop) | Compile final solution → `output.h5` |
-| `driver.sh` | Bash | Entire run | Stateless orchestration: file-state detection, stage invocation, loop control |
-
-Stage scripts use `using` to import shared packages from `shared/`. Config is loaded via `include(abspath(config_jl))`. All stages run under `julia --project=root` (the root `Project.toml` resolves shared packages). HDF5 state detection delegated to assess.jl (exit code signaling) — driver.sh does not introspect HDF5.
-
-Orchestration detail: `doc/stages/`
-
-**Preprocess dependency**: `preprocess.jl` may also read `database.h5` for validation and config reference (see `doc/stages/preprocess.md`).
-
-## Control Flow
+## Current Stage
 
 ```
-driver.sh:
-  1. input.jl (once) → database.h5 + status_0.h5 (initial strategy, no trials yet)
-  2. loop:
-     a. preprocess.jl   → reads status_{N}.h5 /strategy
-                          → writes status_{N}.h5 /trials
-     b. forward.cpp     → reads database.h5 + status_{N}.h5 /trials
-                          → writes status_{N}.h5 /misfits
-     c. assess.jl       → reads status_{N}.h5 /trials + /misfits
-                          → prompts operator for continue/break
-                          → on continue: writes status_{N+1}.h5 /strategy (refined grid, converged=0)
-                          → on break: sets /strategy/converged=1 on status_{N}.h5
-     d. if status_{N}.h5 has converged=1 → break to step 3 (output)
-        else → loop back to step 2a (next N, using status_{N+1})
-  3. output.jl → reads status_{0..N}.h5 → output.h5
+scripts/input.jl  (once) → database.h5 + status_0.h5
 ```
 
-## Data Flow (Stage Level)
+`input.jl` 已完成：读取 `config.jl` 配置，通过 `Config.load_*()` 接口加载外部数据（波形、台站、震相、格林函数），预处理后写入 `database.h5`，并生成初始搜索策略 `status_0.h5`。
+
+## Future Pipeline (规划)
 
 ```
-config.jl ───────────► input.jl (once) ──► database.h5 (static, all preprocessed data)
-                                         status_0.h5 (initial strategy, no trials yet)
-                                              │
-                        ◄─────────────────────┘
-                        │
-                   preprocess.jl (each loop) ──► reads strategy, writes trials
-                        │
-                        ▼
-                 status_{N}.h5 ◄──────┐  (trials added by preprocess)
-                        │              │
-                        ▼              │
-                 forward.cpp ──────────┘  (reads trials, writes misfits)
-                        │
-                        ▼
-                  assess.jl
-                        │
-               prompts operator
-                   ┌───┴───┐
-              continue    break
-                   │         │
-                   ▼         ▼
-            status_{N+1}.h5  converged=1
-            (refined grid)  on status_{N}.h5
-                   │         │
-              loop back      ▼
-              to preprocess  output.jl ──► output.h5
+input (once) → loop: [preprocess → forward → assess → [repeat]] → output
 ```
+
+| Stage | Role |
+|-----------------|---------------------------------------------------------------|
+| `input.jl` | 已完成。数据接入 → `database.h5`；初始 strategy → `status_0.h5` |
+| `preprocess.jl` | 待开发。从 strategy 生成 trials → `status_{N}.h5` |
+| forward | 待设计。失配计算（是否用 C++/GPU 待定） |
+| `assess.jl` | 待开发。加权、聚合、网格细化、operator prompt |
+| `output.jl` | 待开发。编译最终结果 → `output.h5` |
+| 编排层 | 待设计。状态检测、阶段调用、循环控制 |
 
 ## Data Files
 
-| File | Lifetime | Produced By | Contents |
-|-----------------|---------------|------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `database.h5` | Static | `input.jl` (first run, once) | All preprocessed data: Greens at all depths, filtered waveform variants, per-module preprocessing, algorithm config |
-| `status_{N}.h5` | Per-iteration | `input.jl` (initial strategy), `preprocess.jl` (trials), `forward.cpp` (misfits), `assess.jl` (convergence flag) | Workflow file built incrementally: starts with `/strategy` only, then `/trials` and `/misfits` are added. On break, assess sets `/strategy/converged=1`. On continue, assess creates `status_{N+1}.h5`. |
-| `output.h5` | Final | `output.jl` | Best-fit parameters, uncertainties, per-phase breakdown, per-station summary, optional synthetic waveforms |
-| `config.jl` | Bootstrap | User | Misfit module list, frequency bands, depth range, initial grid params |
+| File | Lifetime | Contents |
+|-----------------|---------------|---------------------------------------------------------------------------|
+| `database.h5` | Static | 所有预处理数据：各深度格林函数、滤波波形变体、各模块预处理结果、算法配置、索引 |
+| `status_{N}.h5` | Per-iteration | Strategy, trials, misfits（当前仅 `/strategy`，由 input.jl 写入） |
+| `output.h5` | Final | 最佳拟合参数、不确定性、逐阶段/台站分解（待实现） |
+| `config.jl` | Bootstrap | 用户提供：失配模块列表、频带、深度范围、初始网格参数、数据接口实现 |
 
-## Key Design Rules
+## Key Design Rules (Current)
 
-1. **`forward.cpp` is stateless** — reads preprocessed data + trial params, writes raw misfits. No weighting, no aggregation, no strategy knowledge.
-1. **`assess.jl` owns all strategy** — weights, phase selection, grid refinement, and operator prompt for continue/break.
-1. **All frequency-band variants precomputed upfront** in `database.h5`. No runtime filtering.
-1. **Misfits are unweighted** — weights applied in assess. XCorr: `[N_ph × N_tr]` (phase-level). Polarity: `[N_ch × N_tr]` (channel-level, P-polarity per channel).
-1. **Green's functions pre-computed externally** — loaded by `input.jl`, never computed by the pipeline.
-1. **Linear decomposition** — cross-correlation precomputed on host CPU by `DataCache`: `CC(obs, GF[:,i])` for i=0..5. Per-trial: weighted sum of precomputed CCs on device via kernel.
-1. **Dynamic grid refinement** — `assess.jl` refines grid from results each iteration. Grid axes generate values as `var0 + i*dvar` (start model).
+1. **所有频带变体在 input.jl 中预计算** — 写入 `database.h5`，后续阶段无运行时滤波。
+1. **格林函数外部预计算** — 由 `input.jl` 加载，管道内不计算格林函数。
+1. **配置通过 `config.jl` 引导** — 实现 `Config` 模块接口，仅 `input.jl` 读取。所有配置写入 `database.h5`；后续阶段从 HDF5 读取。
+1. **HDF5 schema 是阶段间接口契约** — schema 变更需要协调的阶段更新。
+1. **Flat scripts** — 阶段脚本无 `function` 定义，顶层直列执行。
+1. **shared packages** — 工具代码在 `shared/` Julia 包中，通过 `using` 导入。
 
 ## Dimension Symbols
 

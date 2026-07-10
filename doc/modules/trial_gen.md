@@ -2,6 +2,8 @@
 
 **Location**: `shared/grid/` (Julia package `Grid`)
 
+> **当前状态**: 开发第一阶段。仅 `Grid.default_grid()` 被 `input.jl` 使用。`generate_trials()` 和 `grid_refinement.jl` 待后续阶段接入。
+
 ## Sub-modules
 
 - `trial_gen.jl` — expands strategy grid into trial table (Cartesian product)

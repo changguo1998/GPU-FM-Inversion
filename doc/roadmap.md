@@ -1,63 +1,50 @@
-# Roadmap — Focal Mechanism Inversion Pipeline
+# Roadmap — 震源机制反演管道（从头开发）
+
+当前为从头开发第一阶段，仅完成数据接入与初始化（`input.jl`）。以下为后续阶段规划。
 
 ## Legend
 
 - [x] Completed
-- [~] Partial / needs wiring
 - [ ] Not started
 
 ______________________________________________________________________
 
-## Phase 1: Core Infrastructure (complete)
+## 已完成
 
-| Task | Status | Notes |
-|---------------------------------------------------------------------|--------|--------------------------------------|
-| [x] IO module — HDF5 read/write, type structs, geophysics utilities | Done | `shared/io/` |
-| [x] MT module — SDR↔MT conversion (Julia + C++ dual) | Done | Verified cross-language to 1e-12 |
-| [x] Grid module — trial generation | Done | `shared/grid/src/trial_gen.jl` |
-| [x] Config module — interface declarations | Done | `shared/config/src/Config.jl` |
-| [x] Signal module — waveform preprocessing | Done | `shared/signal/` |
-| [x] StageLog module — per-stage logging | Done | `shared/stage_log/` |
-| [x] Aggregate module — misfit aggregation | Done | `shared/aggregate/` |
-| [x] `input.jl` — data ingestion and preprocessing | Done | Writes `database.h5` + `status_0.h5` |
-| [x] `preprocess.jl` — trial generation | Done | Reads strategy, writes trials |
-| [x] `assess.jl` — weighting, aggregation, grid refinement | Done | Signals via exit code 0/10 |
-| [x] `output.jl` — solution compilation | Done | Writes `output.h5` |
-| [x] Forward C++ framework — HDF5 I/O, DataCache, kernels | Done | Compiled binary, all test targets |
-| [x] Grid refinement logic | Done | `shared/grid/src/grid_refinement.jl` |
-| [x] Synthetic test data generator | Done | `tests/synthetic_data.jl` |
+| Task | 说明 |
+|-----------------------------------------------------------------------------|---------------------|
+| [x] IO module — HDF5 read/write, type structs, geophysics utilities | `shared/io/` |
+| [x] MT module — SDR↔MT conversion | `shared/mt/` |
+| [x] Grid module — trial generation + grid refinement | `shared/grid/` |
+| [x] Signal module — waveform preprocessing | `shared/signal/` |
+| [x] Aggregate module — misfit aggregation | `shared/aggregate/` |
+| [x] Config module — interface declarations | `shared/config/` |
+| [x] StageLog module — per-stage logging | `shared/stage_log/` |
+| [x] `input.jl` — data ingestion, preprocessing, database + initial strategy | `scripts/input.jl` |
 
-## Phase 2: Pipeline Integration (in progress)
+______________________________________________________________________
 
-| Task | Status | Notes |
-|----------------------------------------------|----------------|----------------------------------------------------------------------------------------------------------------|
-| [~] `driver.sh` — full 5-stage loop | **Partial** | Input stage works, loop+output behind `exit 0` |
-| [ ] `driver.sh` — assess exit code detection | Not started | Need to read exit code 10 |
-| [ ] `driver.sh` — resume / skip-input logic | Not started | Detect existing `database.h5` |
-| [~] DataCache ↔ database.h5 schema bridge | **Needs work** | DataCache reads `/data/{freq}/{module}/{pid}/` paths; database.h5 stores under `/xcorr/`, `/polarity/`, `/gf/` |
-| [ ] Maxlag from database config | Not started | Hardcoded to 50 in `main.cpp` |
-| [ ] Waveform synthesis path fix | Not started | `read_greens` uses `greens/` path but DB stores under `/gf/` |
+## Phase 1: 后续阶段开发
 
-## Phase 3: Testing & Validation
+| Task | Priority | 说明 |
+|-----------------------------------------------|----------|-----------------------------------|
+| [ ] `preprocess.jl` — 从 strategy 生成 trials | P0 | 写 status_N.h5 /trials group |
+| [ ] forward 阶段 — 失配计算 | P0 | 需设计新接口（是否继续用 C++ 待定） |
+| [ ] `assess.jl` — 加权/聚合/网格细化 | P0 | 读 misfits，写 refined strategy |
+| [ ] `output.jl` — 输出编译 | P0 | 读所有 status 文件，写 output.h5 |
+| [ ] `driver.sh` — 管道编排 | P0 | 5 阶段循环 + exit code 检测 |
 
-| Task | Status | Notes |
-|----------------------------------------|-----------|--------------------------------------------------------|
-| [x] MT cross-language consistency test | Done | `tests/test_cross_lang.jl` |
-| [x] E2E test script | Done | `tests/test_e2e.sh` (may need update for current code) |
-| [ ] End-to-end pipeline test | Not wired | Needs Phase 2 completion first |
-| [ ] Forward stage integration test | Not wired | Needs DataCache path bridge |
+## Phase 2: 验证
 
-## Phase 4: Future Modules
+| Task | 说明 |
+|-----------------------|---------------------------------------|
+| [ ] input.jl 单元测试 | 验证 database.h5 + status_0.h5 schema |
+| [ ] 端到端集成测试 | 全管道贯通测试 |
 
-| Task | Status | Notes |
-|---------------------------------------------|-------------|------------------------------------------------|
-| [ ] PSR module pipeline integration | Not started | C++ kernel exists, no data path in database.h5 |
-| [ ] AbsShift module | Deferred | |
-| [ ] RelShift module | Deferred | |
-| [ ] Operator prompt in non-interactive mode | Not started | Currently reads stdin |
+## Phase 3: 高级模块
 
-## Known Blockers
-
-1. **DataCache path mismatch**: `load_combo()` reads from `/data/{freq_idx}/{module}/{pid}/` paths. The new `database.h5` schema stores data under `/xcorr/obs/{phase}-{band}/`, `/polarity/obs/`, `/gf/{depth}/`. Forward stage cannot find data.
-1. **`driver.sh` exit 0**: Pipeline stops after input stage. Loop and output are below `exit 0`.
-1. **`read_greens` path**: Uses `greens/{pid}/{depth}` but database stores GF at `/gf/{depth}/{channel_id}`. Waveform synthesis in output.jl silently skips all phases.
+| Task | 说明 |
+|----------------------------|------|
+| [ ] PSR module | 延期 |
+| [ ] AbsShift / RelShift | 延期 |
+| [ ] 非交互 operator prompt | 延期 |

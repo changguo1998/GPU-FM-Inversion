@@ -2,6 +2,8 @@
 
 **Location**: `shared/signal/` (Julia package `Signal`)
 
+> **当前状态**: 开发第一阶段。`input.jl` 使用 `Signal.preprocess_xcorr!()` 和 `Signal.preprocess_polarity!()`。DataCache 和 C++ 后端为历史参考。
+
 ## Purpose
 
 Filter, trim, and preprocess observed waveforms and Green's functions for each frequency band and misfit module.
