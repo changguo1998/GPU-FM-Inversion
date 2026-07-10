@@ -9,13 +9,13 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 ## Type structs
 
 | Struct | Fields | Schema |
-|---------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+|---------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | `EventInfo` | `longitude, latitude, depth, magnitude, origintime` | From external `raw.h5` `/event` |
 | `StationInfo` | `id, network, station, channel, latitude, longitude, elevation, dt, begin_time` | From `/stations` |
 | `PhasePick` | `station_id, P_time, S_time, P_polarity` (Int8) | From `/phase_picks` |
 | `Index` | `phase_ids, phase_type, station_idx, distance, azimuth, greens_depth_idx` | Legacy — used internally for status file round-trips. Not in new `database.h5` schema. |
 | `TrialSet` | `strike, dip, rake, depth, depth_idx, freq_idx` | Written to `status_{N}.h5` `/trials` |
-| `Strategy` | Grid params, masks, weights, best results, freq/depth accumulators, iteration, converged flag | Written to `/strategy` (20+ fields) |
+| `Strategy` | Grid params (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake), depth/freq indices, iteration | Written to `/strategy` (12 fields) |
 
 ## Exports
 

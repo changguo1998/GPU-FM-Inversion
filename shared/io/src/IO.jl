@@ -69,16 +69,7 @@ struct Strategy
     nrake::Int32
     depth_indices::Vector{Int32}
     freq_indices::Vector{Int32}
-    module_weights::Vector{Float64}
-    best_sdr::Vector{Float64}
-    best_depth_index::Int32
-    best_misfit::Float64
     iteration::Int32
-    converged::Int32
-    convergence_reason::String
-    freq_accumulated::Matrix{Float64}
-    freq_misfit_curve::Matrix{Float64}
-    depth_misfit_accumulated::Vector{Float64}
 end
 
 struct Index
@@ -272,16 +263,7 @@ function read_strategy(h5file)::Strategy
                 read(gr["nrake"]),
                 read(gr["depth_indices"]),
                 read(gr["freq_indices"]),
-                read(gr["module_weights"]),
-                read(gr["best_sdr"]),
-                read(gr["best_depth_index"]),
-                read(gr["best_misfit"]),
                 read(gr["iteration"]),
-                read(gr["converged"]),
-                String(read(gr["convergence_reason"])),
-                read(gr["freq_accumulated"]),
-                read(gr["freq_misfit_curve"]),
-                read(gr["depth_misfit_accumulated"]),
             )
         end,
         h5file,
@@ -486,16 +468,7 @@ function write_strategy(h5file, strategy::Strategy)
         write(gr, "nrake", strategy.nrake)
         write(gr, "depth_indices", strategy.depth_indices)
         write(gr, "freq_indices", strategy.freq_indices)
-        write(gr, "module_weights", strategy.module_weights)
-        write(gr, "best_sdr", strategy.best_sdr)
-        write(gr, "best_depth_index", strategy.best_depth_index)
-        write(gr, "best_misfit", strategy.best_misfit)
         write(gr, "iteration", strategy.iteration)
-        write(gr, "converged", strategy.converged)
-        write(gr, "convergence_reason", strategy.convergence_reason)
-        write(gr, "freq_accumulated", strategy.freq_accumulated)
-        write(gr, "freq_misfit_curve", strategy.freq_misfit_curve)
-        write(gr, "depth_misfit_accumulated", strategy.depth_misfit_accumulated)
     end
 end
 

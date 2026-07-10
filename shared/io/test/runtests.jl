@@ -66,16 +66,7 @@ function make_synthetic_status()
         4,   # rake
         Int32[0, 1, 2],   # depth_indices
         Int32[0, 3],       # freq_indices
-        [0.5, 0.3, 0.2],  # module_weights
-        [130.0, 50.0, -80.0],  # best_sdr
-        Int32(2),           # best_depth_index
-        0.023,              # best_misfit
         Int32(3),           # iteration
-        Int32(0),           # converged
-        "running",          # convergence_reason
-        [1.0 2.0 3.0; 4.0 5.0 NaN],  # freq_accumulated
-        [0.1 0.2; 0.3 0.4],           # freq_misfit_curve
-        [0.05, 0.04, NaN, 0.02, 0.03],  # depth_misfit_accumulated
     )
 
     # ---- Trials ----
@@ -262,26 +253,7 @@ end
         @test strat.nstrike == 5
         @test strat.depth_indices == Int32[0, 1, 2]
         @test strat.freq_indices == Int32[0, 3]
-        @test strat.module_weights ≈ [0.5, 0.3, 0.2]
-        @test strat.best_sdr ≈ [130.0, 50.0, -80.0]
-        @test strat.best_depth_index == 2
-        @test strat.best_misfit ≈ 0.023
         @test strat.iteration == 3
-        @test strat.converged == 0
-        @test strat.convergence_reason == "running"
-
-        # NaN preservation in freq_accumulated
-        @test size(strat.freq_accumulated) == (2, 3)
-        @test strat.freq_accumulated[1, 1] ≈ 1.0
-        @test isnan(strat.freq_accumulated[2, 3])
-
-        # NaN in depth_misfit_accumulated
-        @test length(strat.depth_misfit_accumulated) == 5
-        @test isnan(strat.depth_misfit_accumulated[3])
-
-        # freq_misfit_curve
-        @test size(strat.freq_misfit_curve) == (2, 2)
-        @test strat.freq_misfit_curve[1, 1] ≈ 0.1
     end
 
     @testset "trials round-trip" begin
@@ -434,16 +406,7 @@ end
             4,
             Int32[0, 1, 2],
             Int32[0, 3],
-            [0.5, 0.3, 0.2],
-            [130.0, 50.0, -80.0],
-            Int32(2),
-            0.023,
             Int32(3),
-            Int32(0),
-            "running",
-            [1.0 2.0; 3.0 NaN],
-            [0.1 0.2; 0.3 0.4],
-            [0.05, NaN],
         )
         # Write first time
         IO.write_strategy(fn, strat)
@@ -451,35 +414,13 @@ end
         @test r1.strike0 ≈ 120.0
         @test r1.nstrike == 5
         # Write second time (replacement)
-        strat2 = IO.Strategy(
-            200.0,
-            5.0,
-            10,
-            60.0,
-            3.0,
-            2,
-            0.0,
-            15.0,
-            6,
-            Int32[3, 4],
-            Int32[1],
-            [0.6, 0.2, 0.2],
-            [200.0, 60.0, 0.0],
-            Int32(3),
-            0.015,
-            Int32(5),
-            Int32(1),
-            "converged",
-            [5.0;;],
-            [0.05;;],
-            [0.01, 0.02],
-        )
+        strat2 =
+            IO.Strategy(200.0, 5.0, 10, 60.0, 3.0, 2, 0.0, 15.0, 6, Int32[3, 4], Int32[1], Int32(5))
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
         @test r2.strike0 ≈ 200.0
         @test r2.nstrike == 10
-        @test r2.converged == 1
-        @test r2.convergence_reason == "converged"
+        # removed fields: converged & convergence_reason no longer in Strategy
         rm(fn; force = true)
     end
 

@@ -83,13 +83,6 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
         new_freq_indices = Int32[best_trial.freq_idx]
     end
 
-    # Accumulate depth misfits (element-wise min)
-    if isempty(current.depth_misfit_accumulated)
-        new_depth_misfit_accumulated = copy(best_trial.depth_misfits)
-    else
-        new_depth_misfit_accumulated =
-            min.(current.depth_misfit_accumulated, best_trial.depth_misfits)
-    end
 
     # Build output Strategy
     return H5IO.Strategy(
@@ -104,16 +97,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
         new_nrake,
         new_depth_indices,
         new_freq_indices,
-        copy(current.module_weights),
-        Float64[best_trial.sdr[1], best_trial.sdr[2], best_trial.sdr[3]],
-        best_trial.depth_idx,
-        best_trial.misfit,
         current.iteration + Int32(1),
-        Int32(0),    # converged = 0 (not yet converged; set by assess.jl on operator break)
-        "",          # convergence_reason (set by assess.jl)
-        copy(current.freq_accumulated),
-        copy(current.freq_misfit_curve),
-        new_depth_misfit_accumulated,
     )
 end
 

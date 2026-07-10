@@ -440,8 +440,6 @@ end
 
 @info "Writing status_0.h5 ..."
 
-init_weights = fill(1.0 / n_misfit_modules, n_misfit_modules)
-
 strategy = IO.Strategy(
     Float64(grid.strike0),
     Float64(grid.dstrike),
@@ -454,16 +452,7 @@ strategy = IO.Strategy(
     Int32(grid.nrake),
     Int32.(1:n_depths),
     Int32.(1:n_bands),
-    Float64.(init_weights),
-    Float64[grid.strike0, grid.dip0, grid.rake0],
-    Int32(1),
-    Inf,
     Int32(0),
-    Int32(0),
-    "",
-    zeros(Float64, n_bands, 3),
-    zeros(Float64, n_bands, 0),
-    zeros(Float64, n_depths),
 )
 
 status0_path = joinpath(data_dir, "status_0.h5")

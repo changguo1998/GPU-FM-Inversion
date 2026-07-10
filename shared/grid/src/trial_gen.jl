@@ -41,9 +41,8 @@ struct GridStrategy
     rake0::Float64
     drake::Float64
     nrake::Int32
-    depth_indices::Vector{Int32}
     freq_indices::Vector{Int32}
-    best_depth_index::Int32
+end
 end
 
 """
@@ -89,7 +88,7 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
     rakes = expand_axis(strategy.rake0, strategy.drake, strategy.nrake)
 
     if isempty(strategy.depth_indices)
-        depth_idxs = Int32[strategy.best_depth_index]
+        depth_idxs = Int32[1]
     else
         depth_idxs = strategy.depth_indices
     end

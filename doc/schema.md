@@ -148,7 +148,7 @@ One file per iteration, built incrementally by pipeline stages.
 Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar` for i = 0..n-1.
 
 | Dataset | Type | Shape | Description |
-|----------------------------|---------|--------------------------------|--------------------------------|
+|-----------------|---------|--------|--------------------------------|
 | `strike0` | Float64 | scalar | Strike start (deg) |
 | `dstrike` | Float64 | scalar | Strike step (deg) |
 | `nstrike` | Int32 | scalar | Strike value count (0 = fixed) |
@@ -160,16 +160,7 @@ Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar`
 | `nrake` | Int32 | scalar | Rake value count (0 = fixed) |
 | `depth_indices` | Int32 | `[n]` | Depth indices to search |
 | `freq_indices` | Int32 | `[n]` | Freq band indices to search |
-| `module_weights` | Float64 | `[N_modules]` | Current module weights |
-| `best_sdr` | Float64 | `[3]` | Best (strike, dip, rake) |
-| `best_depth_index` | Int32 | scalar | Best depth index |
-| `best_misfit` | Float64 | scalar | Best weighted misfit |
 | `iteration` | Int32 | scalar | Iteration number |
-| `converged` | Int32 | scalar | Convergence flag (0/1) |
-| `convergence_reason` | String | scalar | Stop reason |
-| `freq_accumulated` | Float64 | `[N_bands, 3]` | Best SDR per frequency band |
-| `freq_misfit_curve` | Float64 | `[N_bands, N_freq_test_mechs]` | Misfit vs frequency |
-| `depth_misfit_accumulated` | Float64 | `[N_depths]` | Best misfit per depth |
 
 ### `/trials`
 
