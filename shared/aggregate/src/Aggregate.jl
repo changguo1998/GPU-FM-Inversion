@@ -7,19 +7,16 @@ export aggregate_misfits, compute_depth_range, compute_sdr_std
 """
     aggregate_misfits(
         xcorr, polarity, psr,
-        xcorr_phase_mask, polarity_channel_mask, psr_channel_mask,
         module_weights,
     ) -> (total::Vector{Float64}, best_idx::Int, per_module::Dict{Symbol, Vector{Float64}})
 
-Apply per-module masks, weight, and aggregate raw misfits into per-trial total scores.
+Aggregate raw misfits into per-trial total scores. All input phases/channels are
+used equally — no channel selection. NaN values are treated as missing (ignored).
 
 # Arguments
 - `xcorr`: shape `[N_phases × N_trials]` — raw XCorr misfits
 - `polarity`: shape `[N_channels × N_trials]` — raw Polarity misfits
 - `psr`: shape `[N_channels × N_trials]` — raw PSR misfits
-- `xcorr_phase_mask`: length `N_phases` — `true` = active, `false` = masked (skip)
-- `polarity_channel_mask`: length `N_channels` — `true` = active, `false` = masked
-- `psr_channel_mask`: length `N_channels` — `true` = active, `false` = masked
 - `module_weights`: `[2]` or `[3]` — weights for `[xcorr, polarity]` or `[xcorr, polarity, psr]`
 
 # Returns
@@ -28,8 +25,7 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 - `per_module`: Dict with keys `:xcorr`, `:polarity`, `:psr` → `[N_trials]`
 
 # NaN Handling
-- Masked entries (where mask is `false`) are skipped entirely — their NaN values
-  do not propagate to the trial total.
+- NaN entries are skipped (not counted in sum).
 - If a trial has ALL entries NaN across ALL modules, an `ErrorException` is thrown.
 - A module with weight=0 contributes nothing.
 
@@ -38,13 +34,9 @@ Apply per-module masks, weight, and aggregate raw misfits into per-trial total s
 xcorr = [1.0 2.0; 3.0 4.0]           # 2 phases × 2 trials
 polarity = [0.0 1.0]                   # 1 station × 2 trials
 psr = [0.5 0.5]                        # 1 station × 2 trials
-mask_xc = [true, true]                 # both phases active
-mask_pol = [true]                      # station active
-mask_psr = [true]                      # station active
 weights = [1.0, 1.0, 1.0]             # equal weights
 
-total, best, per_mod = aggregate_misfits(xcorr, polarity, psr,
-    mask_xc, mask_pol, mask_psr, weights)
+total, best, per_mod = aggregate_misfits(xcorr, polarity, psr, weights)
 # total ≈ [4.5, 7.5], best = 1
 ```
 """
@@ -52,43 +44,26 @@ function aggregate_misfits(
     xcorr::Matrix{Float64},
     polarity::Matrix{Float64},
     psr::Matrix{Float64},
-    xcorr_phase_mask::Vector{Bool},
-    polarity_channel_mask::Vector{Bool},
-    psr_channel_mask::Vector{Bool},
     module_weights::Vector{Float64},
 )
     n_trials = size(xcorr, 2)
 
-    # Per-module masked sum
-    # For each trial: sum values where mask is true AND value is not NaN.
-    function _masked_sum(data::Matrix{Float64}, mask::Vector{Bool})
-        n_rows = size(data, 1)
+    # Sum each module across all rows, ignoring NaN
+    function _sum_all(data::Matrix{Float64})
+        n_trials = size(data, 2)
         scores = zeros(Float64, n_trials)
-        row_used = falses(n_trials)  # track if ANY non-NaN value contributed
-        for i in 1:n_rows
-            if !mask[i]
-                continue  # masked row: skip entirely
-            end
-            for j in 1:n_trials
-                v = data[i, j]
-                if !isnan(v)
-                    scores[j] += v
-                    row_used[j] = true
-                end
-            end
-        end
-        # Trials that had no contribution → NaN
-        for j in 1:n_trials
-            if !row_used[j]
-                scores[j] = NaN
+        for i in 1:size(data, 1), j in 1:n_trials
+            v = data[i, j]
+            if !isnan(v)
+                scores[j] += v
             end
         end
         return scores
     end
 
-    xc_per_trial = _masked_sum(xcorr, xcorr_phase_mask)
-    pol_per_trial = _masked_sum(polarity, polarity_channel_mask)
-    psr_per_trial = _masked_sum(psr, psr_channel_mask)
+    xc_per_trial = _sum_all(xcorr)
+    pol_per_trial = _sum_all(polarity)
+    psr_per_trial = _sum_all(psr)
 
     # All-NaN check across all modules
     all_nan_xc = all(isnan, xc_per_trial)

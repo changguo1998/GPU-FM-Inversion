@@ -147,7 +147,7 @@ ______________________________________________________________________
 Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar` for i = 0..n-1.
 
 | Dataset | Type | Shape | Description |
-|----------------------------|---------|--------------------------------|------------------------------------------|
+|----------------------------|---------|--------------------------------|--------------------------------|
 | `strike0` | Float64 | scalar | Strike start (deg) |
 | `dstrike` | Float64 | scalar | Strike step (deg) |
 | `nstrike` | Int32 | scalar | Strike value count (0 = fixed) |
@@ -159,9 +159,6 @@ Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar`
 | `nrake` | Int32 | scalar | Rake value count (0 = fixed) |
 | `depth_indices` | Int32 | `[n]` | Depth indices to search |
 | `freq_indices` | Int32 | `[n]` | Freq band indices to search |
-| `xcorr_phase_mask` | Int32 | `[N_phases]` | XCorr phase selection (1=active, 0=skip) |
-| `polarity_channel_mask` | Int32 | `[N_channels]` | Polarity channel selection |
-| `psr_channel_mask` | Int32 | `[N_channels]` | PSR channel selection |
 | `module_weights` | Float64 | `[N_modules]` | Current module weights |
 | `best_sdr` | Float64 | `[3]` | Best (strike, dip, rake) |
 | `best_depth_index` | Int32 | scalar | Best depth index |
