@@ -17,7 +17,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 | Source | Description |
 |---------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `database.h5` | All preprocessed data: Green's functions at all depths, filtered waveform variants, per-module preprocessing, algorithm config |
-`status_0.h5` | Initial strategy (`/strategy` group) — search grid from `config.jl`. No trials yet.
+|| `status_0.h5` | Initial strategy (`/strategy` group) — search grid from `config.jl`. No trials yet. |
 
 ## Responsibilities
 
