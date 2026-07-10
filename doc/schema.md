@@ -60,6 +60,7 @@ Flat arrays indexed by `N_stations` (one row per unique station).
 | `id` | String | `[N_stations]` | Station identifier (`NET.ST1`) |
 | `network` | String | `[N_stations]` | Network code |
 | `station` | String | `[N_stations]` | Station name |
+| `channel` | String | `[N_stations]` | Channel code (`Z`, `N`, `E`) |
 | `latitude` | Float64 | `[N_stations]` | Station latitude (deg) |
 | `longitude` | Float64 | `[N_stations]` | Station longitude (deg) |
 | `elevation` | Float64 | `[N_stations]` | Station elevation (m) |
@@ -140,7 +141,7 @@ ______________________________________________________________________
 
 ## `status_{N}.h5` — Per-Iteration Workflow File
 
-(Unchanged from previous schema — one file per iteration, built incrementally.)
+One file per iteration, built incrementally by pipeline stages.
 
 ### `/strategy`
 
@@ -178,8 +179,9 @@ Grid axes: `n > 0` means axis varies, generating `n` values as `var0 + i * dvar`
 | `dip` | Float64 | `[N_trials]` | Dip angles (deg) |
 | `rake` | Float64 | `[N_trials]` | Rake angles (deg) |
 | `depth` | Float64 | `[N_trials]` | Depth (km) |
-| `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
 | `depth_idx` | Int32 | `[N_trials]` | GF depth index |
+| `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
+| `N_trials` | Int32 | scalar | Trial count |
 
 ### `/misfits`
 
