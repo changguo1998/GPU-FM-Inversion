@@ -9,8 +9,7 @@ Used by: `preprocess.jl`, `assess.jl`.
 ## Types
 
 | Struct | File | Fields | Notes |
-|----------------|----------------------|-------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
-| `GridStrategy` | `trial_gen.jl` | `strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake, depth_indices, freq_indices, best_depth_index` | Subset of IO.Strategy — only grid-relevant fields |
+|| `GridStrategy` | `trial_gen.jl` | `strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake, depth_indices, freq_indices` | Subset of IO.Strategy — only grid-relevant fields |
 | `TrialSet` | `trial_gen.jl` | `strike, dip, rake, depth, depth_idx, freq_idx` | Column vectors, length N_trials |
 | `TrialResult` | `grid_refinement.jl` | `sdr[3], depth_idx, freq_idx, misfit, depth_misfits[], freq_misfits[]` | Best-trial result for refinement |
 
@@ -34,7 +33,7 @@ Note: `Grid.TrialSet` and `IO.TrialSet` are separate structs with identical fiel
 - Frequency subset: indices where `freq_misfit ≤ 1.2 × best_freq_misfit`
 - Empty subset fallback: single best index
 - Depth misfit accumulator: element-wise min across iterations
-- Returns new `H5IO.Strategy` with `converged=0`, iteration incremented
+- Returns new `H5IO.Strategy` with iteration incremented
 
 ## Operator prompt
 

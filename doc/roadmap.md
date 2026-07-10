@@ -12,14 +12,11 @@ ______________________________________________________________________
 ## 已完成
 
 | Task | 说明 |
-|-----------------------------------------------------------------------------|---------------------|
+|---------------------------------------------------------------------|----------------|
 | [x] IO module — HDF5 read/write, type structs, geophysics utilities | `shared/io/` |
 | [x] MT module — SDR↔MT conversion | `shared/mt/` |
 | [x] Grid module — trial generation + grid refinement | `shared/grid/` |
-| [x] Signal module — waveform preprocessing | `shared/signal/` |
-| [x] Aggregate module — misfit aggregation | `shared/aggregate/` |
-| [x] Config module — interface declarations | `shared/config/` |
-| [x] StageLog module — per-stage logging | `shared/stage_log/` |
+|| [x] StageLog module — per-stage logging | `shared/stage_log/` |
 | [x] `input.jl` — data ingestion, preprocessing, database + initial strategy | `scripts/input.jl` |
 
 ______________________________________________________________________

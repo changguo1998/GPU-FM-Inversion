@@ -57,6 +57,8 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 1. **配置通过 `config.jl` 引导** — 实现 `Config` 模块接口，仅 `input.jl` 读取。所有配置写入 `database.h5`；后续阶段从 HDF5 读取。
 1. **HDF5 schema 是阶段间接口契约** — schema 变更需要协调的阶段更新。
 1. **Flat scripts** — 阶段脚本无 `function` 定义，顶层直列执行。
+1. **`/strategy` 仅含网格定义** — 无迭代状态字段（weights, best-fit, convergence）。状态由各阶段自行管理。
+1. **`forward` 模块无状态** — 读数据 + trials，写原始 misfits。不涉及权重、聚合、策略。
 1. **shared packages** — 工具代码在 `shared/` Julia 包中，通过 `using` 导入。
 
 ## Dimension Symbols

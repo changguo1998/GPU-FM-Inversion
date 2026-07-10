@@ -50,12 +50,12 @@ Computes next iteration's grid parameters from current best trial.
 **Input**: strategy + per-trial aggregated misfits from `assess.jl`
 
 | Parameter | Source | Rule |
-|----------------------------|----------------------------|------------------------------------------------------------|
+|----------------------------|------------------------|--------------------------------------------|
 | `strike0`, `dip0`, `rake0` | Current best trial SDR | New grid **start** values (not center) |
 | `dstrike`, `ddip`, `drake` | Current step sizes | Halved: `new_step = current_step / 2` |
 | `nstrike`, `ndip`, `nrake` | Fixed | Always `[3, 3, 3]` (3 values per SDR axis) |
-| `depth_indices` | `depth_misfit_accumulated` | Indices of depths within 20% of best depth misfit |
-| `freq_indices` | `freq_misfit_curve` | Indices of frequencies within 20% of best frequency misfit |
+|| `depth_indices` | Trial depth misfits | Indices of depths within 20% of best depth misfit |
+|| `freq_indices` | Trial freq misfits | Indices of frequencies within 20% of best freq misfit |
 
 **Refinement factor**: fixed at 0.5 (half step sizes each iteration).
 
@@ -71,28 +71,26 @@ Computes next iteration's grid parameters from current best trial.
 
 `grid_refinement.jl` includes `prompt_operator()` which displays current best result and asks the operator whether to continue (`y`/`N`).
 
-- **y** → creates `status_{N+1}.h5` with `/strategy/converged=0`. Driver loops to preprocess for next iteration.
-- **N** (any other) → sets `/strategy/converged=1`, `convergence_reason="user"` on the **current** `status_{N}.h5` (no new file created). Driver detects converged=1 and breaks to output.
+- **y** → writes refined strategy to `status_{N+1}.h5` with updated grid and `iteration+1`. Driver loops to preprocess.
+- **N** (any other) → operator signals stop. Driver breaks to output.
 
 ### Output (Refinement)
 
 Updated strategy for `status_{N+1}.h5` (on continue):
 
-- `strike0`, `dstrike`, `nstrike`
-- `dip0`, `ddip`, `ndip`
-- `rake0`, `drake`, `nrake`
-- `depth_indices`
-- `freq_indices`
-- `best_sdr`: `[strike, dip, rake]` from current best trial
-- `best_misfit`: total misfit of current best trial
-- `freq_accumulated`: best SDR per frequency band, for uncertainty reporting
-- `freq_misfit_curve`: misfit values used for frequency subset selection
-- `depth_misfit_accumulated`: best misfit per depth, for depth subset selection
+| Dataset | Source |
+|---------------------------------|---------------------------------|
+| `strike0`, `dstrike`, `nstrike` | Center on best SDR, halved step |
+| `dip0`, `ddip`, `ndip` | Center on best SDR, halved step |
+| `rake0`, `drake`, `nrake` | Center on best SDR, halved step |
+| `depth_indices` | Within 20% of best depth misfit |
+| `freq_indices` | Within 20% of best freq misfit |
+| `iteration` | Previous + 1 |
 
 ## Rules
 
 - Axis with `n=0` → not varying, contributes 1 value (uses `var0` only)
-- Empty `depth_indices` → no depth variation, use `best_depth_index` from strategy
+- Empty `depth_indices` → no depth variation, single depth (index 1)
 - Empty `freq_indices` → no frequency variation, single frequency band
 - Trial order: deterministic (same Cartesian product order every time)
 

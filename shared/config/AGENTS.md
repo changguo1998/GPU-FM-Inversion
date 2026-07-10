@@ -12,8 +12,7 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 
 | Function | Return type | Example return value |
 |----------------------|-----------------------------------|--------------------------------------------|
-| `misfit_modules()` | `Vector{String}` | `["XCorr", "Polarity"]` |
-| `module_weights()` | `Vector{Float64}` | `[0.5, 0.5]` |
+|| `minimum_stations()` | `Int` | `2` |
 | `minimum_stations()` | `Int` | `2` |
 | `freq_bands()` | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]` |
 | `depths()` | `Vector{Float64}` | `[5.0, 10.0, 15.0]` |
@@ -49,7 +48,6 @@ User writes a `.jl` file that implements the functions:
 ```julia
 # (Config module is already loaded by input.jl)
 Config.misfit_modules() = ["XCorr", "Polarity"]
-Config.module_weights() = [0.5, 0.5]
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
 
