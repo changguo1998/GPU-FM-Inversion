@@ -13,7 +13,6 @@ shared/         Julia packages by function (not stage)
   mt/           (module: MT)      ← SDR ↔ MT conversion
   grid/         (module: Grid)    ← Trial generation + grid refinement
   signal/       (module: Signal)  ← Waveform preprocessing (filtering, trimming)
-  aggregate/    (module: Aggregate) ← Misfit masking, weighting, aggregation
   config/       (module: Config)  ← Pipeline configuration interface
   stage_log/    (module: StageLog) ← Per-stage logging
 config_sample.jl   Template pipeline configuration
