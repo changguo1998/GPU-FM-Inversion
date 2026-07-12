@@ -64,8 +64,8 @@ function make_synthetic_status()
         -90.0,
         20.0,
         4,   # rake
-        Int32[0, 1, 2],   # depth_indices
-        Int32[0, 3],       # freq_indices
+        Int32[1, 2, 3],   # depth_indices
+        Int32[1, 4],       # freq_indices
         Int32(3),           # iteration
     )
 
@@ -75,8 +75,8 @@ function make_synthetic_status()
         collect(40.0:5.0:60.0),     # dip
         collect(-120.0:20.0:-60.0), # rake
         fill(12.3, 11),             # depth
-        Int32.(0:10),               # depth_idx
-        Int32.(zeros(Int32, 11)),   # freq_idx
+        Int32.(1:11),               # depth_idx
+        fill(Int32(1), 11),         # freq_idx
     )
 
     # ---- Misfits ----
@@ -103,16 +103,8 @@ function make_synthetic_database()
     fn = tmpfile("test_database.h5")
 
     green_phase = "NET.STA1.BHE.P"
-    index = IO.Index(
-        [green_phase, "NET.STA1.BHN.S", "NET.STA2.BHE.P"],
-        ["P", "S", "P"],
-        Int32[0, 0, 1],
-        [120.0, 120.0, 125.0],
-        [45.0, 45.0, 60.0],
-        Int32[0 1; 0 2; 0 3],
-    )
 
-    greens = Dict(green_phase => Dict(Int32(0) => rand(100, 6), Int32(1) => rand(100, 6)))
+    greens = Dict(green_phase => Dict(Int32(1) => rand(100, 6), Int32(2) => rand(100, 6)))
 
     data = Dict(
         0 => Dict(
@@ -144,7 +136,7 @@ function make_synthetic_database()
     )
 
     IO.write_database(fn, greens, data, index, config)
-    return (; greens, data, index, config)
+    return (; greens, data, config)
 end
 
 function make_synthetic_output()
@@ -251,8 +243,8 @@ end
         strat = IO.read_strategy(fn)
         @test strat.strike0 ≈ 120.0
         @test strat.nstrike == 5
-        @test strat.depth_indices == Int32[0, 1, 2]
-        @test strat.freq_indices == Int32[0, 3]
+        @test strat.depth_indices == Int32[1, 2, 3]
+        @test strat.freq_indices == Int32[1, 4]
         @test strat.iteration == 3
     end
 
@@ -263,7 +255,7 @@ end
         @test trials.strike[1] ≈ 100.0
         @test trials.strike[end] ≈ 200.0
         @test trials.depth_idx isa Vector{Int32}
-        @test all(trials.freq_idx .== 0)
+        @test all(trials.freq_idx .== 1)
     end
 
     @testset "misfits round-trip" begin
@@ -287,19 +279,10 @@ end
         ex = make_synthetic_database()
         fn = tmpfile("test_database.h5")
 
-        # Read index
-        idx = IO.read_index(fn)
-        @test idx.phase_ids == ex.index.phase_ids
-        @test idx.phase_type == ex.index.phase_type
-        @test idx.station_idx == ex.index.station_idx
-        @test idx.distance ≈ ex.index.distance
-        @test idx.azimuth ≈ ex.index.azimuth
-        @test idx.greens_depth_idx == ex.index.greens_depth_idx
-
         # Read greens
-        g = IO.read_greens(fn, "NET.STA1.BHE.P", Int32(0))
+        g = IO.read_greens(fn, "NET.STA1.BHE.P", Int32(1))
         @test size(g) == (100, 6)
-        @test g ≈ ex.greens["NET.STA1.BHE.P"][Int32(0)]
+        @test g ≈ ex.greens["NET.STA1.BHE.P"][Int32(1)]
 
         # Read config
         cfg = IO.read_config(fn)
@@ -371,11 +354,10 @@ end
                 "shallow" => Int32(7),
             ),
         )
-        # Build minimal greens/data/index for write_database
+        # Build minimal greens/data/config for write_database
         greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
         data = Dict{Int, Dict{Symbol, Dict{String, Any}}}()
-        index = IO.Index(String[], String[], Int32[], Float64[], Float64[], Int32[0;;])
-        IO.write_database(fn, greens, data, index, deep_config)
+        IO.write_database(fn, greens, data, deep_config)
 
         cfg = IO.read_config(fn)
         @test cfg["basic"] == "value"
@@ -404,8 +386,8 @@ end
             -90.0,
             20.0,
             4,
-            Int32[0, 1, 2],
-            Int32[0, 3],
+            Int32[1, 2, 3],
+            Int32[1, 4],
             Int32(3),
         )
         # Write first time

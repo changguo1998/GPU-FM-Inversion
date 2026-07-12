@@ -9,11 +9,11 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 ## Type structs
 
 | Struct | Fields | Schema |
-|---------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+|--------------------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
 | `EventInfo` | `longitude, latitude, depth, magnitude, origintime` | From external `raw.h5` `/event` |
 | `StationInfo` | `id, network, station, channel, latitude, longitude, elevation, dt, begin_time` | From `/stations` |
 | `PhasePick` | `station_id, P_time, S_time, P_polarity` (Int8) | From `/phase_picks` |
-| `Index` | `phase_ids, phase_type, station_idx, distance, azimuth, greens_depth_idx` | Legacy — used internally for status file round-trips. Not in new `database.h5` schema. |
+| *(Phase struct removed)* | | Phase metadata embedded in `/xcorrP`, `/xcorrS`, `/polarity` groups. |
 | `TrialSet` | `strike, dip, rake, depth, depth_idx, freq_idx` | Written to `status_{N}.h5` `/trials` |
 | `Strategy` | Grid params (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake), depth/freq indices, iteration | Written to `/strategy` (12 fields) |
 
@@ -32,12 +32,11 @@ Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5I
 - `read_strategy(h5file)` → `Strategy`
 - `read_misfits(h5file)` → `Dict{Symbol, Matrix{Float64}}`
 - `read_greens(h5file, phase_id, depth_idx)` → `Matrix{Float64}`
-- `read_index(h5file)` → `Index`
 - `read_config(h5file)` → `Dict{String, Any}` (recursive group reader)
 
 ### Writers
 
-- `write_database(h5file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)` — creates `database.h5` from scratch; writes `/config`, `/event`, `/station`, `/channel`, `/gf`, `/xcorr`, `/polarity` groups
+- `write_database(h5file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)` — creates `database.h5` from scratch; writes `/config`, `/event`, `/station`, `/channel`, `/gf`, `/xcorrP/`, `/xcorrS/`, `/polarity` groups
 - `write_trials(h5file, trials::TrialSet)` — overwrites `/trials` in existing file
 - `write_strategy(h5file, strategy::Strategy)` — overwrites `/strategy`
 - `write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)` — creates `output.h5`

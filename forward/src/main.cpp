@@ -17,34 +17,6 @@
 #include "mt_utils.h"
 
 // ──────────────────────────────────────────────────────────────────────────
-// Helper: read HDF5 variable-length string 1D dataset
-// ──────────────────────────────────────────────────────────────────────────
-static std::vector<std::string> read_string_1d(hid_t file_id, const char *path) {
-    hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
-    if (dset < 0)
-        throw std::runtime_error("Cannot open " + std::string(path));
-
-    hid_t space = H5Dget_space(dset);
-    hsize_t dims[1] = {0};
-    H5Sget_simple_extent_dims(space, dims, nullptr);
-
-    std::vector<char *> buf(dims[0]);
-    hid_t memtype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(memtype, H5T_VARIABLE);
-    H5Dread(dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf.data());
-
-    std::vector<std::string> result;
-    for (hsize_t i = 0; i < dims[0]; ++i) {
-        result.push_back(std::string(buf[i]));
-        std::free(buf[i]);
-    }
-    H5Tclose(memtype);
-    H5Sclose(space);
-    H5Dclose(dset);
-    return result;
-}
-
-// ──────────────────────────────────────────────────────────────────────────
 // main — forward stage entry point
 //
 // Usage: forward <database.h5> <status_N.h5>
@@ -114,26 +86,37 @@ int main(int argc, char *argv[]) {
         Hdf5Handle db_reader;
         db_reader.open(database_path.c_str(), H5F_ACC_RDONLY);
 
-        // Read phase types and station mapping
-        hid_t db_raw = db_reader.file_id;
-        auto phase_type = read_string_1d(db_raw, "/index/phase_type");
-        auto st_idx_vec = db_reader.read_int_1d("/index/station_idx");
+        // Read station mapping from each group (data already partitioned by P/S)
+        auto p_si = db_reader.read_int_1d("/xcorrP/station_idx");
+        auto s_si = db_reader.read_int_1d("/xcorrS/station_idx");
+        int n_p = static_cast<int>(p_si.size());
+        int n_s = static_cast<int>(s_si.size());
+        int N_phases = n_p + n_s;
 
-        int N_phases = static_cast<int>(phase_type.size());
+        // Build combined station_idx (P first, S after)
+        std::vector<int> st_idx_vec;
+        st_idx_vec.reserve(N_phases);
+        st_idx_vec.insert(st_idx_vec.end(), p_si.begin(), p_si.end());
+        st_idx_vec.insert(st_idx_vec.end(), s_si.begin(), s_si.end());
+
         int N_stations = 0;
         for (int s : st_idx_vec)
             if (s + 1 > N_stations)
                 N_stations = s + 1;
 
         // Build station → (P_phase_idx, S_phase_idx) map
+        // P phases occupy indices [0, n_p); S phases occupy [n_p, N_phases)
         std::vector<int> p_phase_of_station(N_stations, -1);
         std::vector<int> s_phase_of_station(N_stations, -1);
-        for (int ph = 0; ph < N_phases; ++ph) {
+        for (int ph = 0; ph < n_p; ++ph) {
             int s = st_idx_vec[ph];
-            if (phase_type[ph] == "P" && p_phase_of_station[s] < 0)
+            if (s >= 0 && s < N_stations && p_phase_of_station[s] < 0)
                 p_phase_of_station[s] = ph;
-            if (phase_type[ph] == "S" && s_phase_of_station[s] < 0)
-                s_phase_of_station[s] = ph;
+        }
+        for (int ph = 0; ph < n_s; ++ph) {
+            int s = st_idx_vec[n_p + ph];
+            if (s >= 0 && s < N_stations && s_phase_of_station[s] < 0)
+                s_phase_of_station[s] = n_p + ph;
         }
 
         db_reader.close();

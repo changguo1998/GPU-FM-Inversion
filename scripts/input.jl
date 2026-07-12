@@ -103,6 +103,23 @@ end
 
 n_phases = length(phase_list)
 
+# Per-type metadata for xcorrP / xcorrS
+phases_P = [(pid, si) for (pid, pt, si) in phase_list if pt == "P"]
+xcorrP_channel_id = [
+    let s = stations[si]
+        "$(s.network).$(s.station).$(s.channel)"
+    end for (_, si) in phases_P
+]
+xcorrP_station_idx = Int32[si for (_, si) in phases_P]
+
+phases_S = [(pid, si) for (pid, pt, si) in phase_list if pt == "S"]
+xcorrS_channel_id = [
+    let s = stations[si]
+        "$(s.network).$(s.station).$(s.channel)"
+    end for (_, si) in phases_S
+]
+xcorrS_station_idx = Int32[si for (_, si) in phases_S]
+
 @info "  event    = (lon=$(event.longitude), lat=$(event.latitude), depth=$(event.depth), M=$(event.magnitude))"
 @info "  stations = $n_stations"
 @info "  phases   = $n_phases"
@@ -134,7 +151,7 @@ station_dict["P_polarity"] = [picks[station_to_idx[s.id]].P_polarity for s in st
 # 4. Build /channel — raw waveforms per channel
 # NOTE: /channel stores raw (un-preprocessed) waveforms for verification/debugging only.
 # These do NOT participate in forward misfit computation. The forward stage consumes
-# the preprocessed products under /xcorr (cross-correlation obs+gf, synamp = gf'@gf
+# the preprocessed products under /xcorrP/, /xcorrS/ (cross-correlation obs+gf, synamp = gf'@gf
 # auto-correlation matrices) and /polarity (obs + gf_pol).
 
 @info "Building /channel — raw waveforms ..."
@@ -182,7 +199,7 @@ let n_skip = 0, n_load = 0
     @info "  GF loaded: $n_load (ch,depth) pairs, $n_skip skipped"
 end
 
-# 6. Preprocess waveforms — build /xcorr/obs, /xcorr/gf, /polarity/obs, /polarity/gf
+# 6. Preprocess waveforms — build /xcorrP/obs, /xcorrP/gf, /xcorrS/obs, /xcorrS/gf, /polarity/obs, /polarity/gf
 
 @info "Preprocessing waveforms ..."
 
@@ -196,6 +213,8 @@ xcorr_obs = Dict{String, IO.XCorrObs}()
 xcorr_gf = Dict{Float64, Dict{String, IO.XCorrGF}}()
 polarity_obs = Float64[]
 polarity_gf = Dict{Float64, Array{Float64, 3}}()
+polarity_channel_id = String[]
+polarity_station_idx = Int32[]
 
 for freq_idx in 1:n_bands
     bnd = freq_bands[freq_idx]
@@ -298,6 +317,8 @@ for freq_idx in 1:n_bands
                     obs_pol_val = NaN
                 end
                 push!(polarity_obs, obs_pol_val)
+                push!(polarity_channel_id, ch_id)
+                push!(polarity_station_idx, Int32(si))
                 for depth_val in depths
                     gf_pol, _ = Signal.preprocess_polarity!(
                         gf_per_depth[depth_val],
@@ -335,7 +356,7 @@ for freq_idx in 1:n_bands
                 obs_mat[i, :] = obs_list[i]
             end
             xcorr_obs[key] = IO.XCorrObs(obs_mat, obs_norm2_list)
-            # /xcorr/gf per depth — each depth stacked from its own preprocessed gf_proc
+            # /xcorrP/gf/{depth}/{band} or /xcorrS/gf/{depth}/{band} — each depth stacked from its own preprocessed gf_proc
             for depth_val in depths
                 gfl = gf_lists[depth_val]
                 for i in 1:length(gfl)
@@ -391,19 +412,6 @@ end
 if "Polarity" in misfit_modules
     db_config["polarity"] = Dict{String, Any}("trim" => Float64.(polarity_trim))
 end
-# 7b. Build /index
-n_phases = length(phase_list)
-index_phase_ids = [p[1] for p in phase_list]
-index_phase_type = [p[2] for p in phase_list]
-index_station_idx = Int32[p[3] for p in phase_list]
-index_distance = [station_dict["distance"][p[3]] for p in phase_list]
-index_azimuth = [station_dict["azimuth"][p[3]] for p in phase_list]
-# greens_depth_idx: all depths valid for all phases -> row = phase, col = depth
-index_greens_depth_idx = zeros(Int32, n_phases, n_depths)
-for d in 1:n_depths
-    index_greens_depth_idx[:, d] .= Int32(d)
-end
-@info "  index built ($n_phases phases, $n_depths depths)"
 
 
 # 8. Write database.h5
@@ -423,17 +431,23 @@ IO.write_database(
     polarity_gf,
 )
 @info "  $db_path written"
-# Write /index to database.h5
+# Write phase metadata into xcorrP / xcorrS / polarity groups
 h5open(db_path, "r+") do f
-    gr = HDF5.create_group(f, "index")
-    write(gr, "phase_ids", index_phase_ids)
-    write(gr, "phase_type", index_phase_type)
-    write(gr, "station_idx", index_station_idx)
-    write(gr, "distance", index_distance)
-    write(gr, "azimuth", index_azimuth)
-    write(gr, "greens_depth_idx", index_greens_depth_idx)
+    pgr = f["xcorrP"]
+    write(pgr, "channel_id", xcorrP_channel_id)
+    write(pgr, "station_idx", xcorrP_station_idx)
+
+    sgr = f["xcorrS"]
+    write(sgr, "channel_id", xcorrS_channel_id)
+    write(sgr, "station_idx", xcorrS_station_idx)
+
+    if "Polarity" in misfit_modules
+        polgr = f["polarity"]
+        write(polgr, "channel_id", polarity_channel_id)
+        write(polgr, "station_idx", polarity_station_idx)
+    end
 end
-@info "  /index written ($n_phases phases)"
+@info "  phase metadata written ($(length(xcorrP_channel_id)) P, $(length(xcorrS_channel_id)) S, $(length(polarity_channel_id)) polarity channels)"
 
 
 # 9. Write status_0.h5
@@ -468,7 +482,7 @@ IO.write_strategy(status0_path, strategy)
 @info "  $(basename(db_path)) : /station ($n_stations rows)"
 @info "  $(basename(db_path)) : /channel ($(length(channel_data)) channels)"
 @info "  $(basename(db_path)) : /gf ($(length(gf_data)) depths)"
-@info "  $(basename(db_path)) : /xcorr ($(length(xcorr_obs)) obs bands)"
+@info "  $(basename(db_path)) : /xcorrP, /xcorrS ($(length(xcorr_obs)) obs bands)"
 @info "  $(basename(db_path)) : /polarity ($(length(polarity_obs)) channels)"
 @info "  $(basename(db_path)) : /config, /event"
 @info "  $(basename(status0_path)) : /strategy (initial grid, no trials)"

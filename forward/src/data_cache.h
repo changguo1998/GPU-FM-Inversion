@@ -140,7 +140,8 @@ class DataCache {
     /// Read all preprocessed data for one (freq_idx, depth_idx) combo
     /// from database.h5 and compute reductions.
     CacheEntry load_combo(const std::string &database_path, int freq_idx, int depth_idx,
-                          const std::vector<std::string> &phase_ids, int n_stations);
+                          const std::vector<std::string> &phase_ids, int n_stations, int n_p,
+                          int n_s);
 
     /// XCorr reduction: compute CC, synamp, obs_norm2.
     static void compute_xcorr_reduction(CacheEntry &entry, const std::vector<double> &obs,

@@ -32,7 +32,6 @@ read_trials(file)::TrialSet
 read_strategy(file)::Strategy
 read_misfits(file)::Dict{Symbol, Matrix{Float64}}  # module → data
 read_greens(file, phase_id, depth_idx)::Matrix{Float64}
-read_index(file)::Index
 
 # Writing
 write_database(file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)

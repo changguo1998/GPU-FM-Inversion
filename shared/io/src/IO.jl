@@ -72,22 +72,14 @@ struct Strategy
     iteration::Int32
 end
 
-struct Index
-    phase_ids::Vector{String}
-    phase_type::Vector{String}
-    station_idx::Vector{Int32}
-    distance::Vector{Float64}
-    azimuth::Vector{Float64}
-    greens_depth_idx::Matrix{Int32}
-end
 
 # Exports
 
-export EventInfo, StationInfo, PhasePick, TrialSet, Strategy, Index
+export EventInfo, StationInfo, PhasePick, TrialSet, Strategy
 export h5create_group, h5exists
 export read_config, read_event, read_phase_picks, read_stations
 export read_waveform, read_trials, read_strategy, read_misfits
-export read_greens, read_index
+export read_greens
 export write_database, write_trials, write_misfits, write_strategy, write_output
 export _read_group_recursive, _write_group_recursive
 export parse_time_iso, haversine_distance, compute_azimuth
@@ -295,23 +287,6 @@ function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
     return h5open(f -> read(f[gf_path]), h5file, "r")
 end
 
-function read_index(h5file)::Index
-    h5open(
-        f -> begin
-            gr = f["index"]
-            Index(
-                [String(x) for x in read(gr["phase_ids"])],
-                [String(x) for x in read(gr["phase_type"])],
-                read(gr["station_idx"]),
-                read(gr["distance"]),
-                read(gr["azimuth"]),
-                read(gr["greens_depth_idx"]),
-            )
-        end,
-        h5file,
-        "r",
-    )
-end
 
 # Recursive write helper
 
@@ -378,20 +353,29 @@ function write_database(
             end
         end
 
-        # /xcorr/obs/{phasetype}-{band}/ and /xcorr/gf/{depth}/{phasetype}-{band}/
-        xgr = HDF5.create_group(f, "xcorr")
-        xobsgr = HDF5.create_group(xgr, "obs")
+        # /xcorrP/obs/{band}/ and /xcorrP/gf/{depth}/{band}/ (P-wave XCorr)
+        # /xcorrS/obs/{band}/ and /xcorrS/gf/{depth}/{band}/ (S-wave XCorr)
+        # Pre-create /xcorrP and /xcorrS group trees
+        for ptype in ("P", "S")
+            xgr = HDF5.create_group(f, "xcorr$ptype")
+            HDF5.create_group(xgr, "obs")
+            HDF5.create_group(xgr, "gf")
+        end
+        # Write obs
         for (key, data) in xcorr_obs
-            bgr = HDF5.create_group(xobsgr, key)  # key = "P-1", "S-2", etc
+            ptype, band_str = split(key, "-")
+            bgr = HDF5.create_group(f["xcorr$ptype"]["obs"], band_str)
             write(bgr, "obs", data.obs)
             write(bgr, "obs_norm2", data.obs_norm2)
         end
-
-        xgfgr = HDF5.create_group(xgr, "gf")
+        # Write gf
         for (depth, bands) in xcorr_gf
-            dgr = HDF5.create_group(xgfgr, string(depth))
             for (key, data) in bands
-                bgr = HDF5.create_group(dgr, key)
+                ptype, band_str = split(key, "-")
+                dst = string(depth)
+                gf_parent = f["xcorr$ptype"]["gf"]
+                dgr = haskey(gf_parent, dst) ? gf_parent[dst] : HDF5.create_group(gf_parent, dst)
+                bgr = HDF5.create_group(dgr, band_str)
                 write(bgr, "gf", data.gf)
                 write(bgr, "synamp", data.synamp)
             end

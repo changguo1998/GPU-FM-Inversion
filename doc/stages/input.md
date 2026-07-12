@@ -25,7 +25,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
 1. **Write algorithm config**: load `config.jl`, write into `database.h5`
 1. **Write initial strategy**: initial search grid from config → `/strategy` in `status_0.h5`
-1. **Write phase index**: build `/index` group in `database.h5` — phase IDs, types, station indices, distances, azimuths, and GF depth index mapping
+1. **Write phase metadata**: write `channel_id` + `station_idx` into `/xcorrP`, `/xcorrS`, `/polarity` groups in `database.h5`
 1. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated.
 1. **Per-depth GF preprocessing**: each trial depth independently filters and windows its own Green's functions during XCorr/Polarity preprocessing (previously all depths reused the first depth's GF).
 

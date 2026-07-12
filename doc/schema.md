@@ -21,6 +21,23 @@ All datasets use `Float64` unless noted. Scalars stored as scalar datasets.
 Phase key convention: `{network}.{station}.{channel}.{phase_type}`.
 Channel ID convention: `{station_id}.{channel}` (e.g. `NET.ST1.Z`).
 
+### Index Convention
+
+All array/vector indices throughout the schema are **1-based** (Julia convention).
+Values correspond directly to Julia array indexing. Zero is not a valid index.
+
+| Field | Group | Description |
+|-----------------|-----------------------------------|---------------------------------------------|
+| `depth_indices` | `/strategy` | Depth indices to search (1..N_depths) |
+| `freq_indices` | `/strategy` | Freq band indices to search (1..N_bands) |
+| `station_idx` | `/xcorrP`, `/xcorrS`, `/polarity` | Station table index (1..N_stations) |
+| `depth_idx` | `/trials` | GF depth index per trial (1..N_depths) |
+| `freq_idx` | `/trials` | Frequency band index per trial (1..N_bands) |
+| `depth_idx` | `Grid.TrialResult` | Best depth index (1..N_depths) |
+| `freq_idx` | `Grid.TrialResult` | Best frequency index (1..N_bands) |
+
+This applies to all HDF5 files (`database.h5`, `status_N.h5`, `output.h5`).
+
 ______________________________________________________________________
 
 ## `database.h5` — Static Data (Written by input.jl)
@@ -88,29 +105,43 @@ Green's functions, grouped by depth. One dataset per channel-station pair per de
 /gf/{depth}/{station_id}.{channel}    Float64[N_samples_raw × 6]   GF matrix (time × MT components)
 ```
 
-### `/xcorr`
+### `/xcorrP`, `/xcorrS` — XCorr Data by Phase Type
 
-XCorr module preprocessed data. Observed data stored once (no depth dimension); GF data stored per depth.
+Separate groups for P-wave (`N_phases_P` entries) and S-wave (`N_phases_S` entries).
 
-**`/xcorr/obs/{phasetype}-{band}/`**
-
-| Dataset | Type | Shape | Description |
-|-------------|---------|-------------------------|---------------------------------------|
-| `obs` | Float64 | `[N_phases, N_samples]` | Filtered + trimmed observed waveforms |
-| `obs_norm2` | Float64 | `[N_phases]` | Energy of each obs trace |
-
-Where `phasetype` ∈ {P, S}, `band` is the 1-indexed band number.
-
-**`/xcorr/gf/{depth}/{phasetype}-{band}/`**
+**Per-group metadata (group root):**
 
 | Dataset | Type | Shape | Description |
-|----------|---------|----------------------------|-----------------------------------------|
-| `gf` | Float64 | `[N_phases, 6, N_samples]` | Filtered + trimmed Green's functions |
-| `synamp` | Float64 | `[N_phases, 6, 6]` | GF auto-correlation (gf^T gf) per phase |
+|---------------|--------|--------------------|----------------------------------------|
+| `channel_id` | String | `[N_phases_{P,S}]` | Channel identifier (`NET.ST1.Z`) |
+| `station_idx` | Int32 | `[N_phases_{P,S}]` | Index into `/station` tables (1-based) |
+
+**`/xcorrP/obs/{band}/`**, **`/xcorrS/obs/{band}/`**
+
+| Dataset | Type | Shape | Description |
+|-------------|---------|-------------------------------|---------------------------------------|
+| `obs` | Float64 | `[N_phases_{P,S}, N_samples]` | Filtered + trimmed observed waveforms |
+| `obs_norm2` | Float64 | `[N_phases_{P,S}]` | Energy of each obs trace |
+
+`band` is the 1-indexed band number.
+
+**`/xcorrP/gf/{depth}/{band}/`**, **`/xcorrS/gf/{depth}/{band}/`**
+
+| Dataset | Type | Shape | Description |
+|----------|---------|----------------------------------|-----------------------------------------|
+| `gf` | Float64 | `[N_phases_{P,S}, 6, N_samples]` | Filtered + trimmed Green's functions |
+| `synamp` | Float64 | `[N_phases_{P,S}, 6, 6]` | GF auto-correlation (gf^T gf) per phase |
 
 ### `/polarity`
 
-Polarity module preprocessed data.
+Polarity module preprocessed data, indexed by `N_channels`.
+
+**Per-group metadata (group root):**
+
+| Dataset | Type | Shape | Description |
+|---------------|--------|----------------|----------------------------------------|
+| `channel_id` | String | `[N_channels]` | Channel identifier (`NET.ST1.Z`) |
+| `station_idx` | Int32 | `[N_channels]` | Index into `/station` tables (1-based) |
 
 **`/polarity/obs/`**
 
@@ -123,19 +154,6 @@ Polarity module preprocessed data.
 | Dataset | Type | Shape | Description |
 |----------|---------|---------------------------------------|---------------------------|
 | `gf_pol` | Float64 | `[N_channels, 6, N_polarity_samples]` | GF within polarity window |
-
-### `/index`
-
-Flat arrays indexed by `N_phases` (one row per phase entry).
-
-| Dataset | Type | Shape | Description |
-|--------------------|---------|-------------------------|------------------------------------------|
-| `phase_ids` | String | `[N_phases]` | Phase identifiers (`NET.ST1.Z.P`) |
-| `phase_type` | String | `[N_phases]` | `"P"` or `"S"` |
-| `station_idx` | Int32 | `[N_phases]` | Index into `/station` tables (1-based) |
-| `distance` | Float64 | `[N_phases]` | Epicentral distance (km) per phase |
-| `azimuth` | Float64 | `[N_phases]` | Event-to-station azimuth (deg) per phase |
-| `greens_depth_idx` | Int32 | `[N_phases × N_depths]` | GF depth index per phase per depth |
 
 ______________________________________________________________________
 
