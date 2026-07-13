@@ -37,10 +37,18 @@ scripts/input.jl  (一次) → database.h5 + status_0.h5
 ## HDF5 files
 
 | File | Lifetime | Contents |
-|-----------------|---------------|-------------------------------------------------------------------------------------------|
-| `database.h5` | Static | Greens at all depths, all freq-band variants, per-module preprocessed data, config, index |
+|-----------------|---------------|----------------------------------------------------------------------------------------------------------|
+| `database.h5` | Static | Greens at all depths, all freq-band variants, per-module preprocessed data, **paraspace**, config, index |
 | `status_{N}.h5` | Per-iteration | Strategy, trials, misfits for iteration N |
 | `output.h5` | Final | Best-fit parameters, uncertainties, per-phase/station breakdown |
+
+### `/paraspace` (new in database.h5)
+
+Stores expanded float arrays for parameter-space dimensions:
+strike/dip/rake (from grid expansion), depth, frequency (discrete values, `Float64[N_freq]`).
+Low/high cuts of each band are `freq_low_idx`/`freq_high_idx` in `/strategy` pointing into
+`/paraspace/frequency`. All integer indices live in `/strategy` — `/config` has none.
+See `doc/schema.md` for details.
 
 ## Domain concepts
 

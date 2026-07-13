@@ -17,7 +17,7 @@ module Config
 
 export misfit_modules, minimum_stations
 export freq_bands, depths
-export xcorr_params, polarity_params
+export use_misfit!
 export load_event, load_stations, load_phase_picks, load_waveform, load_gf
 
 # Error for unimplemented interface functions
@@ -33,18 +33,73 @@ Base.showerror(io::IO, e::ConfigError) = print(
     "  Your config script must define:  $(e.func)()  $(e.msg)",
 )
 
+# Misfit module plugin loader
+
+const _MISFIT_DIR = joinpath(@__DIR__, "..", "..", "misfit")
+const _LOADED_MISFIT_MODULES = String[]
+
+"""
+    use_misfit!(name::Symbol; from::Symbol = name)
+
+Load a misfit module plugin and register it in `misfit_modules()`.
+
+Loads the plugin from `shared/misfit/{from}.jl` and creates `Config.{name}`
+as an inner module with config stubs and a `preprocess()` function.
+
+When `from` differs from `name`, the plugin file is used as a template
+instantiated under a new name — useful for running the same misfit
+computation with different parameters (e.g. XCorr for P and S waves).
+
+Examples:
+  # Simple load
+  Config.use_misfit!(:Polarity)
+
+  # Template instantiation — both inherit from Xcorr template
+  Config.use_misfit!(:XcorrP, from = :Xcorr)
+  Config.use_misfit!(:XcorrS, from = :Xcorr)
+  Config.XcorrP.trim() = [-2.0, 5.0]
+  Config.XcorrS.trim() = [-2.0, 8.0]
+
+  # Explicit override of misfit_modules (optional)
+  function Config.misfit_modules()
+      return ["XcorrP", "XcorrS", "Polarity"]
+  end
+"""
+function use_misfit!(name::Symbol; from::Symbol = name)
+    file = joinpath(_MISFIT_DIR, "$from.jl")
+    if !isfile(file)
+        error("Misfit module '$name' not found at $file")
+    end
+    @eval module $name
+    include($(file))
+    end
+    n = string(name)
+    if !(n in _LOADED_MISFIT_MODULES)
+        push!(_LOADED_MISFIT_MODULES, n)
+    end
+    return nothing
+end
+
 # Interface functions (must be implemented by user config)
 
 """
     misfit_modules() -> Vector{String}
 
 Return the list of active misfit module names.
-Example: `return ["XCorr", "Polarity"]`
+
+By default returns modules registered via `use_misfit!()`, in registration
+order. Override this function in your config script to reorder or filter.
+
+Example (auto-detection, no override needed):
+  # Just call use_misfit! — modules are listed automatically
+
+Example (explicit override):
+  function Config.misfit_modules()
+      return ["XcorrP", "Polarity"]   # exclude XcorrS
+  end
 """
 function misfit_modules()::Vector{String}
-    throw(
-        ConfigError("misfit_modules", "-> Vector{String}  (e.g. return [\"XCorr\", \"Polarity\"])"),
-    )
+    return copy(_LOADED_MISFIT_MODULES)
 end
 
 """
@@ -79,50 +134,6 @@ Example: `return [5.0, 10.0, 15.0]`
 """
 function depths()::Vector{Float64}
     throw(ConfigError("depths", "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
-end
-
-"""
-    xcorr_params() -> NamedTuple{(:maxlag_factor, :filter_order,
-                                  :P_trim, :S_trim,
-                                  :select_threshold, :deselect_threshold)}
-
-Return XCorr module parameters.
-
-Fields:
-  maxlag_factor     :: Float64   fraction of window for max lag
-  filter_order      :: Int       Butterworth filter order
-  P_trim            :: Vector{Float64}   P-wave trim window [pre, post] seconds
-  S_trim            :: Vector{Float64}   S-wave trim window [pre, post] seconds
-  select_threshold  :: Float64   CC threshold to select a phase
-  deselect_threshold :: Float64  CC threshold to deselect a phase
-
-Example:
-  return (maxlag_factor=0.5, filter_order=4,
-          P_trim=[-2.0, 5.0], S_trim=[-2.0, 5.0],
-          select_threshold=0.5, deselect_threshold=0.3)
-"""
-function xcorr_params()
-    throw(
-        ConfigError(
-            "xcorr_params",
-            "-> NamedTuple (maxlag_factor, filter_order, P_trim, S_trim, select_threshold, deselect_threshold)",
-        ),
-    )
-end
-
-"""
-    polarity_params() -> NamedTuple{(:trim,), <:NTuple{1}}
-
-Return Polarity module parameters.
-
-Fields:
-  trim :: Vector{Float64}   [start, end] seconds after P arrival
-
-Example:
-  return (trim=[0.0, 2.0],)
-"""
-function polarity_params()
-    throw(ConfigError("polarity_params", "-> NamedTuple (trim=[t_start, t_end])"))
 end
 
 """

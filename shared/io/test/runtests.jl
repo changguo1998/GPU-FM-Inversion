@@ -55,17 +55,9 @@ function make_synthetic_status()
 
     # ---- Strategy ----
     strategy = IO.Strategy(
-        120.0,
-        10.0,
-        5,   # strike
-        45.0,
-        5.0,
-        3,     # dip
-        -90.0,
-        20.0,
-        4,   # rake
         Int32[1, 2, 3],   # depth_indices
-        Int32[1, 4],       # freq_indices
+        Int32[1, 3],       # freq_low_idx
+        Int32[2, 4],       # freq_high_idx
         Int32(3),           # iteration
     )
 
@@ -102,41 +94,120 @@ end
 function make_synthetic_database()
     fn = tmpfile("test_database.h5")
 
-    green_phase = "NET.STA1.BHE.P"
+    n_sta = 1
+    ch_id = "NET.STA1.BHE"
 
-    greens = Dict(green_phase => Dict(Int32(1) => rand(100, 6), Int32(2) => rand(100, 6)))
-
-    data = Dict(
-        0 => Dict(
-            :XCorr => Dict(
-                green_phase => Dict(
-                    "obs" => rand(100),
-                    "gf" => rand(100, 6),
-                    "synamp" => rand(6, 6),
-                ),
-            ),
-        ),
+    event = Dict(
+        "longitude" => 118.5,
+        "latitude" => 32.1,
+        "depth" => 12.3,
+        "magnitude" => 4.7,
+        "origintime" => "2024-03-15T08:22:00",
     )
 
+    station = Dict(
+        "id" => ["NET.STA1"],
+        "network" => ["NET"],
+        "station" => ["STA1"],
+        "channel" => ["BHE"],
+        "latitude" => [32.0],
+        "longitude" => [118.0],
+        "elevation" => [150.0],
+        "dt" => [0.01],
+        "begin_time" => ["2024-03-15T08:21:00"],
+        "distance" => [50.0],
+        "azimuth" => [90.0],
+        "P_time" => ["2024-03-15T08:22:15"],
+        "S_time" => ["2024-03-15T08:22:40"],
+        "P_polarity" => Int8[1],
+    )
+
+    channel_data = Dict(ch_id => rand(100))
+
+    gf_data = Dict(
+        5.0 => Dict(ch_id => rand(100, 6)),
+        10.0 => Dict(ch_id => rand(100, 6)),
+        15.0 => Dict(ch_id => rand(100, 6)),
+    )
+
+
     config = Dict{String, Any}(
-        "misfit_modules" => ["XCorr"],
-        "module_weights" => [1.0],
-        "depth_vals" => [5.0, 10.0, 15.0],
-        "freq_bands_low" => [0.05, 0.1],
-        "freq_bands_high" => [0.5, 1.0],
-        "minimum_stations" => Int32(3),
-        "xcorr" => Dict(
+        "misfit_modules" => ["XcorrP", "XcorrS", "Polarity"],
+        "n_bands" => Int32(2),
+        "XcorrP" => Dict(
             "maxlag_factor" => 0.5,
             "filter_order" => Int32(4),
-            "P_trim" => [-2.0, 60.0],
-            "S_trim" => [-2.0, 80.0],
+            "trim" => [-2.0, 60.0],
             "select_threshold" => 0.7,
             "deselect_threshold" => 0.5,
         ),
+        "XcorrS" => Dict(
+            "maxlag_factor" => 0.5,
+            "filter_order" => Int32(4),
+            "trim" => [-2.0, 80.0],
+            "select_threshold" => 0.7,
+            "deselect_threshold" => 0.5,
+        ),
+        "Polarity" => Dict("trim" => [0.0, 2.0]),
     )
 
-    IO.write_database(fn, greens, data, index, config)
-    return (; greens, data, config)
+    paraspace = Dict{String, Any}(
+        "strike" => collect(0.0:5.0:355.0),
+        "dip" => collect(0.0:5.0:90.0),
+        "rake" => collect(-90.0:5.0:90.0),
+        "depth" => [5.0, 10.0, 15.0],
+        "frequency" => [0.05, 0.1, 0.5, 1.0],
+    )
+
+    # Build module_data from individual module data
+    module_data = Dict{String, IO.ModuleData}()
+    module_data["XcorrP"] = IO.ModuleData(
+        obs = Dict("1" => rand(1, 80)),
+        obs_norm2 = Dict("1" => [1.0]),
+        gf = Dict(
+            5.0 => Dict("1" => rand(1, 6, 80)),
+            10.0 => Dict("1" => rand(1, 6, 80)),
+            15.0 => Dict("1" => rand(1, 6, 80)),
+        ),
+        synamp = Dict(
+            5.0 => Dict("1" => rand(6, 6, 1)),
+            10.0 => Dict("1" => rand(6, 6, 1)),
+            15.0 => Dict("1" => rand(6, 6, 1)),
+        ),
+    )
+    module_data["XcorrS"] = IO.ModuleData(
+        obs = Dict("1" => rand(1, 60)),
+        obs_norm2 = Dict("1" => [1.0]),
+        gf = Dict(
+            5.0 => Dict("1" => rand(1, 6, 60)),
+            10.0 => Dict("1" => rand(1, 6, 60)),
+            15.0 => Dict("1" => rand(1, 6, 60)),
+        ),
+        synamp = Dict(
+            5.0 => Dict("1" => rand(6, 6, 1)),
+            10.0 => Dict("1" => rand(6, 6, 1)),
+            15.0 => Dict("1" => rand(6, 6, 1)),
+        ),
+    )
+    module_data["Polarity"] = IO.ModuleData(
+        obs = Dict("1" => reshape(Float64[1.0, -1.0], 2, 1)),
+        gf = Dict(
+            5.0 => Dict("1" => rand(2, 6, 50)),
+            10.0 => Dict("1" => rand(2, 6, 50)),
+            15.0 => Dict("1" => rand(2, 6, 50)),
+        ),
+    )
+    IO.write_database(
+        fn,
+        config,
+        event,
+        station,
+        channel_data,
+        gf_data,
+        module_data;
+        paraspace = paraspace,
+    )
+    return (; config, paraspace, ch_id)
 end
 
 function make_synthetic_output()
@@ -235,16 +306,15 @@ end
         @test wf2 ≈ [0.5, 1.5, 2.5]
     end
 
-    @testset "strategy round-trip with NaN" begin
+    @testset "strategy round-trip" begin
         expected = make_synthetic_status()
         fn = tmpfile("test_status.h5")
 
         # Read strategy
         strat = IO.read_strategy(fn)
-        @test strat.strike0 ≈ 120.0
-        @test strat.nstrike == 5
         @test strat.depth_indices == Int32[1, 2, 3]
-        @test strat.freq_indices == Int32[1, 4]
+        @test strat.freq_low_idx == Int32[1, 3]
+        @test strat.freq_high_idx == Int32[2, 4]
         @test strat.iteration == 3
     end
 
@@ -282,16 +352,57 @@ end
         # Read greens
         g = IO.read_greens(fn, "NET.STA1.BHE.P", Int32(1))
         @test size(g) == (100, 6)
-        @test g ≈ ex.greens["NET.STA1.BHE.P"][Int32(1)]
 
-        # Read config
+        # Read config — no indices, no float param values
         cfg = IO.read_config(fn)
-        @test cfg["misfit_modules"] == ["XCorr"]
-        @test cfg["depth_vals"] ≈ [5.0, 10.0, 15.0]
-        @test cfg["minimum_stations"] == 3
-        @test haskey(cfg, "xcorr")
-        @test cfg["xcorr"]["maxlag_factor"] ≈ 0.5
-        @test cfg["xcorr"]["P_trim"] ≈ [-2.0, 60.0]
+        @test cfg["misfit_modules"] == ["XcorrP", "XcorrS", "Polarity"]
+        @test haskey(cfg, "XcorrP")
+        @test cfg["XcorrP"]["maxlag_factor"] ≈ 0.5
+        @test cfg["XcorrP"]["trim"] ≈ [-2.0, 60.0]
+        @test haskey(cfg, "XcorrS")
+        @test cfg["XcorrS"]["trim"] ≈ [-2.0, 80.0]
+        @test haskey(cfg, "Polarity")
+        @test !haskey(cfg, "depth_indices")
+        @test !haskey(cfg, "depth_vals")
+        @test !haskey(cfg, "freq_low_idx")
+
+        # Read paraspace
+        ps = IO.read_paraspace(fn)
+        @test haskey(ps, "strike")
+        @test ps["strike"][1] ≈ 0.0
+        @test ps["strike"][end] ≈ 355.0
+        @test haskey(ps, "dip")
+        @test ps["dip"][1] ≈ 0.0
+        @test ps["dip"][end] ≈ 90.0
+        @test haskey(ps, "rake")
+        @test ps["rake"][1] ≈ -90.0
+        @test ps["rake"][end] ≈ 90.0
+        @test ps["depth"] ≈ [5.0, 10.0, 15.0]
+        @test ps["frequency"] ≈ [0.05, 0.1, 0.5, 1.0]
+    end
+
+    @testset "paraspace round-trip" begin
+        fn = tmpfile("test_paraspace.h5")
+        HDF5.h5open(fn, "w") do f
+        end  # create empty
+
+        ps_data = Dict{String, Any}(
+            "strike" => [0.0, 10.0, 20.0],
+            "dip" => [0.0, 45.0, 90.0],
+            "rake" => [-90.0, 0.0, 90.0],
+            "depth" => [2.0, 8.0],
+            "frequency" => [0.1, 0.5, 0.5, 2.0],
+        )
+        IO.write_paraspace(fn, ps_data)
+
+        ps_read = IO.read_paraspace(fn)
+        @test ps_read["strike"] ≈ [0.0, 10.0, 20.0]
+        @test ps_read["dip"] ≈ [0.0, 45.0, 90.0]
+        @test ps_read["rake"] ≈ [-90.0, 0.0, 90.0]
+        @test ps_read["depth"] ≈ [2.0, 8.0]
+        @test ps_read["frequency"] ≈ [0.1, 0.5, 0.5, 2.0]
+
+        rm(fn; force = true)
     end
 
     @testset "output round-trip" begin
@@ -345,7 +456,7 @@ end
         @test isnan(mis[:nan_test][2, 2])
     end
     @testset "recursive config read/write" begin
-        # Create a database with deep nested config
+        # Test _write_group_recursive + read_config independently
         fn = tmpfile("test_deep_config.h5")
         deep_config = Dict{String, Any}(
             "basic" => "value",
@@ -354,10 +465,10 @@ end
                 "shallow" => Int32(7),
             ),
         )
-        # Build minimal greens/data/config for write_database
-        greens = Dict{String, Dict{Int32, Matrix{Float64}}}()
-        data = Dict{Int, Dict{Symbol, Dict{String, Any}}}()
-        IO.write_database(fn, greens, data, deep_config)
+        HDF5.h5open(fn, "w") do f
+            cg = HDF5.create_group(f, "config")
+            IO._write_group_recursive(cg, deep_config)
+        end
 
         cfg = IO.read_config(fn)
         @test cfg["basic"] == "value"
@@ -376,33 +487,22 @@ end
             HDF5.create_group(f, "trials")
             HDF5.create_group(f, "misfits")
         end
-        strat = IO.Strategy(
-            120.0,
-            10.0,
-            5,
-            45.0,
-            5.0,
-            3,
-            -90.0,
-            20.0,
-            4,
-            Int32[1, 2, 3],
-            Int32[1, 4],
-            Int32(3),
-        )
+        strat = IO.Strategy(Int32[1, 2, 3], Int32[1, 3], Int32[2, 4], Int32(3))
         # Write first time
         IO.write_strategy(fn, strat)
         r1 = IO.read_strategy(fn)
-        @test r1.strike0 ≈ 120.0
-        @test r1.nstrike == 5
+        @test r1.depth_indices == Int32[1, 2, 3]
+        @test r1.freq_low_idx == Int32[1, 3]
+        @test r1.freq_high_idx == Int32[2, 4]
+        @test r1.iteration == 3
         # Write second time (replacement)
-        strat2 =
-            IO.Strategy(200.0, 5.0, 10, 60.0, 3.0, 2, 0.0, 15.0, 6, Int32[3, 4], Int32[1], Int32(5))
+        strat2 = IO.Strategy(Int32[3, 4], Int32[2], Int32[3], Int32(5))
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
-        @test r2.strike0 ≈ 200.0
-        @test r2.nstrike == 10
-        # removed fields: converged & convergence_reason no longer in Strategy
+        @test r2.depth_indices == Int32[3, 4]
+        @test r2.freq_low_idx == Int32[2]
+        @test r2.freq_high_idx == Int32[3]
+        @test r2.iteration == 5
         rm(fn; force = true)
     end
 

@@ -1,68 +1,62 @@
-# AGENTS.md — IO module (`shared/io/src/IO.jl`)
+# IO Module — HDF5 I/O, Type Structs, Geophysics Utilities
 
-## Role
+## Types
 
-HDF5 I/O abstractions for the pipeline. Reads external data files, writes pipeline HDF5 files, provides geophysics utilities. All stages depend on this module.
+| Struct | Export | Fields | Notes |
+|---------------|-------------|---------------------------------------------------------------------------------|-----------------------------------------|
+| `EventInfo` | Yes | `longitude`, `latitude`, `depth`, `magnitude`, `origintime` | Event location and magnitude |
+| `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `lat`, `lon`, `elev`, `dt`, `begin_time` | Station metadata |
+| `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
+| `PhasePick` | Yes | `station_id`, `P_time`, `S_time`, `P_polarity` | Phase arrival picks |
+| `TrialSet` | Yes | `strike`, `dip`, `rake`, `depth`, `depth_idx`, `freq_idx` | Grid trial generation output |
+| `Strategy` | No | `depth_indices`, `freq_low_idx`, `freq_high_idx`, `iteration` | Integer indices into `/paraspace` |
+| `ConfigError` | No (Config) | `func`, `msg` | Config interface error |
 
-Used by: `input.jl`, `preprocess.jl`, `assess.jl`, `output.jl`, `Grid` (via `H5IO` alias).
+`ModuleData` replaced the earlier `XCorrObs`, `XCorrGF`, `PolarityGF` structs.
+It stores per-band observation data and per-depth per-band GF data, with
+optional `obs_norm2` and `synamp` fields that are populated only for XCorr-type
+modules.
 
-## Type structs
+## Key Functions
 
-| Struct | Fields | Schema |
-|--------------------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| `EventInfo` | `longitude, latitude, depth, magnitude, origintime` | From external `raw.h5` `/event` |
-| `StationInfo` | `id, network, station, channel, latitude, longitude, elevation, dt, begin_time` | From `/stations` |
-| `PhasePick` | `station_id, P_time, S_time, P_polarity` (Int8) | From `/phase_picks` |
-| *(Phase struct removed)* | | Phase metadata embedded in `/xcorrP`, `/xcorrS`, `/polarity` groups. |
-| `TrialSet` | `strike, dip, rake, depth, depth_idx, freq_idx` | Written to `status_{N}.h5` `/trials` |
-| `Strategy` | Grid params (strike0, dstrike, nstrike, dip0, ddip, ndip, rake0, drake, nrake), depth/freq indices, iteration | Written to `/strategy` (12 fields) |
+### Database Writing
 
-## Exports
+- `write_database(h5file, config, event, station, channel_data, gf_data, module_data::Dict{String, ModuleData}; paraspace=nothing)` — creates `database.h5` from scratch; writes `/paraspace`, `/config`, `/event`, `/station`, `/channel`, `/gf`, and per-module groups `/{ModuleName}/` with obs and gf data
+- `write_strategy(h5file, strategy)` — writes `/strategy` to `status_N.h5`
+- `write_trials(h5file, trials)` — writes `/trials` to `status_N.h5`
+- `write_misfits(h5file, modname, data)` — writes per-module misfit matrix to `/misfits`
+- `write_paraspace(h5file, paraspace)` — writes `/paraspace` group
+- `write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)` — writes final `output.h5`
 
-### Readers (external HDF5)
+### Database Reading
 
-- `read_event(h5file)` → `EventInfo`
-- `read_phase_picks(h5file)` → `Vector{PhasePick}`
-- `read_stations(h5file)` → `Vector{StationInfo}`
-- `read_waveform(h5file, phase_id)` → `Vector{Float64}`
+- `read_config(h5file) -> Dict` — recursive read of `/config`
+- `read_event(h5file) -> EventInfo`
+- `read_stations(h5file) -> Vector{StationInfo}`
+- `read_phase_picks(h5file) -> Vector{PhasePick}`
+- `read_waveform(h5file, phase_id) -> Vector{Float64}`
+- `read_trials(h5file) -> TrialSet`
+- `read_strategy(h5file) -> Strategy`
+- `read_misfits(h5file) -> Dict{Symbol, Matrix{Float64}}` — reads all misfit matrices from `/misfits`
+- `read_greens(h5file, phase_id, depth_idx) -> Matrix{Float64}` — reads raw GF; uses `/paraspace/depth` to resolve depth value
+- `read_paraspace(h5file) -> Dict{String, Any}` — reads `/paraspace`
 
-### Readers (pipeline HDF5)
+### Utilities
 
-- `read_trials(h5file)` → `TrialSet`
-- `read_strategy(h5file)` → `Strategy`
-- `read_misfits(h5file)` → `Dict{Symbol, Matrix{Float64}}`
-- `read_greens(h5file, phase_id, depth_idx)` → `Matrix{Float64}`
-- `read_config(h5file)` → `Dict{String, Any}` (recursive group reader)
+- `parse_time_iso(t_str) -> Float64` — ISO 8601 to seconds since epoch
+- `haversine_distance(lat1, lon1, lat2, lon2) -> Float64` — great-circle distance (km)
+- `compute_azimuth(lat1, lon1, lat2, lon2) -> Float64` — azimuth (degrees, 0 = N)
+- `extract_station(phase_id) -> String` — station key from phase identifier
+- `extract_phase_type(phase_id) -> String` — phase type ("P" or "S") from phase identifier
+- `find_latest_status(status_dir) -> (filepath, iteration)` — finds highest `status_N.h5`
 
-### Writers
+## HDF5 Schema
 
-- `write_database(h5file, config, event, station, channel_data, gf_data, xcorr_obs, xcorr_gf, polarity_obs, polarity_gf)` — creates `database.h5` from scratch; writes `/config`, `/event`, `/station`, `/channel`, `/gf`, `/xcorrP/`, `/xcorrS/`, `/polarity` groups
-- `write_trials(h5file, trials::TrialSet)` — overwrites `/trials` in existing file
-- `write_strategy(h5file, strategy::Strategy)` — overwrites `/strategy`
-- `write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)` — creates `output.h5`
-- `write_misfits(h5file, modname::Symbol, data)` — writes `/misfits/{modname}` (not used by current pipeline — forward.cpp writes misfits directly via HDF5 C API)
+See `doc/schema.md` for the full schema specification.
 
-### Geophysics utilities
+Key points:
 
-- `parse_time_iso(t_str)` → `Float64` seconds-since-epoch (NaN on empty)
-- `haversine_distance(lat1, lon1, lat2, lon2)` → distance in km
-- `compute_azimuth(lat1, lon1, lat2, lon2)` → azimuth in degrees \[0, 360)
-- `extract_station(phase_id)` → `"NET.STA"` from `"NET.STA.COMP.TYPE"`
-- `extract_phase_type(phase_id)` → `"P"` or `"S"` from last segment
-- `find_latest_status(status_dir)` → `(filepath, iteration_int)` or error if none found
-
-### Helpers
-
-- `h5create_group(h5file, path)` — create group with intermediates
-- `h5exists(h5file, path)` → `Bool`
-- `_read_group_recursive(gr)` → `Dict{String, Any}` — recursive group reader
-- `_write_group_recursive(parent, data)` — recursive Dict→HDF5 writer
-
-## Coding conventions
-
-- All reader functions accept a file path string and return Julia objects.
-- Writer functions accept a file path string and data, open `"w"` (create) or `"r+"` (append).
-- `write_trials` and `write_strategy` delete-and-recreate datasets (no append).
-- `write_output` creates `output.h5` from scratch (`"w"` mode).
-- String datasets use variable-length HDF5 strings.
-- Helper utility functions are pure — no HDF5 I/O, no side effects.
+- Per-module data is written to `/{ModuleName}/` — group name matches the module instance name from `misfit_modules`
+- `/{ModuleName}/obs/{band}/` contains preprocessed observation data
+- `/{ModuleName}/gf/{depth}/{band}/` contains preprocessed Green's functions
+- Metadata (`channel_id`, `station_idx`) is written at the module group root

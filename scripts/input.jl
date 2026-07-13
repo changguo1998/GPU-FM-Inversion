@@ -41,16 +41,11 @@ StageLog.setup_logger!("input", joinpath(data_dir, "input.log"))
 include(abspath(config_jl))
 
 misfit_modules = Config.misfit_modules()
-minimum_stations = Config.minimum_stations()
 freq_bands = Config.freq_bands()
 depths = Config.depths()
-grid = Grid.default_grid()
-xcorr = Config.xcorr_params()
-polarity = Config.polarity_params()
 
 n_bands = length(freq_bands)
 n_depths = length(depths)
-n_misfit_modules = length(misfit_modules)
 
 @info "Config loaded"
 @info "  misfit_modules = $misfit_modules"
@@ -203,14 +198,25 @@ end
 
 @info "Preprocessing waveforms ..."
 
-P_trim = xcorr.P_trim
-S_trim = xcorr.S_trim
-filter_order = xcorr.filter_order
-polarity_trim = polarity.trim
+# Map XCorr instances to their phase type
+xcorr_instances = Dict{String, Module}()
+for m_name in misfit_modules
+    if startswith(m_name, "Xcorr") && length(m_name) > 5
+        phase = string(m_name[end])
+        xcorr_instances[phase] = getfield(Config, Symbol(m_name))
+    end
+end
+
+polarity_trim = Config.Polarity.trim()
 t_source = polarity_trim[2]
 
-xcorr_obs = Dict{String, IO.XCorrObs}()
-xcorr_gf = Dict{Float64, Dict{String, IO.XCorrGF}}()
+# Per-module data storage
+module_data = Dict{String, IO.ModuleData}()
+# Temp storage during loop for each XCorr module instance
+xcorr_temp_obs = Dict{String, Dict{String, Vector{Vector{Float64}}}}()   # mod_name -> band -> obs_list
+xcorr_temp_norm2 = Dict{String, Dict{String, Vector{Float64}}}()          # mod_name -> band -> norm2_list
+xcorr_temp_gf = Dict{String, Dict{Float64, Dict{String, Vector{Matrix{Float64}}}}}()  # mod_name -> depth -> band -> gf_list
+
 polarity_obs = Float64[]
 polarity_gf = Dict{Float64, Array{Float64, 3}}()
 polarity_channel_id = String[]
@@ -251,17 +257,13 @@ for freq_idx in 1:n_bands
             else
                 IO.parse_time_iso(pick.S_time)
             end
-            trim_cfg = (ptype == "P") ? P_trim : S_trim
-
             if isnan(begin_unix) || isnan(pick_time)
                 arrival_sample = n_samples ÷ 2
             else
                 arrival_sample = clamp(round(Int, (pick_time - begin_unix) / dt) + 1, 1, n_samples)
             end
 
-            pre_sec = abs(trim_cfg[1])
-            post_sec = abs(trim_cfg[2])
-            window_factor = max(pre_sec, post_sec) * high_cut
+            # trim/window_factor computed inside XCorr instance block below
 
             # Load GF for all depths — skip phase if any depth is missing (keeps obs/gf aligned)
             gf_per_depth = Dict{Float64, Matrix{Float64}}()
@@ -279,32 +281,38 @@ for freq_idx in 1:n_bands
                 continue
             end
 
-            # XCorr preprocessing — obs is depth-independent (preprocessed once with depths[1] GF);
-            # GF is preprocessed per depth so filtering/window reflects each depth's GF.
-            if "XCorr" in misfit_modules
-                obs_proc, gf_proc0, _, obs_n2 = Signal.preprocess_xcorr!(
+            # XCorr preprocessing — dispatch to phase-specific instance
+            if haskey(xcorr_instances, ptype)
+                cfg_mod = xcorr_instances[ptype]
+                trim_win = cfg_mod.trim()
+                pre_sec = abs(trim_win[1])
+                post_sec = abs(trim_win[2])
+                wf_filter = max(pre_sec, post_sec) * high_cut
+                filter_order_val = cfg_mod.filter_order()
+
+                obs_proc, gf_proc0, _, obs_n2 = cfg_mod.preprocess(
                     wf,
                     gf_per_depth[depths[1]],
                     dt,
                     arrival_sample,
                     low_cut,
                     high_cut,
-                    window_factor;
-                    filter_order = filter_order,
+                    wf_filter;
+                    filter_order = filter_order_val,
                 )
                 push!(obs_list, obs_proc)
                 push!(obs_norm2_list, obs_n2)
                 push!(gf_lists[depths[1]], gf_proc0)
                 for depth_val in depths[2:end]
-                    _, gf_proc_d, _, _ = Signal.preprocess_xcorr!(
+                    _, gf_proc_d, _, _ = cfg_mod.preprocess(
                         wf,
                         gf_per_depth[depth_val],
                         dt,
                         arrival_sample,
                         low_cut,
                         high_cut,
-                        window_factor;
-                        filter_order = filter_order,
+                        wf_filter;
+                        filter_order = filter_order_val,
                     )
                     push!(gf_lists[depth_val], gf_proc_d)
                 end
@@ -320,7 +328,7 @@ for freq_idx in 1:n_bands
                 push!(polarity_channel_id, ch_id)
                 push!(polarity_station_idx, Int32(si))
                 for depth_val in depths
-                    gf_pol, _ = Signal.preprocess_polarity!(
+                    gf_pol, _ = Config.Polarity.preprocess(
                         gf_per_depth[depth_val],
                         dt,
                         arrival_sample,
@@ -345,7 +353,7 @@ for freq_idx in 1:n_bands
         end
 
         # Stack per-phase vectors into 2D/3D arrays for /xcorr
-        if "XCorr" in misfit_modules && !isempty(obs_list)
+        if haskey(xcorr_instances, ptype) && !isempty(obs_list)
             # Truncate all to minimum length (edge phases may be shorter)
             nt_xc = minimum(length.(obs_list))
             for i in 1:length(obs_list)
@@ -355,23 +363,25 @@ for freq_idx in 1:n_bands
             for i in 1:np
                 obs_mat[i, :] = obs_list[i]
             end
-            xcorr_obs[key] = IO.XCorrObs(obs_mat, obs_norm2_list)
-            # /xcorrP/gf/{depth}/{band} or /xcorrS/gf/{depth}/{band} — each depth stacked from its own preprocessed gf_proc
+            # Store in temp dicts — will be assembled into ModuleData after the loop
+            if !haskey(xcorr_temp_obs, ptype)
+                xcorr_temp_obs[ptype] = Dict{String, Vector{Vector{Float64}}}()
+                xcorr_temp_norm2[ptype] = Dict{String, Vector{Float64}}()
+                xcorr_temp_gf[ptype] = Dict{Float64, Dict{String, Vector{Matrix{Float64}}}}()
+            end
+            band_key = string(freq_idx)
+            xcorr_temp_obs[ptype][band_key] = obs_list
+            xcorr_temp_norm2[ptype][band_key] = obs_norm2_list
+            # Store gf_lists per depth — truncation happens later
             for depth_val in depths
                 gfl = gf_lists[depth_val]
                 for i in 1:length(gfl)
                     gfl[i] = gfl[i][1:nt_xc, :]
                 end
-                gf_arr = zeros(Float64, np, 6, nt_xc)
-                synamp_arr = zeros(Float64, np, 6, 6)
-                for i in 1:np
-                    gf_arr[i, :, :] = gfl[i]'
-                    synamp_arr[i, :, :] = gfl[i]' * gfl[i]
+                if !haskey(xcorr_temp_gf[ptype], depth_val)
+                    xcorr_temp_gf[ptype][depth_val] = Dict{String, Vector{Matrix{Float64}}}()
                 end
-                if !haskey(xcorr_gf, depth_val)
-                    xcorr_gf[depth_val] = Dict{String, IO.XCorrGF}()
-                end
-                xcorr_gf[depth_val][key] = IO.XCorrGF(gf_arr, synamp_arr)
+                xcorr_temp_gf[ptype][depth_val][band_key] = gfl
             end
         end
     end
@@ -389,23 +399,32 @@ event_dict = Dict{String, Any}(
     "origintime" => event.origintime,
 )
 
-db_config = Dict{String, Any}(
-    "misfit_modules" => misfit_modules,
-    "depth_vals" => Float64.(depths),
-    "n_bands" => Int32(n_bands),
-    "freq_bands_low" => Float64[low for (low, _) in freq_bands],
-    "freq_bands_high" => Float64[high for (_, high) in freq_bands],
-    "minimum_stations" => Int32(minimum_stations),
+strike_vals = Grid.expand_axis(0.0, 5.0, Int32(71))
+dip_vals = Grid.expand_axis(0.0, 5.0, Int32(19))
+rake_vals = Grid.expand_axis(-90.0, 5.0, Int32(37))
+# Build frequency array from unique band-edge values, then compute low/high indices
+freq_vals = sort(unique(Float64[v for (low, high) in freq_bands for v in (low, high)]))
+freq_low_idx = Int32[findfirst(==(low), freq_vals) for (low, _) in freq_bands]
+freq_high_idx = Int32[findfirst(==(high), freq_vals) for (_, high) in freq_bands]
+
+paraspace = Dict{String, Any}(
+    "strike" => strike_vals,
+    "dip" => dip_vals,
+    "rake" => rake_vals,
+    "depth" => Float64.(depths),
+    "frequency" => freq_vals,
 )
 
-if "XCorr" in misfit_modules
-    db_config["xcorr"] = Dict{String, Any}(
-        "maxlag_factor" => Float64(xcorr.maxlag_factor),
-        "filter_order" => Int32(filter_order),
-        "P_trim" => Float64.(P_trim),
-        "S_trim" => Float64.(S_trim),
-        "select_threshold" => Float64(xcorr.select_threshold),
-        "deselect_threshold" => Float64(xcorr.deselect_threshold),
+db_config = Dict{String, Any}("misfit_modules" => misfit_modules, "n_bands" => Int32(n_bands))
+
+for (phase, cfg_mod) in xcorr_instances
+    mname = Symbol("xcorr_$(phase)")
+    db_config[string(mname)] = Dict{String, Any}(
+        "maxlag_factor" => Float64(cfg_mod.maxlag_factor()),
+        "filter_order" => Int32(cfg_mod.filter_order()),
+        "trim" => Float64.(cfg_mod.trim()),
+        "select_threshold" => Float64(cfg_mod.select_threshold()),
+        "deselect_threshold" => Float64(cfg_mod.deselect_threshold()),
     )
 end
 
@@ -418,6 +437,71 @@ end
 
 @info "Writing database.h5 ..."
 db_path = joinpath(data_dir, "database.h5")
+# Assemble ModuleData from temp storage
+for (phase, mod_name) in [("P", "XcorrP"), ("S", "XcorrS")]
+    if haskey(xcorr_temp_obs, phase)
+        band_data = xcorr_temp_obs[phase]
+        band_norm2 = xcorr_temp_norm2[phase]
+        gf_temp = xcorr_temp_gf[phase]
+        # Build per-band dicts
+        obs_dict = Dict{String, Matrix{Float64}}()
+        n2_dict = Dict{String, Vector{Float64}}()
+        gf_dict = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+        synamp_dict = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+        for (band_key, obs_list) in band_data
+            nt_xc = minimum(length.(obs_list))
+            np = length(obs_list)
+            obs_mat = zeros(Float64, np, nt_xc)
+            for i in 1:np
+                obs_list[i] = obs_list[i][1:nt_xc]
+                obs_mat[i, :] = obs_list[i]
+            end
+            obs_dict[band_key] = obs_mat
+            n2_dict[band_key] = band_norm2[band_key]
+            # GF per depth
+            for (depth_val, bands) in gf_temp
+                if !haskey(gf_dict, depth_val)
+                    gf_dict[depth_val] = Dict{String, Array{Float64, 3}}()
+                    synamp_dict[depth_val] = Dict{String, Array{Float64, 3}}()
+                end
+                gfl = bands[band_key]
+                gf_arr = zeros(Float64, np, 6, nt_xc)
+                synamp_arr = zeros(Float64, np, 6, 6)
+                for i in 1:np
+                    gfl[i] = gfl[i][1:nt_xc, :]
+                    gf_arr[i, :, :] = gfl[i]'
+                    synamp_arr[i, :, :] = gfl[i]' * gfl[i]
+                end
+                gf_dict[depth_val][band_key] = gf_arr
+                synamp_dict[depth_val][band_key] = synamp_arr
+            end
+        end
+        ch_ids = phase == "P" ? xcorrP_channel_id : xcorrS_channel_id
+        st_idxs = phase == "P" ? xcorrP_station_idx : xcorrS_station_idx
+        module_data[mod_name] = IO.ModuleData(
+            obs = obs_dict,
+            obs_norm2 = n2_dict,
+            gf = gf_dict,
+            synamp = synamp_dict,
+            channel_id = ch_ids,
+            station_idx = st_idxs,
+        )
+    end
+end
+# Polarity module
+if "Polarity" in misfit_modules
+    pol_gf_dict = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+    for (depth_val, data) in polarity_gf
+        pol_gf_dict[depth_val] = Dict("1" => data)
+    end
+    module_data["Polarity"] = IO.ModuleData(
+        obs = Dict("1" => reshape(polarity_obs, length(polarity_obs), 1)),
+        gf = pol_gf_dict,
+        channel_id = polarity_channel_id,
+        station_idx = polarity_station_idx,
+    )
+end
+
 IO.write_database(
     db_path,
     db_config,
@@ -425,28 +509,9 @@ IO.write_database(
     station_dict,
     channel_data,
     gf_data,
-    xcorr_obs,
-    xcorr_gf,
-    polarity_obs,
-    polarity_gf,
+    module_data;
+    paraspace = paraspace,
 )
-@info "  $db_path written"
-# Write phase metadata into xcorrP / xcorrS / polarity groups
-h5open(db_path, "r+") do f
-    pgr = f["xcorrP"]
-    write(pgr, "channel_id", xcorrP_channel_id)
-    write(pgr, "station_idx", xcorrP_station_idx)
-
-    sgr = f["xcorrS"]
-    write(sgr, "channel_id", xcorrS_channel_id)
-    write(sgr, "station_idx", xcorrS_station_idx)
-
-    if "Polarity" in misfit_modules
-        polgr = f["polarity"]
-        write(polgr, "channel_id", polarity_channel_id)
-        write(polgr, "station_idx", polarity_station_idx)
-    end
-end
 @info "  phase metadata written ($(length(xcorrP_channel_id)) P, $(length(xcorrS_channel_id)) S, $(length(polarity_channel_id)) polarity channels)"
 
 
@@ -454,20 +519,7 @@ end
 
 @info "Writing status_0.h5 ..."
 
-strategy = IO.Strategy(
-    Float64(grid.strike0),
-    Float64(grid.dstrike),
-    Int32(grid.nstrike),
-    Float64(grid.dip0),
-    Float64(grid.ddip),
-    Int32(grid.ndip),
-    Float64(grid.rake0),
-    Float64(grid.drake),
-    Int32(grid.nrake),
-    Int32.(1:n_depths),
-    Int32.(1:n_bands),
-    Int32(0),
-)
+strategy = IO.Strategy(Int32.(1:n_depths), freq_low_idx, freq_high_idx, Int32(0))
 
 status0_path = joinpath(data_dir, "status_0.h5")
 h5open(status0_path, "w") do f
@@ -482,8 +534,8 @@ IO.write_strategy(status0_path, strategy)
 @info "  $(basename(db_path)) : /station ($n_stations rows)"
 @info "  $(basename(db_path)) : /channel ($(length(channel_data)) channels)"
 @info "  $(basename(db_path)) : /gf ($(length(gf_data)) depths)"
-@info "  $(basename(db_path)) : /xcorrP, /xcorrS ($(length(xcorr_obs)) obs bands)"
-@info "  $(basename(db_path)) : /polarity ($(length(polarity_obs)) channels)"
+mod_names_str = join(sort(collect(keys(module_data))), ", ")
+@info "  $(basename(db_path)) : /$mod_names_str (modules)"
 @info "  $(basename(db_path)) : /config, /event"
 @info "  $(basename(status0_path)) : /strategy (initial grid, no trials)"
 @info "  Stations: $n_stations | Phases: $n_phases | Depths: $n_depths | Bands: $n_bands"

@@ -25,20 +25,33 @@ struct StationInfo
     begin_time::String
 end
 
-# Helper structs for new flat-schema write_database
+# Helper structs for flat-schema write_database
 
-struct XCorrObs
-    obs::Matrix{Float64}
-    obs_norm2::Vector{Float64}
+struct ModuleData
+    # Per-band observation data
+    obs::Dict{String, Matrix{Float64}}               # band_key -> obs matrix
+    obs_norm2::Dict{String, Vector{Float64}}         # band_key -> norm2 vector
+    # Per-depth, per-band GF data
+    gf::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band_key -> gf
+    synamp::Dict{Float64, Dict{String, Array{Float64, 3}}}  # depth -> band_key -> synamp
+    # Phase metadata
+    channel_id::Vector{String}
+    station_idx::Vector{Int32}
 end
 
-struct XCorrGF
-    gf::Array{Float64, 3}       # [N_phases, 6, N_samples]
-    synamp::Array{Float64, 3}   # [N_phases, 6, 6]
-end
-
-struct PolarityGF
-    gf_pol::Array{Float64, 3}   # [N_channels, 6, N_polarity_samples]
+# Keyword constructor — obs_norm2/synamp default to empty for Polarity-style
+function ModuleData(;
+    obs::Dict{String, Matrix{Float64}},
+    obs_norm2::Dict{String, Vector{Float64}} = Dict{String, Vector{Float64}}(),
+    gf::Dict{Float64, Dict{String, Array{Float64, 3}}},
+    synamp::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
+        Float64,
+        Dict{String, Array{Float64, 3}},
+    }(),
+    channel_id::Vector{String} = String[],
+    station_idx::Vector{Int32} = Int32[],
+)
+    return ModuleData(obs, obs_norm2, gf, synamp, channel_id, station_idx)
 end
 
 struct PhasePick
@@ -58,29 +71,22 @@ struct TrialSet
 end
 
 struct Strategy
-    strike0::Float64
-    dstrike::Float64
-    nstrike::Int32
-    dip0::Float64
-    ddip::Float64
-    ndip::Int32
-    rake0::Float64
-    drake::Float64
-    nrake::Int32
     depth_indices::Vector{Int32}
-    freq_indices::Vector{Int32}
+    freq_low_idx::Vector{Int32}
+    freq_high_idx::Vector{Int32}
     iteration::Int32
 end
 
 
 # Exports
 
-export EventInfo, StationInfo, PhasePick, TrialSet, Strategy
+export EventInfo, StationInfo, PhasePick, TrialSet, Strategy, ModuleData
 export h5create_group, h5exists
 export read_config, read_event, read_phase_picks, read_stations
 export read_waveform, read_trials, read_strategy, read_misfits
 export read_greens
 export write_database, write_trials, write_misfits, write_strategy, write_output
+export write_paraspace, read_paraspace
 export _read_group_recursive, _write_group_recursive
 export parse_time_iso, haversine_distance, compute_azimuth
 export extract_station, extract_phase_type
@@ -244,17 +250,9 @@ function read_strategy(h5file)::Strategy
         f -> begin
             gr = f["strategy"]
             Strategy(
-                read(gr["strike0"]),
-                read(gr["dstrike"]),
-                read(gr["nstrike"]),
-                read(gr["dip0"]),
-                read(gr["ddip"]),
-                read(gr["ndip"]),
-                read(gr["rake0"]),
-                read(gr["drake"]),
-                read(gr["nrake"]),
                 read(gr["depth_indices"]),
-                read(gr["freq_indices"]),
+                read(gr["freq_low_idx"]),
+                read(gr["freq_high_idx"]),
                 read(gr["iteration"]),
             )
         end,
@@ -279,9 +277,9 @@ function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
     # Extract channel_id from phase_id (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
     parts = split(phase_id, ".")
     ch_id = join(parts[1:3], ".")
-    # Read depth_vals from config to map index -> depth value
-    config = read_config(h5file)
-    depth_vals = config["depth_vals"]
+    # Read depth from paraspace to map index -> depth value
+    ps = read_paraspace(h5file)
+    depth_vals = ps["depth"]
     depth_val = depth_vals[depth_idx]
     gf_path = "/gf/$(depth_val)/$(ch_id)"
     return h5open(f -> read(f[gf_path]), h5file, "r")
@@ -315,30 +313,35 @@ function write_database(
     station,
     channel_data,
     gf_data,
-    xcorr_obs,
-    xcorr_gf,
-    polarity_obs,
-    polarity_gf,
+    module_data::Dict{String, ModuleData};
+    paraspace = nothing,
 )
     h5open(h5file, "w") do f
-        # /config — recursive write
+        # /paraspace - expanded parameter-space float arrays
+        if paraspace !== nothing
+            psgr = HDF5.create_group(f, "paraspace")
+            for (k, v) in paraspace
+                write(psgr, string(k), v)
+            end
+        end
+
+        # /config - recursive write
         cfggr = HDF5.create_group(f, "config")
         _write_group_recursive(cfggr, config)
 
-        # /event — scalar datasets
+        # /event - scalar datasets
         evgr = HDF5.create_group(f, "event")
         for (k, v) in event
             write(evgr, string(k), v)
         end
 
-        # /station — flat arrays
+        # /station - flat arrays
         stgr = HDF5.create_group(f, "station")
         for (k, v) in station
             write(stgr, string(k), v)
         end
 
-        # /channel — raw waveforms, verification only (not used by forward stage;
-        # forward consumes preprocessed /xcorr and /polarity products)
+        # /channel - raw waveforms
         chgr = HDF5.create_group(f, "channel")
         for (ch_id, wf) in channel_data
             write(chgr, ch_id, wf)
@@ -353,43 +356,39 @@ function write_database(
             end
         end
 
-        # /xcorrP/obs/{band}/ and /xcorrP/gf/{depth}/{band}/ (P-wave XCorr)
-        # /xcorrS/obs/{band}/ and /xcorrS/gf/{depth}/{band}/ (S-wave XCorr)
-        # Pre-create /xcorrP and /xcorrS group trees
-        for ptype in ("P", "S")
-            xgr = HDF5.create_group(f, "xcorr$ptype")
-            HDF5.create_group(xgr, "obs")
-            HDF5.create_group(xgr, "gf")
-        end
-        # Write obs
-        for (key, data) in xcorr_obs
-            ptype, band_str = split(key, "-")
-            bgr = HDF5.create_group(f["xcorr$ptype"]["obs"], band_str)
-            write(bgr, "obs", data.obs)
-            write(bgr, "obs_norm2", data.obs_norm2)
-        end
-        # Write gf
-        for (depth, bands) in xcorr_gf
-            for (key, data) in bands
-                ptype, band_str = split(key, "-")
-                dst = string(depth)
-                gf_parent = f["xcorr$ptype"]["gf"]
-                dgr = haskey(gf_parent, dst) ? gf_parent[dst] : HDF5.create_group(gf_parent, dst)
-                bgr = HDF5.create_group(dgr, band_str)
-                write(bgr, "gf", data.gf)
-                write(bgr, "synamp", data.synamp)
+        # /{ModuleName}/ - iterate over all misfit module instances
+        for mod_name in sort(collect(keys(module_data)))
+            md = module_data[mod_name]
+            m_gr = HDF5.create_group(f, mod_name)
+            # Write phase metadata
+            if !isempty(md.channel_id)
+                write(m_gr, "channel_id", md.channel_id)
+                write(m_gr, "station_idx", md.station_idx)
             end
-        end
-
-        # /polarity/obs/ and /polarity/gf/{depth}/
-        pgr = HDF5.create_group(f, "polarity")
-        pobsgr = HDF5.create_group(pgr, "obs")
-        write(pobsgr, "obs_pol", polarity_obs)
-
-        pgfgr = HDF5.create_group(pgr, "gf")
-        for (depth, data) in polarity_gf
-            dgr = HDF5.create_group(pgfgr, string(depth))
-            write(dgr, "gf_pol", data)
+            # Write per-band observation data
+            obs_gr = HDF5.create_group(m_gr, "obs")
+            for band_key in sort(collect(keys(md.obs)))
+                obs_mat = md.obs[band_key]
+                b_gr = HDF5.create_group(obs_gr, band_key)
+                write(b_gr, "obs", obs_mat)
+                if haskey(md.obs_norm2, band_key)
+                    write(b_gr, "obs_norm2", md.obs_norm2[band_key])
+                end
+            end
+            # Write per-depth, per-band GF data
+            gf_gr = HDF5.create_group(m_gr, "gf")
+            for depth in sort(collect(keys(md.gf)))
+                bands = md.gf[depth]
+                d_gr = HDF5.create_group(gf_gr, string(depth))
+                for band_key in sort(collect(keys(bands)))
+                    gf_arr = bands[band_key]
+                    b_gr = HDF5.create_group(d_gr, band_key)
+                    write(b_gr, "gf", gf_arr)
+                    if haskey(md.synamp, depth) && haskey(md.synamp[depth], band_key)
+                        write(b_gr, "synamp", md.synamp[depth][band_key])
+                    end
+                end
+            end
         end
     end
 end
@@ -441,17 +440,9 @@ function write_strategy(h5file, strategy::Strategy)
             HDF5.delete_object(f["strategy"])
         end
         gr = HDF5.create_group(f, "strategy")
-        write(gr, "strike0", strategy.strike0)
-        write(gr, "dstrike", strategy.dstrike)
-        write(gr, "nstrike", strategy.nstrike)
-        write(gr, "dip0", strategy.dip0)
-        write(gr, "ddip", strategy.ddip)
-        write(gr, "ndip", strategy.ndip)
-        write(gr, "rake0", strategy.rake0)
-        write(gr, "drake", strategy.drake)
-        write(gr, "nrake", strategy.nrake)
         write(gr, "depth_indices", strategy.depth_indices)
-        write(gr, "freq_indices", strategy.freq_indices)
+        write(gr, "freq_low_idx", strategy.freq_low_idx)
+        write(gr, "freq_high_idx", strategy.freq_high_idx)
         write(gr, "iteration", strategy.iteration)
     end
 end
@@ -577,4 +568,38 @@ function find_latest_status(status_dir::String)
     end
     return (latest, max_n)
 end
+
+# ── Paraspace ────────────────────────────────────────────────────────────
+
+"""
+    write_paraspace(h5file, paraspace::Dict)
+
+Write `/paraspace` group, replacing any existing group.
+Stores expanded float arrays for parameter-space dimensions:
+- strike, dip, rake   (from grid expansion)
+- depth_vals          (depth levels)
+- frequency           (flat array: [low1, high1, low2, high2, ...])
+"""
+function write_paraspace(h5file, paraspace::Dict)
+    h5open(h5file, "r+") do f
+        if haskey(f, "paraspace")
+            HDF5.delete_object(f["paraspace"])
+        end
+        gr = HDF5.create_group(f, "paraspace")
+        for (k, v) in paraspace
+            write(gr, string(k), v)
+        end
+    end
+end
+
+"""
+    read_paraspace(h5file) -> Dict{String, Any}
+
+Read `/paraspace` group into a Dict. Each key maps a parameter-space
+name to its float array.
+"""
+function read_paraspace(h5file)::Dict{String, Any}
+    return h5open(f -> _read_group_recursive(f["paraspace"]), h5file, "r")
+end
+
 end # module

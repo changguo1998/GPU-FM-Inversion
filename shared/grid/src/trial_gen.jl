@@ -43,7 +43,6 @@ struct GridStrategy
     nrake::Int32
     freq_indices::Vector{Int32}
 end
-end
 
 """
     TrialSet

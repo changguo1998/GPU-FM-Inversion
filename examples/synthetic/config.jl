@@ -4,23 +4,27 @@
 
 using Random
 
-Config.misfit_modules() = ["XCorr", "Polarity"]
-Config.minimum_stations() = 6
+Config.use_misfit!(:XcorrP, from = :Xcorr)
+Config.use_misfit!(:XcorrS, from = :Xcorr)
+Config.use_misfit!(:Polarity)
+
+Config.XcorrP.trim() = [-2.0, 5.0]
+Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.filter_order() = 4
+Config.XcorrP.select_threshold() = 0.5
+Config.XcorrP.deselect_threshold() = 0.3
+
+Config.XcorrS.trim() = [-2.0, 5.0]
+Config.XcorrS.maxlag_factor() = 0.5
+Config.XcorrS.filter_order() = 4
+Config.XcorrS.select_threshold() = 0.5
+Config.XcorrS.deselect_threshold() = 0.3
+
+Config.Polarity.trim() = [0.0, 2.0]
 
 Config.freq_bands() = [(0.5, 2.0)]
 
 Config.depths() = [5.0, 10.0, 15.0]
-
-Config.xcorr_params() = (
-    maxlag_factor = 0.5,
-    filter_order = 4,
-    P_trim = [-2.0, 5.0],
-    S_trim = [-2.0, 5.0],
-    select_threshold = 0.5,
-    deselect_threshold = 0.3,
-)
-
-Config.polarity_params() = (trim = [0.0, 2.0],)
 
 # ---------------------------------------------------------------------------
 # Data directory = config file location

@@ -44,11 +44,30 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 ## Data Files
 
 | File | Lifetime | Contents |
-|-----------------|---------------|---------------------------------------------------------------------------|
-| `database.h5` | Static | 所有预处理数据：各深度格林函数、滤波波形变体、各模块预处理结果、算法配置、索引 |
-| `status_{N}.h5` | Per-iteration | Strategy, trials, misfits（当前仅 `/strategy`，由 input.jl 写入） |
+|-----------------|---------------|----------------------------------------------------------------------------------------------------------------------|
+| `database.h5` | Static | 预处理波形、格林函数各深度变体、模块预处理结果、**`/paraspace`**（展开的参数空间浮点数组）、`/config`（算法参数，**无索引**） |
+| `status_{N}.h5` | Per-iteration | **`/strategy`**（整数索引指向 `/paraspace`），后续阶段追加 trials、misfits |
 | `output.h5` | Final | 最佳拟合参数、不确定性、逐阶段/台站分解（待实现） |
 | `config.jl` | Bootstrap | 用户提供：失配模块列表、频带、深度范围、初始网格参数、数据接口实现 |
+
+## HDF5 层级设计
+
+### 三层分离：值 / 索引 / 参数
+
+| 文件 | 组 | 职责 | 示例 |
+|-----------------|--------------|-----------------------------------------------------------|------------------------------------------------------------------------|
+| `database.h5` | `/paraspace` | **存值**：展开的浮点数组，所有参数空间维度 | `strike[71]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
+| `database.h5` | `/config` | **参数**：算法元数据、模块设置，**不含任何索引或浮点参数值** | `misfit_modules`, `n_bands`, `xcorr/maxlag_factor` |
+| `status_{N}.h5` | `/strategy` | **索引**：整数索引指向 `/paraspace`，定义当前迭代搜索范围 | `depth_indices[3]`, `freq_low_idx[1]`, `freq_high_idx[1]`, `iteration` |
+
+规则：
+
+- `/paraspace` 存实际浮点值（`Float64[N]`），永不存入整数索引
+- `/config` 存模块参数和元数据，**永不存储整数索引或浮点参数值**
+- `/strategy` 存整数索引（`Int32[N]`），永不存原始浮点值
+- `freq_low_idx` / `freq_high_idx` 定义每个频带的低切/高切在 `frequency` 数组中的位置
+- `depth_indices` 选择搜索哪些深度
+- 没有 `freq_indices` — 所有频带由 `freq_low_idx` / `freq_high_idx` 隐式定义
 
 ## Key Design Rules (Current)
 
@@ -60,6 +79,7 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 1. **`/strategy` 仅含网格定义** — 无迭代状态字段（weights, best-fit, convergence）。状态由各阶段自行管理。
 1. **`forward` 模块无状态** — 读数据 + trials，写原始 misfits。不涉及权重、聚合、策略。
 1. **shared packages** — 工具代码在 `shared/` Julia 包中，通过 `using` 导入。
+1. **三层分离** — `/paraspace` 存值，`/config` 存参数，`/strategy` 存索引。三者永不混杂。
 
 ## Dimension Symbols
 

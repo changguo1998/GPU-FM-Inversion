@@ -2,7 +2,7 @@
 
 **Location**: `shared/grid/` (Julia package `Grid`)
 
-> **当前状态**: 开发第一阶段。仅 `Grid.default_grid()` 被 `input.jl` 使用。`generate_trials()` 和 `grid_refinement.jl` 待后续阶段接入。
+> **当前状态**: 开发第一阶段。`Grid.default_grid()` 提供默认初始网格参数。`generate_trials()` 和 `grid_refinement.jl` 待后续阶段接入。
 
 ## Sub-modules
 

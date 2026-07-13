@@ -14,9 +14,24 @@
 # (Uncomment only for standalone validation)
 # using Config
 
-# Misfit modules
-Config.misfit_modules() = ["XCorr", "Polarity"]
-Config.minimum_stations() = 2
+# Misfit modules — registered via use_misfit!(), automatically detected
+Config.use_misfit!(:XcorrP, from = :Xcorr)
+Config.use_misfit!(:XcorrS, from = :Xcorr)
+Config.use_misfit!(:Polarity)
+
+Config.XcorrP.trim() = [-2.0, 5.0]
+Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.filter_order() = 4
+Config.XcorrP.select_threshold() = 0.5
+Config.XcorrP.deselect_threshold() = 0.3
+
+Config.XcorrS.trim() = [-2.0, 8.0]
+Config.XcorrS.maxlag_factor() = 0.5
+Config.XcorrS.filter_order() = 4
+Config.XcorrS.select_threshold() = 0.5
+Config.XcorrS.deselect_threshold() = 0.3
+
+Config.Polarity.trim() = [0.0, 2.0]
 
 # Frequency bands
 Config.freq_bands() = [(0.5, 2.0)]
@@ -24,21 +39,7 @@ Config.freq_bands() = [(0.5, 2.0)]
 # Depth range
 Config.depths() = [5.0, 10.0, 15.0]
 
-# XCorr module
-Config.xcorr_params() = (
-    maxlag_factor = 0.5,
-    filter_order = 4,
-    P_trim = [-2.0, 5.0],
-    S_trim = [-2.0, 5.0],
-    select_threshold = 0.5,
-    deselect_threshold = 0.3,
-)
-
-# Polarity module
-Config.polarity_params() = (trim = [0.0, 2.0],)
-
 # ── Data interface ──
-# Implement these functions to provide raw data to the pipeline.
 # The initial search grid is automatically provided by the Grid module.
 
 # Event information
