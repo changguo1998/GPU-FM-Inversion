@@ -4,9 +4,9 @@
 
 using Random
 
-Config.use_misfit!(:XcorrP, from = :Xcorr)
-Config.use_misfit!(:XcorrS, from = :Xcorr)
-Config.use_misfit!(:Polarity)
+Config.use_misfit!(:XcorrP, from = :Xcorr, phase_type = "P")
+Config.use_misfit!(:XcorrS, from = :Xcorr, phase_type = "S")
+Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
 
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
@@ -20,11 +20,19 @@ Config.XcorrS.filter_order() = 4
 Config.XcorrS.select_threshold() = 0.5
 Config.XcorrS.deselect_threshold() = 0.3
 
-Config.Polarity.trim() = [0.0, 2.0]
+Config.PolarityP.trim() = [0.0, 2.0]
 
 Config.freq_bands() = [(0.5, 2.0)]
 
 Config.depths() = [5.0, 10.0, 15.0]
+
+Config.XcorrP.band_low() = Int32[1]
+Config.XcorrP.band_high() = Int32[2]
+Config.XcorrS.band_low() = Int32[1]
+Config.XcorrS.band_high() = Int32[2]
+
+Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
+Config.polarity_fields() = Dict("P" => :P_polarity)
 
 # ---------------------------------------------------------------------------
 # Data directory = config file location
@@ -60,20 +68,22 @@ Config.load_stations() = begin
             net_sta = split(sid, ".")
             net = net_sta[1]                 # "NET"
             sta = join(net_sta[2:end], ".")  # "ST1"
-            push!(
-                stas,
-                IO.StationInfo(
-                    sid,
-                    net,
-                    sta,
-                    "Z",
-                    lat,
-                    lon,
-                    0.0,      # elevation
-                    0.01,     # dt (100 Hz)
-                    "2024-01-01T00:00:00",  # begin_time
-                ),
-            )
+            for ch in ("Z", "N", "E")
+                push!(
+                    stas,
+                    IO.StationInfo(
+                        sid,
+                        net,
+                        sta,
+                        ch,
+                        lat,
+                        lon,
+                        0.0,      # elevation
+                        0.01,     # dt (100 Hz)
+                        "2024-01-01T00:00:00",  # begin_time
+                    ),
+                )
+            end
         end
     end
     return stas

@@ -9,7 +9,7 @@
 | `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
 | `PhasePick` | Yes | `station_id`, `P_time`, `S_time`, `P_polarity` | Phase arrival picks |
 | `TrialSet` | Yes | `strike`, `dip`, `rake`, `depth`, `depth_idx`, `freq_idx` | Grid trial generation output |
-| `Strategy` | No | `depth_indices`, `freq_low_idx`, `freq_high_idx`, `iteration` | Integer indices into `/paraspace` |
+|| `Strategy` | No | `depth_indices`, `iteration` | Integer indices into `/paraspace` |
 | `ConfigError` | No (Config) | `func`, `msg` | Config interface error |
 
 `ModuleData` replaced the earlier `XCorrObs`, `XCorrGF`, `PolarityGF` structs.

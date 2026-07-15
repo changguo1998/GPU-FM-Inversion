@@ -50,7 +50,7 @@ function ModuleData(;
     }(),
     channel_id::Vector{String} = String[],
     station_idx::Vector{Int32} = Int32[],
-)
+):ModuleData
     return ModuleData(obs, obs_norm2, gf, synamp, channel_id, station_idx)
 end
 
@@ -72,8 +72,6 @@ end
 
 struct Strategy
     depth_indices::Vector{Int32}
-    freq_low_idx::Vector{Int32}
-    freq_high_idx::Vector{Int32}
     iteration::Int32
 end
 
@@ -251,8 +249,6 @@ function read_strategy(h5file)::Strategy
             gr = f["strategy"]
             Strategy(
                 read(gr["depth_indices"]),
-                read(gr["freq_low_idx"]),
-                read(gr["freq_high_idx"]),
                 read(gr["iteration"]),
             )
         end,
@@ -315,7 +311,7 @@ function write_database(
     gf_data,
     module_data::Dict{String, ModuleData};
     paraspace = nothing,
-)
+    )
     h5open(h5file, "w") do f
         # /paraspace - expanded parameter-space float arrays
         if paraspace !== nothing
@@ -441,8 +437,6 @@ function write_strategy(h5file, strategy::Strategy)
         end
         gr = HDF5.create_group(f, "strategy")
         write(gr, "depth_indices", strategy.depth_indices)
-        write(gr, "freq_low_idx", strategy.freq_low_idx)
-        write(gr, "freq_high_idx", strategy.freq_high_idx)
         write(gr, "iteration", strategy.iteration)
     end
 end
@@ -487,7 +481,7 @@ end
 Parse an ISO 8601 datetime string and return seconds since epoch.
 Empty strings return NaN.
 """
-function parse_time_iso(t_str::String)
+function parse_time_iso(t_str::String)::Float64
     isempty(t_str) && return NaN
     return datetime2unix(DateTime(t_str))
 end
@@ -498,7 +492,7 @@ end
 Compute great-circle distance (km) between two points on a sphere
 (Earth radius = 6371 km).
 """
-function haversine_distance(lat1, lon1, lat2, lon2)
+function haversine_distance(lat1, lon1, lat2, lon2)::Float64
     R = 6371.0
     dlat = deg2rad(lat2 - lat1)
     dlon = deg2rad(lon2 - lon1)
@@ -511,7 +505,7 @@ end
 
 Compute azimuth (degrees, 0 = north, clockwise) from point 1 to point 2.
 """
-function compute_azimuth(lat1, lon1, lat2, lon2)
+function compute_azimuth(lat1, lon1, lat2, lon2)::Float64
     lat1r = deg2rad(lat1)
     lat2r = deg2rad(lat2)
     dlon = deg2rad(lon2 - lon1)
@@ -527,7 +521,7 @@ end
 Extract station key from phase identifier.
 "NET.ST1.Z.P" → "NET.ST1"
 """
-function extract_station(phase_id::String)
+function extract_station(phase_id::String)::String
     parts = split(phase_id, '.')
     return join(parts[1:2], '.')
 end
@@ -538,7 +532,7 @@ end
 Extract phase type from phase identifier.
 "NET.ST1.Z.P" → "P"
 """
-function extract_phase_type(phase_id::String)
+function extract_phase_type(phase_id::String)::String
     parts = split(phase_id, '.')
     return parts[end]
 end
@@ -549,7 +543,7 @@ end
 Find the highest-numbered `status_N.h5` file in a directory.
 Returns `(full_path, N)` or errors if none found.
 """
-function find_latest_status(status_dir::String)
+function find_latest_status(status_dir::String)::Tuple{String,Int}
     pattern = r"^status_(\d+)\.h5$"
     max_n = -1
     latest = ""

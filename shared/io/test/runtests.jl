@@ -56,8 +56,6 @@ function make_synthetic_status()
     # ---- Strategy ----
     strategy = IO.Strategy(
         Int32[1, 2, 3],   # depth_indices
-        Int32[1, 3],       # freq_low_idx
-        Int32[2, 4],       # freq_high_idx
         Int32(3),           # iteration
     )
 
@@ -133,7 +131,7 @@ function make_synthetic_database()
 
     config = Dict{String, Any}(
         "misfit_modules" => ["XcorrP", "XcorrS", "Polarity"],
-        "n_bands" => Int32(2),
+        "misfit_modules" => ["XcorrP", "XcorrS", "Polarity"],
         "XcorrP" => Dict(
             "maxlag_factor" => 0.5,
             "filter_order" => Int32(4),
@@ -313,8 +311,6 @@ end
         # Read strategy
         strat = IO.read_strategy(fn)
         @test strat.depth_indices == Int32[1, 2, 3]
-        @test strat.freq_low_idx == Int32[1, 3]
-        @test strat.freq_high_idx == Int32[2, 4]
         @test strat.iteration == 3
     end
 
@@ -487,21 +483,17 @@ end
             HDF5.create_group(f, "trials")
             HDF5.create_group(f, "misfits")
         end
-        strat = IO.Strategy(Int32[1, 2, 3], Int32[1, 3], Int32[2, 4], Int32(3))
+        strat = IO.Strategy(Int32[1, 2, 3], Int32(3))
         # Write first time
         IO.write_strategy(fn, strat)
         r1 = IO.read_strategy(fn)
         @test r1.depth_indices == Int32[1, 2, 3]
-        @test r1.freq_low_idx == Int32[1, 3]
-        @test r1.freq_high_idx == Int32[2, 4]
         @test r1.iteration == 3
         # Write second time (replacement)
-        strat2 = IO.Strategy(Int32[3, 4], Int32[2], Int32[3], Int32(5))
+        strat2 = IO.Strategy(Int32[3, 4], Int32(5))
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
         @test r2.depth_indices == Int32[3, 4]
-        @test r2.freq_low_idx == Int32[2]
-        @test r2.freq_high_idx == Int32[3]
         @test r2.iteration == 5
         rm(fn; force = true)
     end
