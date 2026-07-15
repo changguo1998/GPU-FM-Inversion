@@ -4,7 +4,7 @@
 
 | Symbol | Description | Typical Value |
 |----------------------|--------------------------------------------------|-----------------|
-| `N_stations` | Unique stations | 10–30 |
+| `N_stations` | Unique physical stations (no channel dimension) | 6–30 |
 | `N_channels` | Unique (station, channel) pairs | 10–90 |
 | `N_phases_P` | P-phase entries (one per station per channel) | 10–90 |
 | `N_phases_S` | S-phase entries (one per station per channel) | 10–90 |
@@ -29,8 +29,8 @@ Values correspond directly to Julia array indexing. Zero is not a valid index.
 | Field | Group | Description |
 |-----------------|--------------------|---------------------------------------------|
 | `depth_indices` | `/strategy` | Depth indices to search (1..N_depths) |
-| `freq_low_idx` | `/strategy` | Low-cut index into `/paraspace/frequency` |
-| `freq_high_idx` | `/strategy` | High-cut index into `/paraspace/frequency` |
+|| `band_low` | `/config/{ModuleName}` | Low-cut index into `/paraspace/frequency` (per-module) |
+|| `band_high` | `/config/{ModuleName}` | High-cut index into `/paraspace/frequency` (per-module) |
 | `station_idx` | `/{ModuleName}` | Station table index (1..N_stations) |
 | `depth_idx` | `/trials` | GF depth index per trial (1..N_depths) |
 | `freq_idx` | `/trials` | Frequency band index per trial (1..N_bands) |
@@ -66,16 +66,19 @@ Algorithm metadata and module-specific parameters. No float parameter-space
 values or integer indices — those live in `/paraspace` and `/strategy` respectively.
 
 | Dataset | Type | Shape | Description |
-|------------------|--------|---------------|------------------------------------------------|
+|--------------------|--------|--------|----------------------------------------------|
 | `misfit_modules` | String | `[N_modules]` | Active module instance names (e.g. `"XcorrP"`) |
-| `n_bands` | Int32 | scalar | Number of frequency bands |
-
 Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
 - **`/config/{ModuleName}/`**: Parameters depend on the module type. XCorr
   instances have `maxlag_factor`, `filter_order`, `trim`, `select_threshold`,
-  `deselect_threshold`. Polarity has `trim`.
+  `deselect_threshold`, `band_low`, `band_high`. Polarity has `trim`.
+
+| Dataset | Type | Shape | Description |
+|------------------|--------|----------------|--------------------------------------------------|
+| `band_low` | Int32 | `[N_bands]` | Low-cut indices into `/paraspace/frequency` (XCorr) |
+| `band_high` | Int32 | `[N_bands]` | High-cut indices into `/paraspace/frequency` (XCorr) |
 
 ### `/event`
 
@@ -89,14 +92,14 @@ in `misfit_modules`. Present only when the module is active:
 
 ### `/station`
 
-Flat arrays indexed by `N_stations` (one row per unique station).
+Flat arrays indexed by `N_stations` (one row per unique **physical station**,
+without channel dimension).
 
 | Dataset | Type | Shape | Description |
 |--------------|---------|----------------|---------------------------------------|
 | `id` | String | `[N_stations]` | Station identifier (`NET.ST1`) |
 | `network` | String | `[N_stations]` | Network code |
 | `station` | String | `[N_stations]` | Station name |
-| `channel` | String | `[N_stations]` | Channel code (`Z`, `N`, `E`) |
 | `latitude` | Float64 | `[N_stations]` | Station latitude (deg) |
 | `longitude` | Float64 | `[N_stations]` | Station longitude (deg) |
 | `elevation` | Float64 | `[N_stations]` | Station elevation (m) |
@@ -110,11 +113,8 @@ Flat arrays indexed by `N_stations` (one row per unique station).
 
 ### `/channel`
 
-One dataset per channel-station pair. Dataset name: `{station_id}.{channel}` (e.g. `NET.ST1.Z`).
-
-| Dataset | Type | Shape | Description |
-|--------------------------|---------|-------------------|-------------------------|
-| `{station_id}.{channel}` | Float64 | `[N_samples_raw]` | Raw continuous waveform |
+One dataset per channel-station pair. Dataset name: `{station_id}.{channel}`
+(e.g. `NET.ST1.Z`). Shape `[N_samples_raw]`.
 
 ### `/gf`
 
@@ -174,10 +174,8 @@ Trial generation reads the expanded float values from `/paraspace`
 and selects subsets by these indices.
 
 | Dataset | Type | Shape | Description |
-|-----------------|-------|-------------|--------------------------------------------|
+|--------------------|-------|--------|--------------------------------------------|
 | `depth_indices` | Int32 | `[n]` | Indices into `/paraspace/depth` |
-| `freq_low_idx` | Int32 | `[N_bands]` | Low-cut index into `/paraspace/frequency` |
-| `freq_high_idx` | Int32 | `[N_bands]` | High-cut index into `/paraspace/frequency` |
 | `iteration` | Int32 | scalar | Iteration number |
 
 ### `/trials`

@@ -85,7 +85,7 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 
 | Symbol | Description | Typical Value |
 |--------------|------------------------------------------|---------------------|
-| `N_stations` | Stations | 10–30 |
+|| `N_stations` | Unique physical stations | 10–30 |
 | `N_channels` | Unique (station, channel) pairs | 30–90 |
 | `N_phases` | Phase entries (channel + wave type: P/S) | 20–180 |
 | `N_depths` | Depth levels for Greens | 10–40 |

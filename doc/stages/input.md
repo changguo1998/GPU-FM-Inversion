@@ -10,14 +10,18 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 1. 引导配置
    └─ include(config.jl) → Config.use_misfit!() 注册插件,
                            Config.misfit_modules() (auto), freq_bands(), depths()
+   └─ Config.phase_fields()/polarity_fields() 定义震相→字段映射
+   └─ 插件可声明 phase_type="P"/"S", 通过 Config.phase_type() 查询
 
-2. 读外部数据
+   2. 读外部数据
    └─ Config.load_event() + load_phase_picks() + load_stations()
-   └─ 验证: 每个 station 必须有对应的 phase pick
-   └─ 生成 phase_list: 每站 P/S 两条, 含 phase_id + phase_type + station_idx
+   └─ 生成 phase_list: 从震相文件提取, 缺失的震相/台站直接跳过
+   └─ phase_types 从 phase_list 动态提取, 不硬编码 ("P", "S")
 
-3. 构建 /station 表
-   └─ 扁平数组: id, network, channel, lat/lon, dt, distance, azimuth, P/S_time, P_polarity
+3. 构建 /station 表 (6 行物理台站)
+   └─ 按 station.id 去重, 保持原始顺序
+   └─ 扁平数组: id, network, lat/lon, dt, distance, azimuth, P/S_time, P_polarity
+   └─ channel 信息由 /{ModuleName}/channel_id 的 .Z/.N/.E 后缀隐式携带, 不单独存储
 
 4. 加载原始波形 → /channel
    └─ Config.load_waveform(pid) 逐相位, 去重后存 channel_data{ch_id → Float64[N]}
@@ -25,12 +29,13 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 5. 加载格林函数 → /gf
    └─ Config.load_gf() 逐深度×通道, 存 gf_data{depth → ch_id → Float64[N×6]}
 
-6. 预处理波形 (逐频带、逐相位类型)
-   ├─ 按 misfit_modules 遍历, 每个模块实例独立预处理
-   ├─ XCorrP/XcorrS: Config.XcorrP.preprocess() 等
-   │          输出 obs[np×nt], gf[np×6×nt], synamp[np×6×6]
-   │          各深度独立预处理 GF
-   └─ Polarity: Config.Polarity.preprocess() 极性窗口
+6. 预处理波形 (逐频带、逐震相类型)
+   ├─ phase_types 来自 phase_list 数据, 遍历每种震相类型
+   ├─ XCorr 实例通过 Config.phase_type() 匹配震相类型
+   │    ├─ Config.XcorrP.preprocess() 等, 输出 obs[np×nt], gf[np×6×nt], synamp[np×6×6]
+   │    ├─ 各深度独立预处理 GF
+   │    └─ xcorr_module_names 反向映射 (震相类型 → 模块名)
+   └─ PolarityP: Config.PolarityP.preprocess() 极性窗口 (逐实例)
                  输出 obs[nc×1], gf[nc×6×npolarity_samples]
 
 7. 组装字典
@@ -42,6 +47,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 8. 写入 database.h5
    └─ 组装 module_data::Dict{String, IO.ModuleData}
+   └─ 遍历 xcorr_module_names, 通过 phase_channel_ids/ptype 获取信道数据
    └─ IO.write_database(db_path, db_config, event, station, channel, gf,
                          module_data; paraspace = paraspace)
    └─ 每个模块的 channel_id + station_idx 由 ModuleData 携带, 自动写入

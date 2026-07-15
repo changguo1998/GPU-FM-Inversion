@@ -46,8 +46,8 @@ scripts/input.jl  (一次) → database.h5 + status_0.h5
 
 Stores expanded float arrays for parameter-space dimensions:
 strike/dip/rake (from grid expansion), depth, frequency (discrete values, `Float64[N_freq]`).
-Low/high cuts of each band are `freq_low_idx`/`freq_high_idx` in `/strategy` pointing into
-`/paraspace/frequency`. All integer indices live in `/strategy` — `/config` has none.
+Per-module band selection uses `band_low`/`band_high` in `/config/{ModuleName}/` pointing into
+`/paraspace/frequency`. All integer indices live in `/config` — `/strategy` has none.
 See `doc/schema.md` for details.
 
 ## Domain concepts
