@@ -3,7 +3,7 @@
 ## Types
 
 | Struct | Export | Fields | Notes |
-|---------------|-------------|---------------------------------------------------------------------------------|-----------------------------------------|
+|---------------|--------|---------------------------------------------------------------------------------|-----------------------------------------|
 | `EventInfo` | Yes | `longitude`, `latitude`, `depth`, `magnitude`, `origintime` | Event location and magnitude |
 | `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `lat`, `lon`, `elev`, `dt`, `begin_time` | Station metadata |
 | `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `channel_id`, `station_idx` | Unified per-module preprocessing output |

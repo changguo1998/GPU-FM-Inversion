@@ -1,6 +1,9 @@
-# Pipeline config for synthetic test event (plain-text data).
+# config.jl — Synthetic test event (plain-text data, Gaussian STF)
 # Loaded by input.jl via include() — Config module already loaded.
 # Reads stations.txt, {sta}.{ch}.dat, phases.txt from @__DIR__.
+#
+# Physics matches tests/synthetic_data.jl: two-layer half-space,
+# far-field P/S waves with Gaussian source time function (σ=0.2s).
 
 using Random
 
@@ -13,23 +16,21 @@ Config.XcorrP.maxlag_factor() = 0.5
 Config.XcorrP.filter_order() = 4
 Config.XcorrP.select_threshold() = 0.5
 Config.XcorrP.deselect_threshold() = 0.3
+Config.XcorrP.band_low() = Int32[1]
+Config.XcorrP.band_high() = Int32[2]
 
-Config.XcorrS.trim() = [-2.0, 5.0]
+Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.maxlag_factor() = 0.5
 Config.XcorrS.filter_order() = 4
 Config.XcorrS.select_threshold() = 0.5
 Config.XcorrS.deselect_threshold() = 0.3
+Config.XcorrS.band_low() = Int32[1]
+Config.XcorrS.band_high() = Int32[2]
 
 Config.PolarityP.trim() = [0.0, 2.0]
 
 Config.freq_bands() = [(0.5, 2.0)]
-
 Config.depths() = [5.0, 10.0, 15.0]
-
-Config.XcorrP.band_low() = Int32[1]
-Config.XcorrP.band_high() = Int32[2]
-Config.XcorrS.band_low() = Int32[1]
-Config.XcorrS.band_high() = Int32[2]
 
 Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
 Config.polarity_fields() = Dict("P" => :P_polarity)
@@ -37,8 +38,8 @@ Config.polarity_fields() = Dict("P" => :P_polarity)
 # ---------------------------------------------------------------------------
 # Data directory = config file location
 # ---------------------------------------------------------------------------
-
 const _DIR = @__DIR__
+const _CH_NAMES = ["E", "N", "Z"]
 
 # Waveform files: E positive east, N positive north, Z positive up.
 # GF array channels: [N, E, Z] (Z positive up) — flipped from internal NED D-down.
@@ -68,7 +69,7 @@ Config.load_stations() = begin
             net_sta = split(sid, ".")
             net = net_sta[1]                 # "NET"
             sta = join(net_sta[2:end], ".")  # "ST1"
-            for ch in ("Z", "N", "E")
+            for ch in _CH_NAMES
                 push!(
                     stas,
                     IO.StationInfo(
@@ -103,12 +104,10 @@ Config.load_phase_picks() = begin
 end
 
 Config.load_waveform(pid::String) = begin
-    # pid = "NET.ST1.Z.P" → sta="NET.ST1", ch="Z", file = "NET.ST1.Z.dat"
-    # Data in files: E positive east, N positive north, Z positive up
+    # pid = "NET.ST1.E.P" → strip phase type → "NET.ST1.E" → "NET.ST1.E.dat"
     parts = split(pid, ".")
-    sta = join(parts[1:2], ".")
-    ch = parts[3]
-    fn = joinpath(_DIR, "$sta.$ch.dat")
+    ch_id = join(parts[1:3], ".")
+    fn = joinpath(_DIR, "$ch_id.dat")
     return [parse(Float64, line) for line in eachline(fn)]
 end
 
@@ -199,7 +198,7 @@ Config.load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon) = begin
         γr = [vr_vn / vr_norm, vr_ve / vr_norm, vr_vd / vr_norm]
     end
 
-    # Build GF
+    # Build GF (delta impulses at arrival times)
     gf = zeros(Float64, nt, 6, 3)
 
     tp_d_idx = max(1, min(nt, round(Int, tp_dir / dt)))
@@ -213,6 +212,7 @@ Config.load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon) = begin
 
     ts_r_idx = max(1, min(nt, round(Int, ts_ref / dt)))
     _add_s(gf, ts_r_idx, d_km, γr, _AMP_SCALE * _R_SS, _VS_UPPER, nt)
+
     # GF computed in NED (D positive down); observed Z = positive up → flip D to Z
     gf[:, :, 3] .= -gf[:, :, 3]
 

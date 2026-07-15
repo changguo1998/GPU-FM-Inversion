@@ -117,7 +117,8 @@ function prompt_operator(
     current::H5IO.Strategy;
     io_in::Base.IO = stdin,
     io_out::Base.IO = stdout,
-):Bool
+)
+    :Bool
     println(io_out)
     println(
         io_out,

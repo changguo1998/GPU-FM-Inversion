@@ -131,8 +131,10 @@ phys_station_dict["distance"] = [
     IO.haversine_distance(event.latitude, event.longitude, s.latitude, s.longitude) for
     s in phys_stations
 ]
-phys_station_dict["azimuth"] =
-    [IO.compute_azimuth(event.latitude, event.longitude, s.latitude, s.longitude) for s in phys_stations]
+phys_station_dict["azimuth"] = [
+    IO.compute_azimuth(event.latitude, event.longitude, s.latitude, s.longitude) for
+    s in phys_stations
+]
 _empty_pick = IO.PhasePick("", "", "", Int8(-128))
 phys_station_dict["P_time"] =
     [get(picks, get(station_to_idx, s.id, 0), _empty_pick).P_time for s in phys_stations]
@@ -223,8 +225,18 @@ for ptype in phase_types
                 high_cut = freq_vals[hi]
 
                 result = mod.process(
-                    phases_pt, ptype, stations, picks, station_to_idx,
-                    channel_data, gf_data, depths, low_cut, high_cut, local_idx, pf,
+                    phases_pt,
+                    ptype,
+                    stations,
+                    picks,
+                    station_to_idx,
+                    channel_data,
+                    gf_data,
+                    depths,
+                    low_cut,
+                    high_cut,
+                    local_idx,
+                    pf,
                 )
 
                 isempty(result["channel_id"]) && continue
@@ -248,8 +260,16 @@ for ptype in phase_types
             end
         else
             result = mod.process(
-                phases_pt, ptype, stations, picks, station_to_idx,
-                channel_data, gf_data, depths, pf, pol_f,
+                phases_pt,
+                ptype,
+                stations,
+                picks,
+                station_to_idx,
+                channel_data,
+                gf_data,
+                depths,
+                pf,
+                pol_f,
             )
 
             isempty(result["channel_id"]) && continue
@@ -353,7 +373,10 @@ IO.write_database(
     paraspace = paraspace,
 )
 mod_summary = join(
-    ["$(length(module_results[mn]["channel_id"])) $mn" for mn in sort(collect(keys(module_results)))],
+    [
+        "$(length(module_results[mn]["channel_id"])) $mn" for
+        mn in sort(collect(keys(module_results)))
+    ],
     ", ",
 )
 @info "  phase metadata written ($mod_summary)"
@@ -362,7 +385,7 @@ mod_summary = join(
 # 记录 /strategy: depth_indices + 频带索引
 @info "Writing status_0.h5 ..."
 
-strategy = IO.Strategy(Int32.(1:n_depths), Int32(0))
+strategy = IO.Strategy(Int32.(1:n_depths), Int32.(1:n_bands), Int32(0))
 
 status0_path = joinpath(data_dir, "status_0.h5")
 h5open(status0_path, "w") do f

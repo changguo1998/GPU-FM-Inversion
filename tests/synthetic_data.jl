@@ -8,7 +8,8 @@
 # GF = delta impulses at direct + reflected (interface at 20 km) arrivals,
 # amplitude scaled by A_const / r² / v³ with full moment-tensor radiation
 # pattern. Reflection coefficients from normal-incidence impedance contrast.
-# Observed = GF * MT + noise.
+# Observed = (GF * MT) ⊗ STF + noise, where STF is a Gaussian source time
+# function (configurable σ, default 0.2 s).
 #
 # Source at origin (lat=0, lon=0, depth=10 km).
 # Stations randomly placed around source.
@@ -22,6 +23,7 @@
 #   julia tests/synthetic_data.jl                    # writes to CWD
 #   julia tests/synthetic_data.jl /tmp/test_event
 #   julia tests/synthetic_data.jl --strike 30 --dip 60 --rake 90 --nsta 6
+#   julia tests/synthetic_data.jl --stf-sigma 0.0    (delta, no STF)
 #
 # Deterministic: Random.seed!(42). Overwrites existing files.
 
@@ -40,6 +42,7 @@ const DEFAULT_DIP = 60.0
 const DEFAULT_RAKE = 90.0
 const DEFAULT_EVENT_DEPTH = 10.0  # km
 const AMPLITUDE_SCALE = 1.0e6    # A_const
+const DEFAULT_STF_SIGMA = 0.2   # Gaussian source time function σ (seconds), 0 to disable
 
 # ---------------------------------------------------------------------------
 # CLI parsing
@@ -52,6 +55,7 @@ _dt = DEFAULT_DT
 _strike = DEFAULT_STRIKE
 _dip = DEFAULT_DIP
 _rake = DEFAULT_RAKE
+_stf_sigma = DEFAULT_STF_SIGMA
 
 let
     local i = 1
@@ -62,6 +66,7 @@ let
     local sk = _strike
     local dp = _dip
     local rk = _rake
+    local ssig = _stf_sigma
     while i <= length(ARGS)
         if ARGS[i] == "--nsta"
             ns = parse(Int, ARGS[i + 1]);
@@ -81,6 +86,9 @@ let
         elseif ARGS[i] == "--rake"
             rk = parse(Float64, ARGS[i + 1]);
             i += 2
+        elseif ARGS[i] == "--stf-sigma"
+            ssig = parse(Float64, ARGS[i + 1]);
+            i += 2
         elseif startswith(ARGS[i], "--")
             error("Unknown flag: $(ARGS[i])")
         else
@@ -95,6 +103,7 @@ let
     global _strike = sk
     global _dip = dp
     global _rake = rk
+    global _stf_sigma = ssig
 end
 
 outdir = _outdir
@@ -105,6 +114,7 @@ strike = _strike
 dip = _dip
 rake = _rake
 event_depth = DEFAULT_EVENT_DEPTH
+stf_sigma = _stf_sigma
 
 mkpath(outdir)
 
@@ -344,6 +354,31 @@ CH_NAMES = ["E", "N", "Z"]
 # For each output channel (E,N,Z), GF index 1=N, 2=E, 3=D
 const _CH_TO_GF = [2, 1, 3]
 
+# Gaussian source time function convolution
+# Builds normalized Gaussian kernel, convolves with `x`, returns same length
+function _convolve_stf(x::Vector{Float64}, sigma::Float64, dt::Float64)::Vector{Float64}
+    sigma <= 0.0 && return copy(x)
+    halfwidth = 3.0 * sigma
+    nk = 2 * round(Int, halfwidth / dt) + 1
+    nk = max(nk, 1)
+    t = range(-halfwidth, halfwidth, length = nk)
+    kernel = exp.(-t .^ 2 / (2.0 * sigma^2))
+    kernel ./= sum(kernel)
+    nx = length(x)
+    result = zeros(Float64, nx)
+    nh = div(nk, 2)
+    for i in 1:nx
+        s = 0.0
+        for j in (-nh):nh
+            idx = i + j
+            (1 <= idx <= nx) || continue
+            s += x[idx] * kernel[j + nh + 1]
+        end
+        result[i] = s
+    end
+    return result
+end
+
 waveforms = Dict{String, Vector{Float64}}()
 noise_rng = Random.MersenneTwister(999)
 
@@ -359,6 +394,10 @@ for si in 1:n_station
         # Z channel: output positive up (seismic convention), flip from GF D-down
         if ch_name == "Z"
             syn .= -syn
+        end
+        # Convolve with Gaussian source time function
+        if stf_sigma > 0.0
+            syn = _convolve_stf(syn, stf_sigma, dt)
         end
         rms = sqrt(sum(syn .^ 2) / npts)
         noise = randn(noise_rng, Float64, npts) .* (rms * 0.1)
@@ -415,3 +454,9 @@ println(
     "  velocity model: upper(0–20 km) vp=$(VP_UPPER) vs=$(VS_UPPER), lower vp=$(VP_LOWER) vs=$(VS_LOWER)",
 )
 println("  reflection coeff: P=$(round(R_PP, digits=4)) S=$(round(R_SS, digits=4))")
+if stf_sigma > 0.0
+    fwhm = round(2.35482 * stf_sigma, digits = 3)
+    println("  source time function: Gaussian σ=$(stf_sigma) s, FWHM=$(fwhm) s")
+else
+    println("  source time function: delta (none)")
+end

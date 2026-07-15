@@ -27,8 +27,9 @@ All array/vector indices throughout the schema are **1-based** (Julia convention
 Values correspond directly to Julia array indexing. Zero is not a valid index.
 
 | Field | Group | Description |
-|-----------------|--------------------|---------------------------------------------|
+|-----------------|-------------|-----------------------------------------------|
 | `depth_indices` | `/strategy` | Depth indices to search (1..N_depths) |
+| `freq_indices` | `/strategy` | Frequency band indices to search (1..N_bands) |
 || `band_low` | `/config/{ModuleName}` | Low-cut index into `/paraspace/frequency` (per-module) |
 || `band_high` | `/config/{ModuleName}` | High-cut index into `/paraspace/frequency` (per-module) |
 | `station_idx` | `/{ModuleName}` | Station table index (1..N_stations) |
@@ -66,7 +67,7 @@ Algorithm metadata and module-specific parameters. No float parameter-space
 values or integer indices — those live in `/paraspace` and `/strategy` respectively.
 
 | Dataset | Type | Shape | Description |
-|--------------------|--------|--------|----------------------------------------------|
+|------------------|--------|---------------|------------------------------------------------|
 | `misfit_modules` | String | `[N_modules]` | Active module instance names (e.g. `"XcorrP"`) |
 Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
@@ -76,7 +77,7 @@ in `misfit_modules`. Present only when the module is active:
   `deselect_threshold`, `band_low`, `band_high`. Polarity has `trim`.
 
 | Dataset | Type | Shape | Description |
-|------------------|--------|----------------|--------------------------------------------------|
+|-------------|-------|-------------|------------------------------------------------------|
 | `band_low` | Int32 | `[N_bands]` | Low-cut indices into `/paraspace/frequency` (XCorr) |
 | `band_high` | Int32 | `[N_bands]` | High-cut indices into `/paraspace/frequency` (XCorr) |
 
@@ -174,8 +175,9 @@ Trial generation reads the expanded float values from `/paraspace`
 and selects subsets by these indices.
 
 | Dataset | Type | Shape | Description |
-|--------------------|-------|--------|--------------------------------------------|
+|-----------------|-------|--------|--------------------------------------------------------|
 | `depth_indices` | Int32 | `[n]` | Indices into `/paraspace/depth` |
+| `freq_indices` | Int32 | `[n]` | Indices into `/paraspace/frequency` bands (1..N_bands) |
 | `iteration` | Int32 | scalar | Iteration number |
 
 ### `/trials`

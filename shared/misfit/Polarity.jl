@@ -65,17 +65,18 @@ function process(
     t_source = trim()[2]
     pol_field = get(pol_f, ptype, nothing)
     pol_field === nothing && return Dict(
-        "channel_id"  => String[],
+        "channel_id" => String[],
         "station_idx" => Int32[],
         "obs" => Dict(1 => Dict("obs" => Float64[])),
-        "gf"  => Dict(d => Dict(1 => Dict("gf" => zeros(Float64, 0, 6, 0))) for d in depths),
+        "gf" => Dict(d => Dict(1 => Dict("gf" => zeros(Float64, 0, 6, 0))) for d in depths),
     )
 
     # Pass 1: collect valid entries, determine common n_pol
     obs_vec = Float64[]
     ch_vec = String[]
     sta_vec = Int32[]
-    gf_lists = Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
+    gf_lists =
+        Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
     n_pol_list = Int[]
 
     for (pid, si) in phases_pt
@@ -123,7 +124,8 @@ function process(
         push!(gf_lists[depths[1]], gf_pol0)
 
         for depth_val in depths[2:end]
-            gf_pol, _ = preprocess(gf_per_depth[depth_val], dt, arrival_sample, t_source, obs_pol_int8)
+            gf_pol, _ =
+                preprocess(gf_per_depth[depth_val], dt, arrival_sample, t_source, obs_pol_int8)
             push!(gf_lists[depth_val], gf_pol)
         end
     end
@@ -133,10 +135,10 @@ function process(
 
     if n_entries == 0 || n_pol_common == 0
         return Dict(
-            "channel_id"  => String[],
+            "channel_id" => String[],
             "station_idx" => Int32[],
             "obs" => Dict(1 => Dict("obs" => Float64[])),
-            "gf"  => Dict(d => Dict(1 => Dict("gf" => zeros(Float64, 0, 6, 0))) for d in depths),
+            "gf" => Dict(d => Dict(1 => Dict("gf" => zeros(Float64, 0, 6, 0))) for d in depths),
         )
     end
 
@@ -156,15 +158,9 @@ function process(
     end
 
     return Dict(
-        "channel_id"  => ch_vec,
+        "channel_id" => ch_vec,
         "station_idx" => sta_vec,
-        "obs" => Dict(
-            1 => Dict("obs" => obs_arr),
-        ),
-        "gf" => Dict(
-            d => Dict(
-                1 => Dict("gf" => gf_arr[d]),
-            ) for d in depths
-        ),
+        "obs" => Dict(1 => Dict("obs" => obs_arr)),
+        "gf" => Dict(d => Dict(1 => Dict("gf" => gf_arr[d])) for d in depths),
     )
 end

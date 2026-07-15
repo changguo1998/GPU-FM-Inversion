@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Generates data with Gaussian source time function (σ=0.2s, configurable via --stf-sigma).
 
 # gen_synthetic.sh — Generate synthetic test data for pipeline testing.
 #
@@ -12,6 +13,7 @@ set -euo pipefail
 #   bash examples/synthetic/gen_synthetic.sh [data-dir]   # default: examples/synthetic/
 #   bash examples/synthetic/gen_synthetic.sh /tmp/test_event --nsta 12
 #   bash examples/synthetic/gen_synthetic.sh --strike 30 --dip 60 --rake 90
+#   bash examples/synthetic/gen_synthetic.sh --stf-sigma 0.0    (delta, no STF)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

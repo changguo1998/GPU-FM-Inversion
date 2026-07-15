@@ -10,7 +10,8 @@
 
 export trim, maxlag_factor, filter_order
 
-export select_threshold, deselect_threshold, preprocess, process, is_freq_dependent, band_low, band_high
+export select_threshold,
+    deselect_threshold, preprocess, process, is_freq_dependent, band_low, band_high
 
 is_freq_dependent() = true
 # -- Config namespace (user must override) --
@@ -156,8 +157,14 @@ function process(
         !all_gf_ok && continue
 
         obs_proc, gf_proc0, synamp0, obs_n2 = preprocess(
-            wf, gf_per_depth[depths[1]], dt, arrival_sample,
-            low_cut, high_cut, wf_filter; filter_order = filter_order_val,
+            wf,
+            gf_per_depth[depths[1]],
+            dt,
+            arrival_sample,
+            low_cut,
+            high_cut,
+            wf_filter;
+            filter_order = filter_order_val,
         )
         push!(obs_list, obs_proc)
         push!(obs_norm2_list, obs_n2)
@@ -168,8 +175,14 @@ function process(
 
         for depth_val in depths[2:end]
             _, gf_proc_d, synamp_d, _ = preprocess(
-                wf, gf_per_depth[depth_val], dt, arrival_sample,
-                low_cut, high_cut, wf_filter; filter_order = filter_order_val,
+                wf,
+                gf_per_depth[depth_val],
+                dt,
+                arrival_sample,
+                low_cut,
+                high_cut,
+                wf_filter;
+                filter_order = filter_order_val,
             )
             push!(gf_lists[depth_val], gf_proc_d)
             push!(synamp_lists[depth_val], synamp_d)
@@ -181,18 +194,14 @@ function process(
 
     if n_entries == 0 || nt_xc == 0
         return Dict(
-            "channel_id"  => String[],
+            "channel_id" => String[],
             "station_idx" => Int32[],
-            "obs" => Dict(
-                freq_idx => Dict(
-                    "obs"       => zeros(Float64, 0, 0),
-                    "obs_norm2" => Float64[],
-                ),
-            ),
+            "obs" =>
+                Dict(freq_idx => Dict("obs" => zeros(Float64, 0, 0), "obs_norm2" => Float64[])),
             "gf" => Dict(
                 d => Dict(
                     freq_idx => Dict(
-                        "gf"     => zeros(Float64, 0, 6, 0),
+                        "gf" => zeros(Float64, 0, 6, 0),
                         "synamp" => zeros(Float64, 0, 6, 6),
                     ),
                 ) for d in depths
@@ -221,21 +230,12 @@ function process(
     end
 
     return Dict(
-        "channel_id"  => ch_vec,
+        "channel_id" => ch_vec,
         "station_idx" => sta_vec,
-        "obs" => Dict(
-            freq_idx => Dict(
-                "obs"       => obs_mat,
-                "obs_norm2" => obs_n2_vec,
-            ),
-        ),
+        "obs" => Dict(freq_idx => Dict("obs" => obs_mat, "obs_norm2" => obs_n2_vec)),
         "gf" => Dict(
-            d => Dict(
-                freq_idx => Dict(
-                    "gf"     => gf_arr[d],
-                    "synamp" => synamp_arr[d],
-                ),
-            ) for d in depths
+            d => Dict(freq_idx => Dict("gf" => gf_arr[d], "synamp" => synamp_arr[d])) for
+            d in depths
         ),
     )
 end

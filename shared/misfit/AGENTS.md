@@ -11,7 +11,7 @@ Active modules: XCorr, Polarity. PSR/AbsShift/RelShift deferred. CAP cancelled.
 ## Files
 
 | File | Module | Role |
-|-----------|----------|---------------------------------------------|
+|---------------|----------|----------------------------------------------|
 | `Xcorr.jl` | XCorr | Cross-correlation misfit — bandpass + trim |
 | `Polarity.jl` | Polarity | Polarity misfit — trim GF to polarity window |
 
@@ -94,9 +94,9 @@ Both modules use a two-pass approach:
 1. **Pass 1** — iterate all phases, check GF availability, collect intermediate
    data in `Vector{Vector}` / `Vector{Matrix}` lists. Track `nt_xc` (XCorr) or
    `n_pol_common` (Polarity) as the minimum length across entries.
-2. **Pre-allocate** — allocate `Matrix{Float64}(N_entries, N_samples)` for obs,
+1. **Pre-allocate** — allocate `Matrix{Float64}(N_entries, N_samples)` for obs,
    `Array{Float64, 3}(N_entries, 6, N_samples)` for GF per depth, etc.
-3. **Pass 2** — copy from intermediate lists into pre-allocated arrays, trimming
+1. **Pass 2** — copy from intermediate lists into pre-allocated arrays, trimming
    to the common length. Recompute `synamp` from trimmed GF (XCorr only).
 
 This eliminates the O(N²) repeated-array-concatenation that existed in the

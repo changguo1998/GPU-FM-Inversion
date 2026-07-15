@@ -50,7 +50,8 @@ function ModuleData(;
     }(),
     channel_id::Vector{String} = String[],
     station_idx::Vector{Int32} = Int32[],
-):ModuleData
+)
+    :ModuleData
     return ModuleData(obs, obs_norm2, gf, synamp, channel_id, station_idx)
 end
 
@@ -72,6 +73,7 @@ end
 
 struct Strategy
     depth_indices::Vector{Int32}
+    freq_indices::Vector{Int32}
     iteration::Int32
 end
 
@@ -244,17 +246,15 @@ function read_trials(h5file)::TrialSet
 end
 
 function read_strategy(h5file)::Strategy
-    h5open(
-        f -> begin
-            gr = f["strategy"]
-            Strategy(
-                read(gr["depth_indices"]),
-                read(gr["iteration"]),
-            )
-        end,
-        h5file,
-        "r",
-    )
+    h5open(f -> begin
+        gr = f["strategy"]
+        fi = if haskey(gr, "freq_indices")
+            read(gr["freq_indices"])
+        else
+            Int32[]
+        end
+        Strategy(read(gr["depth_indices"]), fi, read(gr["iteration"]))
+    end, h5file, "r")
 end
 
 function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
@@ -311,7 +311,7 @@ function write_database(
     gf_data,
     module_data::Dict{String, ModuleData};
     paraspace = nothing,
-    )
+)
     h5open(h5file, "w") do f
         # /paraspace - expanded parameter-space float arrays
         if paraspace !== nothing
@@ -437,6 +437,7 @@ function write_strategy(h5file, strategy::Strategy)
         end
         gr = HDF5.create_group(f, "strategy")
         write(gr, "depth_indices", strategy.depth_indices)
+        write(gr, "freq_indices", strategy.freq_indices)
         write(gr, "iteration", strategy.iteration)
     end
 end
@@ -543,7 +544,7 @@ end
 Find the highest-numbered `status_N.h5` file in a directory.
 Returns `(full_path, N)` or errors if none found.
 """
-function find_latest_status(status_dir::String)::Tuple{String,Int}
+function find_latest_status(status_dir::String)::Tuple{String, Int}
     pattern = r"^status_(\d+)\.h5$"
     max_n = -1
     latest = ""

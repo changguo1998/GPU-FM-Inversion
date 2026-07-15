@@ -70,7 +70,8 @@ function use_misfit!(
     name::Symbol;
     from::Symbol = name,
     phase_type::Union{String, Nothing} = nothing,
-):Nothing
+)
+    :Nothing
     file = joinpath(_MISFIT_DIR, "$from.jl")
     if !isfile(file)
         error("Misfit module '$name' not found at $file")
@@ -257,7 +258,13 @@ skip with a warning). On success returns a tuple:
   tp        :: Float64             P arrival time from GF start (seconds)
   ts        :: Float64             S arrival time from GF start (seconds)
 """
-function load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon)::Union{Nothing, Tuple{Array{Float64,3}, Float64, Float64, Float64}}
+function load_gf(
+    src_lat,
+    src_lon,
+    src_depth,
+    sta_lat,
+    sta_lon,
+)::Union{Nothing, Tuple{Array{Float64, 3}, Float64, Float64, Float64}}
     throw(
         ConfigError(
             "load_gf",
