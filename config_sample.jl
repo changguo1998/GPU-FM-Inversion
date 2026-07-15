@@ -15,9 +15,9 @@
 # using Config
 
 # Misfit modules — registered via use_misfit!(), automatically detected
-Config.use_misfit!(:XcorrP, from = :Xcorr)
-Config.use_misfit!(:XcorrS, from = :Xcorr)
-Config.use_misfit!(:Polarity)
+Config.use_misfit!(:XcorrP, from = :Xcorr, phase_type = "P")
+Config.use_misfit!(:XcorrS, from = :Xcorr, phase_type = "S")
+Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
 
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
@@ -31,13 +31,18 @@ Config.XcorrS.filter_order() = 4
 Config.XcorrS.select_threshold() = 0.5
 Config.XcorrS.deselect_threshold() = 0.3
 
-Config.Polarity.trim() = [0.0, 2.0]
+Config.PolarityP.trim() = [0.0, 2.0]
 
 # Frequency bands
 Config.freq_bands() = [(0.5, 2.0)]
 
 # Depth range
 Config.depths() = [5.0, 10.0, 15.0]
+
+# 震相字段映射 (PhasePick struct 字段名 → 震相类型)
+# phase_fields: 走时字段; polarity_fields: 极性字段 (仅含极性数据的震相)
+Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
+Config.polarity_fields() = Dict("P" => :P_polarity)
 
 # ── Data interface ──
 # The initial search grid is automatically provided by the Grid module.

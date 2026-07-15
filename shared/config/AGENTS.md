@@ -13,25 +13,30 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Configuration functions
 
 | Function | Return type | Example return value |
-|--------------------|-----------------------------------|------------------------------------------|
+|---------------------|-----------------------------------|------------------------------------------|
 | `misfit_modules()` | `Vector{String}` | Auto-detected from `use_misfit!()` calls |
 | `freq_bands()` | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]` |
 | `depths()` | `Vector{Float64}` | `[5.0, 10.0, 15.0]` |
+| `phase_fields()` | `Dict{String, Symbol}` | `Dict("P" => :P_time, "S" => :S_time)` |
+| `polarity_fields()` | `Dict{String, Symbol}` | `Dict("P" => :P_polarity)` |
 
 ### Misfit plugin loader
 
 | Function | Description |
-|--------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `use_misfit!(name; from=name)` | Load plugin from `shared/misfit/{from}.jl`, create `Config.{name}` inner module, auto-register in `misfit_modules()` |
+|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `use_misfit!(name; from=name, phase_type=nothing)` | Load plugin from `shared/misfit/{from}.jl`, create `Config.{name}` inner module, auto-register in `misfit_modules()`. `phase_type` declares the phase type for XCorr template instances (e.g. `"P"`, `"S"`). |
+| `phase_type(name)` | Return the declared phase type for a module, or `nothing` if none declared |
 
 ### Inner modules (loaded via `use_misfit!`)
 
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|--------------------|---------------------------------------------------------------------------------------------|
+|--------------------------------|---------------------------------------------------------------------------------------------|
 | `Xcorr` (template) | `trim()`, `maxlag_factor()`, `filter_order()`, `select_threshold()`, `deselect_threshold()` |
-| `Polarity` | `trim()` |
+| `Polarity` (template) | `trim()` |
+| `XcorrP`, `XcorrS` (instances) | Inherited from `Xcorr` template |
+| `PolarityP` (instance) | Inherited from `Polarity` template |
 
 Users instantiate templates with `Config.use_misfit!(:XcorrP, from = :Xcorr)` then override functions:
 
@@ -68,8 +73,7 @@ User writes a `.jl` file that implements the functions:
 # (Config module is already loaded by input.jl)
 Config.use_misfit!(:XcorrP, from = :Xcorr)
 Config.use_misfit!(:XcorrS, from = :Xcorr)
-Config.use_misfit!(:Polarity)
-
+Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
 Config.XcorrP.filter_order() = 4
@@ -82,10 +86,12 @@ Config.XcorrS.filter_order() = 4
 Config.XcorrS.select_threshold() = 0.5
 Config.XcorrS.deselect_threshold() = 0.3
 
-Config.Polarity.trim() = [0.0, 2.0]
+Config.PolarityP.trim() = [0.0, 2.0]
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
+Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
+Config.polarity_fields() = Dict("P" => :P_polarity)
 
 # Data reading
 Config.load_event() = IO.EventInfo(120.0, 30.0, 10.0, 5.0, "2024-01-01T00:00:00")

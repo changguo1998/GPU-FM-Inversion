@@ -15,9 +15,9 @@ module Config
 #
 # Stage scripts then include the user's config file and call interface functions.
 
-export misfit_modules, minimum_stations
+export misfit_modules, minimum_stations, phase_type
 export freq_bands, depths
-export use_misfit!
+export use_misfit!, phase_fields, polarity_fields
 export load_event, load_stations, load_phase_picks, load_waveform, load_gf
 
 # Error for unimplemented interface functions
@@ -37,6 +37,7 @@ Base.showerror(io::IO, e::ConfigError) = print(
 
 const _MISFIT_DIR = joinpath(@__DIR__, "..", "..", "misfit")
 const _LOADED_MISFIT_MODULES = String[]
+const _PHASE_TYPE = Dict{Symbol, String}()
 
 """
     use_misfit!(name::Symbol; from::Symbol = name)
@@ -52,7 +53,7 @@ computation with different parameters (e.g. XCorr for P and S waves).
 
 Examples:
   # Simple load
-  Config.use_misfit!(:Polarity)
+  Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
 
   # Template instantiation — both inherit from Xcorr template
   Config.use_misfit!(:XcorrP, from = :Xcorr)
@@ -65,7 +66,11 @@ Examples:
       return ["XcorrP", "XcorrS", "Polarity"]
   end
 """
-function use_misfit!(name::Symbol; from::Symbol = name)
+function use_misfit!(
+    name::Symbol;
+    from::Symbol = name,
+    phase_type::Union{String, Nothing} = nothing,
+):Nothing
     file = joinpath(_MISFIT_DIR, "$from.jl")
     if !isfile(file)
         error("Misfit module '$name' not found at $file")
@@ -77,7 +82,56 @@ function use_misfit!(name::Symbol; from::Symbol = name)
     if !(n in _LOADED_MISFIT_MODULES)
         push!(_LOADED_MISFIT_MODULES, n)
     end
+    if phase_type !== nothing
+        _PHASE_TYPE[name] = phase_type
+    end
     return nothing
+end
+"""
+    phase_type(name::Symbol) -> Union{String, Nothing}
+
+Return the phase type declared for a misfit module instance, or `nothing`
+if none was declared.
+"""
+function phase_type(name::Symbol)::Union{String, Nothing}
+    return get(_PHASE_TYPE, name, nothing)
+end
+
+# ===== 震相字段映射 (由用户 config.jl 定义) =====
+
+"""
+    phase_fields() -> Dict{String, Symbol}
+
+Return a dict mapping phase type string (e.g. "P", "S") to the corresponding
+PhasePick struct field symbol (e.g. `:P_time`, `:S_time`).
+
+Example: `return Dict("P" => :P_time, "S" => :S_time)`
+"""
+function phase_fields()::Dict{String, Symbol}
+    throw(
+        ConfigError(
+            "phase_fields",
+            "-> Dict{String, Symbol}  (e.g. return Dict(\"P\" => :P_time, \"S\" => :S_time))",
+        ),
+    )
+end
+
+"""
+    polarity_fields() -> Dict{String, Symbol}
+
+Return a dict mapping phase type string (e.g. "P") to the corresponding
+PhasePick polarity field symbol (e.g. `:P_polarity`).
+Only phase types with polarity data need entries.
+
+Example: `return Dict("P" => :P_polarity)`
+"""
+function polarity_fields()::Dict{String, Symbol}
+    throw(
+        ConfigError(
+            "polarity_fields",
+            "-> Dict{String, Symbol}  (e.g. return Dict(\"P\" => :P_polarity))",
+        ),
+    )
 end
 
 # Interface functions (must be implemented by user config)
@@ -141,7 +195,7 @@ end
 
 Return event information (location, magnitude, origin time).
 """
-function load_event()
+function load_event()::IO.EventInfo
     throw(
         ConfigError(
             "load_event",
@@ -155,7 +209,7 @@ end
 
 Return station metadata for all stations/channels.
 """
-function load_stations()
+function load_stations()::Vector{IO.StationInfo}
     throw(
         ConfigError(
             "load_stations",
@@ -169,7 +223,7 @@ end
 
 Return phase arrival picks (P/S times and P polarity) for each station.
 """
-function load_phase_picks()
+function load_phase_picks()::Vector{IO.PhasePick}
     throw(
         ConfigError(
             "load_phase_picks",
@@ -203,7 +257,7 @@ skip with a warning). On success returns a tuple:
   tp        :: Float64             P arrival time from GF start (seconds)
   ts        :: Float64             S arrival time from GF start (seconds)
 """
-function load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon)
+function load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon)::Union{Nothing, Tuple{Array{Float64,3}, Float64, Float64, Float64}}
     throw(
         ConfigError(
             "load_gf",

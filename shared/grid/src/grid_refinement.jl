@@ -41,7 +41,7 @@ Returns a new `H5IO.Strategy` with `converged=0` and `iteration` incremented.
 The caller (assess.jl) prompts the operator and writes the strategy to
 `status_{N+1}.h5`.
 """
-function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)
+function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.Strategy
     # SDR center ← best trial
     new_strike0 = best_trial.sdr[1]
     new_dip0 = best_trial.sdr[2]
@@ -117,7 +117,7 @@ function prompt_operator(
     current::H5IO.Strategy;
     io_in::Base.IO = stdin,
     io_out::Base.IO = stdout,
-)
+):Bool
     println(io_out)
     println(
         io_out,

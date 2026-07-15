@@ -51,12 +51,7 @@ end
                       -> (obs_trimmed, gf_trimmed)
 """
 function trim_time_window!(
-    obs::Vector{Float64},
-    gf::Matrix{Float64},
-    dt::Float64,
-    arrival_sample::Int,
-    window_factor::Float64,
-    band_high::Float64,
+    obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64, arrival_sample::Int, window_factor::Float64, band_high::Float64,
 )
     window_seconds = window_factor / band_high
     half_samples = max(1, round(Int, window_seconds / dt))
@@ -75,10 +70,7 @@ end
                               t_source::Float64) -> gf_pol
 """
 function trim_to_polarity_window!(
-    gf::Matrix{Float64},
-    dt::Float64,
-    arrival_sample::Int,
-    t_source::Float64,
+    gf::Matrix{Float64}, dt::Float64, arrival_sample::Int, t_source::Float64,
 )
     n_samples = max(1, round(Int, t_source / dt))
     n_raw = size(gf, 1)
@@ -96,14 +88,7 @@ end
                       -> (obs_proc, gf_proc, synamp, obs_norm2)
 """
 function preprocess_xcorr!(
-    obs::Vector{Float64},
-    gf::Matrix{Float64},
-    dt::Float64,
-    arrival_sample::Int,
-    low_cut::Float64,
-    high_cut::Float64,
-    window_factor::Float64;
-    filter_order::Int = 4,
+    obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64, arrival_sample::Int, low_cut::Float64, high_cut::Float64, window_factor::Float64; filter_order::Int = 4,
 )
     obs_filt = copy(obs)
     n_samples, n_comp = size(gf)
@@ -130,11 +115,7 @@ end
                          -> (gf_pol, obs_pol)
 """
 function preprocess_polarity!(
-    gf::Matrix{Float64},
-    dt::Float64,
-    arrival_sample::Int,
-    t_source::Float64,
-    obs_polarity::Int8,
+    gf::Matrix{Float64}, dt::Float64, arrival_sample::Int, t_source::Float64, obs_polarity::Int8,
 )
     gf_pol = trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
     obs_pol_float = if obs_polarity == Int8(-128)
@@ -151,17 +132,9 @@ end
                     -> (amp_P, amp_S, obs_psr)
 """
 function preprocess_psr!(
-    obs_P::Vector{Float64},
-    obs_S::Vector{Float64},
-    gf_P::Matrix{Float64},
-    gf_S::Matrix{Float64},
-    dt::Float64,
-    arrival_P::Int,
-    arrival_S::Int,
-    pre_P_sec::Float64,
-    post_P_sec::Float64,
-    pre_S_sec::Float64,
-    post_S_sec::Float64,
+    obs_P::Vector{Float64}, obs_S::Vector{Float64}, gf_P::Matrix{Float64}, gf_S::Matrix{Float64},
+    dt::Float64, arrival_P::Int, arrival_S::Int,
+    pre_P_sec::Float64, post_P_sec::Float64, pre_S_sec::Float64, post_S_sec::Float64,
 )
     amp_P = gf_P' * gf_P
     amp_S = gf_S' * gf_S
@@ -195,7 +168,7 @@ end
 
 Compute the Hilbert envelope (analytic signal magnitude) of `x`.
 """
-function envelope(x::AbstractVector{Float64})
+function envelope(x::AbstractVector{Float64})::Vector{Float64}
     X = fft(x)
     n = length(x)
     h = zeros(ComplexF64, n)
@@ -215,7 +188,7 @@ end
 
 Compute the root-mean-square amplitude of a time series.
 """
-function rms_amplitude(x::AbstractVector{Float64})
+function rms_amplitude(x::AbstractVector{Float64})::Float64
     return sqrt(mean(x .^ 2))
 end
 

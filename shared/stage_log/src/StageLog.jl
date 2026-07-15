@@ -29,7 +29,7 @@ struct StageLogger <: AbstractLogger
     io::IOStream
 end
 
-function StageLogger(prefix::String, filename::AbstractString)
+function StageLogger(prefix::String, filename::AbstractString)::StageLogger
     return StageLogger(prefix, open(filename, "w"))
 end
 
