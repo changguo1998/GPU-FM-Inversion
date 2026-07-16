@@ -26,6 +26,20 @@ Config.use_misfit!(
     output = Misfit.Polarity.SYN_SIGN,
 )
 
+using Aggregate
+
+# AbsShift: XCorr best_lag -> time shift (Level 1)
+Config.use_misfit!(:AbsShiftP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.BEST_LAG)
+Config.use_misfit!(:AbsShiftS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.BEST_LAG)
+
+# RelShift: StdDev of P/S AbsShift per station (Level 2 composed)
+Config.use_misfit!(
+    :RelShift,
+    operator = Aggregate.StdDev,
+    bases = [:AbsShiftP, :AbsShiftS],
+    output = Aggregate.StdDev.RELATIVE_OFFSET,
+)
+
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
 Config.XcorrP.filter_order() = 4

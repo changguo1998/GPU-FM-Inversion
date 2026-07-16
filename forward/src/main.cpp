@@ -233,12 +233,12 @@ int main(int argc, char *argv[]) {
                         double v = cc_max_sub[ph + si * N_phases];
                         int32_t lag = best_lag_sub[ph + si * N_phases];
                         if (ph < n_p) {
-                            cc_max_p[ph + trial_indices[si] * n_p] = v;
-                            best_lag_p[ph + trial_indices[si] * n_p] = lag;
+                            cc_max_p[ph * N_trials + trial_indices[si]] = v;
+                            best_lag_p[ph * N_trials + trial_indices[si]] = lag;
                         } else {
                             int sp = ph - n_p;
-                            cc_max_s[sp + trial_indices[si] * n_s] = v;
-                            best_lag_s[sp + trial_indices[si] * n_s] = lag;
+                            cc_max_s[sp * N_trials + trial_indices[si]] = v;
+                            best_lag_s[sp * N_trials + trial_indices[si]] = lag;
                         }
                     }
             }
@@ -269,10 +269,9 @@ int main(int argc, char *argv[]) {
 
                 for (int s = 0; s < N_stations; ++s)
                     for (int si = 0; si < n_sub; ++si) {
-                        syn_sign[s + trial_indices[si] * N_stations] =
+                        syn_sign[s * N_trials + trial_indices[si]] =
                             syn_sign_sub[s + si * N_stations];
-                        dot_value[s + trial_indices[si] * N_stations] =
-                            dot_sub[s + si * N_stations];
+                        dot_value[s * N_trials + trial_indices[si]] = dot_sub[s + si * N_stations];
                     }
             }
         }
@@ -296,13 +295,17 @@ int main(int argc, char *argv[]) {
                                        (hsize_t)N_trials);
         };
 
-        // Map module -> canonical intermediate key (operator + phase [+ channel])
+        // Map module -> canonical intermediate key (operator + phase [+ channel]).
+        // Dedup: instances sharing a key (e.g. XcorrP + AbsShiftP) write once.
+        std::set<std::string> written_keys;
         for (const auto &mc : modules) {
             if (mc.is_composed)
                 continue; // composed misfits have no intermediates (Julia-only)
             std::string key = mc.op + mc.phase;
             if (!mc.channel.empty())
                 key += "_" + mc.channel;
+            if (!written_keys.insert(key).second)
+                continue; // already written for this canonical key
             if (mc.op == "Xcorr" && mc.phase == "P")
                 write_xcorr_inter(key.c_str(), cc_max_p, best_lag_p, n_p);
             else if (mc.op == "Xcorr" && mc.phase == "S")

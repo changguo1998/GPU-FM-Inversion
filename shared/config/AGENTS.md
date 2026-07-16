@@ -23,7 +23,7 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Misfit plugin loader
 
 | Function | Description |
-|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `use_misfit!(name; operator, output, phase=nothing, bases=nothing, channel=nothing)` | Register misfit instance. Level 1 (base): `operator` (Module) + `phase` ("P"/"S") + `output` (∈ `operator.outputs()`); creates `Config.{name}` instance module for per-instance overrides. Level 2 (composed): `operator` (aggregate) + `bases` (Vector{Symbol}) + `output`; no instance module. `channel` optionally filters Level 1 by channel. |
 | `operator_module(name)` | Return the operator Module for an instance |
 | `output_field(name)` | Return the selected output field Symbol |
@@ -37,7 +37,7 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|--------------------------------|---------------------------------------------------------------------------------------------|
+|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `Misfit.Xcorr` (template) | `trim()`, `maxlag_factor()`, `filter_order()`, `select_threshold()`, `deselect_threshold()`, `outputs()`, `CC_MAX`, `BEST_LAG` |
 | `Misfit.Polarity` (template) | `trim()`, `outputs()`, `SYN_SIGN`, `DOT_VALUE` |
 | `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |

@@ -18,6 +18,20 @@ Config.use_misfit!(
     output = Misfit.Polarity.SYN_SIGN,
 )
 
+using Aggregate
+
+# AbsShift: XCorr best_lag -> time shift (Level 1, shares Xcorr kernel run)
+Config.use_misfit!(:AbsShiftP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.BEST_LAG)
+Config.use_misfit!(:AbsShiftS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.BEST_LAG)
+
+# RelShift: StdDev of P/S AbsShift per station (Level 2 composed)
+Config.use_misfit!(
+    :RelShift,
+    operator = Aggregate.StdDev,
+    bases = [:AbsShiftP, :AbsShiftS],
+    output = Aggregate.StdDev.RELATIVE_OFFSET,
+)
+
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
 Config.XcorrP.filter_order() = 4
@@ -25,6 +39,15 @@ Config.XcorrP.select_threshold() = 0.5
 Config.XcorrP.deselect_threshold() = 0.3
 Config.XcorrP.band_low() = Int32[1]
 Config.XcorrP.band_high() = Int32[2]
+
+# AbsShiftP shares XcorrP params (same kernel, different output field)
+Config.AbsShiftP.trim() = [-2.0, 5.0]
+Config.AbsShiftP.maxlag_factor() = 0.5
+Config.AbsShiftP.filter_order() = 4
+Config.AbsShiftP.band_low() = Int32[1]
+Config.AbsShiftP.band_high() = Int32[2]
+Config.AbsShiftP.select_threshold() = 0.5
+Config.AbsShiftP.deselect_threshold() = 0.3
 
 Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.maxlag_factor() = 0.5
@@ -35,6 +58,15 @@ Config.XcorrS.band_low() = Int32[1]
 Config.XcorrS.band_high() = Int32[2]
 
 Config.PolarityP.trim() = [0.0, 2.0]
+
+# AbsShiftS shares XcorrS params
+Config.AbsShiftS.trim() = [-2.0, 8.0]
+Config.AbsShiftS.maxlag_factor() = 0.5
+Config.AbsShiftS.filter_order() = 4
+Config.AbsShiftS.band_low() = Int32[1]
+Config.AbsShiftS.band_high() = Int32[2]
+Config.AbsShiftS.select_threshold() = 0.5
+Config.AbsShiftS.deselect_threshold() = 0.3
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
