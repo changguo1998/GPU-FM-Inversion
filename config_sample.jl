@@ -14,10 +14,31 @@
 # (Uncomment only for standalone validation)
 # using Config
 
-# Misfit modules — registered via use_misfit!(), automatically detected
-Config.use_misfit!(:XcorrP, from = :Xcorr, phase_type = "P")
-Config.use_misfit!(:XcorrS, from = :Xcorr, phase_type = "S")
-Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
+# Misfit modules - registered via use_misfit!(), automatically detected
+using Misfit
+
+Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(
+    :PolarityP,
+    operator = Misfit.Polarity,
+    phase = "P",
+    output = Misfit.Polarity.SYN_SIGN,
+)
+
+using Aggregate
+
+# AbsShift: XCorr best_lag -> time shift (Level 1)
+Config.use_misfit!(:AbsShiftP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.BEST_LAG)
+Config.use_misfit!(:AbsShiftS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.BEST_LAG)
+
+# RelShift: StdDev of P/S AbsShift per station (Level 2 composed)
+Config.use_misfit!(
+    :RelShift,
+    operator = Aggregate.StdDev,
+    bases = [:AbsShiftP, :AbsShiftS],
+    output = Aggregate.StdDev.RELATIVE_OFFSET,
+)
 
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5

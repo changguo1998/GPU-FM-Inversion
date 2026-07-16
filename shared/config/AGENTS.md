@@ -23,25 +23,33 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Misfit plugin loader
 
 | Function | Description |
-|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `use_misfit!(name; from=name, phase_type=nothing)` | Load plugin from `shared/misfit/{from}.jl`, create `Config.{name}` inner module, auto-register in `misfit_modules()`. `phase_type` declares the phase type for XCorr template instances (e.g. `"P"`, `"S"`). |
-| `phase_type(name)` | Return the declared phase type for a module, or `nothing` if none declared |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `use_misfit!(name; operator, output, phase=nothing, bases=nothing, channel=nothing)` | Register misfit instance. Level 1 (base): `operator` (Module) + `phase` ("P"/"S") + `output` (∈ `operator.outputs()`); creates `Config.{name}` instance module for per-instance overrides. Level 2 (composed): `operator` (aggregate) + `bases` (Vector{Symbol}) + `output`; no instance module. `channel` optionally filters Level 1 by channel. |
+| `operator_module(name)` | Return the operator Module for an instance |
+| `output_field(name)` | Return the selected output field Symbol |
+| `bases_of(name)` | Return base instance names for a composed misfit |
+| `is_composed(name)` | `true` if Level 2 (composed) |
+| `channel_of(name)` | Return channel filter or `nothing` |
+| `phase_type(name)` | Return the declared phase type, or `nothing` |
 
 ### Inner modules (loaded via `use_misfit!`)
 
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|--------------------------------|---------------------------------------------------------------------------------------------|
-| `Xcorr` (template) | `trim()`, `maxlag_factor()`, `filter_order()`, `select_threshold()`, `deselect_threshold()` |
-| `Polarity` (template) | `trim()` |
-| `XcorrP`, `XcorrS` (instances) | Inherited from `Xcorr` template |
-| `PolarityP` (instance) | Inherited from `Polarity` template |
+|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `Misfit.Xcorr` (template) | `trim()`, `maxlag_factor()`, `filter_order()`, `select_threshold()`, `deselect_threshold()`, `outputs()`, `CC_MAX`, `BEST_LAG` |
+| `Misfit.Polarity` (template) | `trim()`, `outputs()`, `SYN_SIGN`, `DOT_VALUE` |
+| `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |
+| `PolarityP` (instance) | Inherited from `Misfit.Polarity` template |
 
-Users instantiate templates with `Config.use_misfit!(:XcorrP, from = :Xcorr)` then override functions:
+Users instantiate operators with `Config.use_misfit!(...; operator=Misfit.Xcorr, output=Misfit.Xcorr.CC_MAX)` then override functions:
 
 ```julia
-Config.use_misfit!(:XcorrP, from = :Xcorr)
+using Misfit
+
+Config.use_misfit!(:XcorrP,
+    operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
 ```
@@ -71,9 +79,14 @@ User writes a `.jl` file that implements the functions:
 
 ```julia
 # (Config module is already loaded by input.jl)
-Config.use_misfit!(:XcorrP, from = :Xcorr)
-Config.use_misfit!(:XcorrS, from = :Xcorr)
-Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
+using Misfit
+
+Config.use_misfit!(:XcorrP,
+    operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(:XcorrS,
+    operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(:PolarityP,
+    operator = Misfit.Polarity, phase = "P", output = Misfit.Polarity.SYN_SIGN)
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
 Config.XcorrP.filter_order() = 4

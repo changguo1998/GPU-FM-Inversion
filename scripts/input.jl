@@ -199,8 +199,9 @@ end
 # 构建统一模块注册表
 module_instances = Dict{String, Module}()
 for m_name in misfit_modules
-    mod = getfield(Config, Symbol(m_name))
-    module_instances[m_name] = mod
+    sym = Symbol(m_name)
+    Config.is_composed(sym) && continue   # Level 2 无 instance module
+    module_instances[m_name] = getfield(Config, sym)
 end
 
 # 预处理结果暂存, 最终组装 ModuleData
@@ -305,7 +306,9 @@ paraspace = Dict{String, Any}(
 db_config = Dict{String, Any}("misfit_modules" => misfit_modules)
 
 # 写入 /config/{ModuleName}/
+# Level 1: 有 instance module 的实例（含预处理参数）
 for (m_name, mod) in module_instances
+    sym = Symbol(m_name)
     cfg_entry = Dict{String, Any}("trim" => Float64.(mod.trim()))
     if isdefined(mod, :maxlag_factor)
         cfg_entry["maxlag_factor"] = Float64(mod.maxlag_factor())
@@ -315,7 +318,25 @@ for (m_name, mod) in module_instances
         cfg_entry["band_low"] = mod.band_low()
         cfg_entry["band_high"] = mod.band_high()
     end
+    cfg_entry["operator"] = string(nameof(Config.operator_module(sym)))
+    cfg_entry["output"] = string(Config.output_field(sym))
+    cfg_entry["is_composed"] = Int8(0)
+    cfg_entry["phase"] = Config.phase_type(sym)
+    ch = Config.channel_of(sym)
+    cfg_entry["channel"] = ch === nothing ? "" : ch
     db_config[m_name] = cfg_entry
+end
+
+# Level 2: composed 实例（无 instance module、无预处理参数）
+for m_name in misfit_modules
+    sym = Symbol(m_name)
+    Config.is_composed(sym) || continue
+    db_config[m_name] = Dict{String, Any}(
+        "operator" => string(nameof(Config.operator_module(sym))),
+        "output" => string(Config.output_field(sym)),
+        "is_composed" => Int8(1),
+        "bases" => String.(Config.bases_of(sym)),
+    )
 end
 
 # Dict → IO.ModuleData 转换

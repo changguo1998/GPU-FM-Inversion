@@ -11,9 +11,10 @@ Active modules: XCorr, Polarity. PSR/AbsShift/RelShift deferred. CAP cancelled.
 ## Files
 
 | File | Module | Role |
-|---------------|----------|----------------------------------------------|
-| `Xcorr.jl` | XCorr | Cross-correlation misfit — bandpass + trim |
-| `Polarity.jl` | Polarity | Polarity misfit — trim GF to polarity window |
+|-------------------|----------|----------------------------------------------------------|
+| `src/Misfit.jl` | Misfit | Package entry, wraps Xcorr/Polarity as sub-modules |
+| `src/Xcorr.jl` | XCorr | Cross-correlation misfit - bandpass + trim + outputs() |
+| `src/Polarity.jl` | Polarity | Polarity misfit - trim GF to polarity window + outputs() |
 
 ## `process()` return format
 

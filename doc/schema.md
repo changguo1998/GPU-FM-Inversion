@@ -76,6 +76,18 @@ in `misfit_modules`. Present only when the module is active:
   instances have `maxlag_factor`, `filter_order`, `trim`, `select_threshold`,
   `deselect_threshold`, `band_low`, `band_high`. Polarity has `trim`.
 
+Each module group also carries misfit-decomposition metadata (see
+`doc/misfit-decomposition.md`):
+
+| Dataset | Type | Shape | Description |
+|---------|------|-------|-------------|
+| `operator` | String | scalar | Operator name (`"Xcorr"`/`"Polarity"`/`"StdDev"`) |
+| `output` | String | scalar | Selected output field (`"cc_max"`/`"best_lag"`/...) |
+| `is_composed` | Int8 | scalar | 0=Level 1 base, 1=Level 2 composed |
+| `phase` | String | scalar | Phase type (`"P"`/`"S"`) — Level 1 only |
+| `channel` | String | scalar | Channel filter (`""`=none, `"H"`/`"V"`) — Level 1 only |
+| `bases` | String | `[k]` | Base misfit names — Level 2 only |
+
 | Dataset | Type | Shape | Description |
 |-------------|-------|-------------|------------------------------------------------------|
 | `band_low` | Int32 | `[N_bands]` | Low-cut indices into `/paraspace/frequency` (XCorr) |
@@ -191,6 +203,23 @@ and selects subsets by these indices.
 | `depth_idx` | Int32 | `[N_trials]` | GF depth index |
 | `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
 | `N_trials` | Int32 | scalar | Trial count |
+
+### `/intermediates`
+
+Raw kernel intermediate products (written by C++ forward, consumed by
+Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
+(e.g. `XcorrP`, `XcorrS`, `PolarityP`). Multiple misfit instances sharing
+the same (operator, phase, channel) share one intermediate group.
+
+| Group | Dataset | Type | Shape | Description |
+|-------|---------|------|-------|-------------|
+| `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | max normalized CC value |
+| `Xcorr{P,S}` | `best_lag` | Int32 | `[N_phases × N_trials]` | best-lag offset (samples, relative to maxlag) |
+| `Polarity{P}` | `syn_sign` | Int8 | `[N_stations × N_trials]` | synthetic polarity sign (-1/0/1) |
+| `Polarity{P}` | `dot_value` | Float64 | `[N_stations × N_trials]` | raw dot product (confidence) |
+
+`assess.jl` transforms these into final misfits via Output extractors
+(Level 1) and Composers (Level 2). See `doc/misfit-decomposition.md`.
 
 ### `/misfits`
 

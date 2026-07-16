@@ -1,10 +1,9 @@
-name = "Config"
-uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+name = "Misfit"
+uuid = "1a03ced9-fb88-487f-aa94-9f0e83bb8bf2"
 version = "0.1.0"
 
 [deps]
 IO = "4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"
-Misfit = "1a03ced9-fb88-487f-aa94-9f0e83bb8bf2"
 Signal = "c2443ae3-2a13-43e4-b75e-3c3d3ad453ec"
 
 [extras]

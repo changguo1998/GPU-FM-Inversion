@@ -209,3 +209,96 @@ void Hdf5Handle::write_double_2d(const char *path, const double *data, hsize_t d
     check_herr("H5Sclose (write_double_2d)", H5Sclose(space));
     check_herr("H5Dclose (write_double_2d)", H5Dclose(dset));
 }
+
+// --- String readers ---
+
+std::string Hdf5Handle::read_string_scalar(const char *path) {
+    hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
+    check_null("H5Dopen (string_scalar)", dset);
+
+    hid_t filetype = H5Dget_type(dset);
+    std::string result;
+    if (H5Tis_variable_str(filetype)) {
+        hid_t memtype = H5Tcopy(filetype);
+        char *buf = nullptr;
+        check_herr("H5Dread (string_scalar vlen)",
+                   H5Dread(dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &buf));
+        result = buf ? std::string(buf) : std::string();
+        if (buf)
+            std::free(buf);
+        H5Tclose(memtype);
+    } else {
+        size_t sz = H5Tget_size(filetype);
+        std::vector<char> buf(sz + 1, '\0');
+        check_herr("H5Dread (string_scalar fixed)",
+                   H5Dread(dset, filetype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf.data()));
+        result = std::string(buf.data());
+    }
+    H5Tclose(filetype);
+    H5Dclose(dset);
+    return result;
+}
+
+std::vector<std::string> Hdf5Handle::read_string_1d(const char *path) {
+    hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
+    check_null("H5Dopen (string_1d)", dset);
+
+    hid_t filetype = H5Dget_type(dset);
+    hid_t space = H5Dget_space(dset);
+    check_null("H5Dget_space (string_1d)", space);
+    hsize_t dims[1] = {0};
+    H5Sget_simple_extent_dims(space, dims, nullptr);
+
+    std::vector<std::string> result;
+    if (H5Tis_variable_str(filetype)) {
+        std::vector<char *> buf(dims[0]);
+        hid_t memtype = H5Tcopy(filetype);
+        check_herr("H5Dread (string_1d vlen)",
+                   H5Dread(dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf.data()));
+        for (hsize_t i = 0; i < dims[0]; ++i) {
+            result.push_back(buf[i] ? std::string(buf[i]) : std::string());
+            if (buf[i])
+                std::free(buf[i]);
+        }
+        H5Tclose(memtype);
+    } else {
+        size_t sz = H5Tget_size(filetype);
+        std::vector<char> buf((size_t)dims[0] * sz, '\0');
+        check_herr("H5Dread (string_1d fixed)",
+                   H5Dread(dset, filetype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf.data()));
+        for (hsize_t i = 0; i < dims[0]; ++i)
+            result.push_back(std::string(buf.data() + i * sz));
+    }
+    H5Tclose(filetype);
+    H5Sclose(space);
+    H5Dclose(dset);
+    return result;
+}
+
+// --- Int writers ---
+
+void Hdf5Handle::write_int32_2d(const char *path, const int32_t *data, hsize_t dim1, hsize_t dim2) {
+    hsize_t dims[2] = {dim1, dim2};
+    hid_t space = H5Screate_simple(2, dims, nullptr);
+    check_null("H5Screate_simple (write_int32_2d)", space);
+    hid_t dset =
+        H5Dcreate(file_id, path, H5T_NATIVE_INT32, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    check_null("H5Dcreate (write_int32_2d)", dset);
+    check_herr("H5Dwrite (write_int32_2d)",
+               H5Dwrite(dset, H5T_NATIVE_INT32, H5S_ALL, H5S_ALL, H5P_DEFAULT, data));
+    H5Sclose(space);
+    H5Dclose(dset);
+}
+
+void Hdf5Handle::write_int8_2d(const char *path, const int8_t *data, hsize_t dim1, hsize_t dim2) {
+    hsize_t dims[2] = {dim1, dim2};
+    hid_t space = H5Screate_simple(2, dims, nullptr);
+    check_null("H5Screate_simple (write_int8_2d)", space);
+    hid_t dset =
+        H5Dcreate(file_id, path, H5T_NATIVE_INT8, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    check_null("H5Dcreate (write_int8_2d)", dset);
+    check_herr("H5Dwrite (write_int8_2d)",
+               H5Dwrite(dset, H5T_NATIVE_INT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, data));
+    H5Sclose(space);
+    H5Dclose(dset);
+}

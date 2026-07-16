@@ -3,13 +3,20 @@
 # Included inside Config.Polarity (dynamically created inner module).
 # Config function stubs + preprocessing logic.
 
-export trim, preprocess, process, is_freq_dependent
+# ── 输出字段常量（IDE 可补全，注册时校验）──
+const SYN_SIGN = :syn_sign
+const DOT_VALUE = :dot_value
+
+# ── Operator 元数据 ──
+outputs() = [SYN_SIGN, DOT_VALUE]
+
+export trim, preprocess, process, is_freq_dependent, outputs
 
 is_freq_dependent() = false
 # -- Config namespace (user must override) --
 
 function trim()::Vector{Float64}
-    error("Polarity.trim(): not implemented — return [t_pre, t_post]  (e.g. [0.0, 2.0])")
+    error("Polarity.trim(): not implemented - return [t_pre, t_post]  (e.g. [0.0, 2.0])")
 end
 
 # -- Preprocessing --

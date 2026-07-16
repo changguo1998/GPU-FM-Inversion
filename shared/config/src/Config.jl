@@ -18,6 +18,7 @@ module Config
 export misfit_modules, minimum_stations, phase_type
 export freq_bands, depths
 export use_misfit!, phase_fields, polarity_fields
+export operator_module, output_field, bases_of, is_composed, channel_of
 export load_event, load_stations, load_phase_picks, load_waveform, load_gf
 
 # Error for unimplemented interface functions
@@ -33,61 +34,69 @@ Base.showerror(io::IO, e::ConfigError) = print(
     "  Your config script must define:  $(e.func)()  $(e.msg)",
 )
 
-# Misfit module plugin loader
+# Misfit operator plugin loader
 
-const _MISFIT_DIR = joinpath(@__DIR__, "..", "..", "misfit")
+const _MISFIT_DIR = joinpath(@__DIR__, "..", "..", "misfit", "src")
 const _LOADED_MISFIT_MODULES = String[]
 const _PHASE_TYPE = Dict{Symbol, String}()
+const _OPERATOR_MODULE = Dict{Symbol, Module}()   # name -> operator module
+const _OUTPUT_FIELD = Dict{Symbol, Symbol}()      # name -> output field
+const _BASES = Dict{Symbol, Vector{Symbol}}()     # composed name -> bases
+const _IS_COMPOSED = Set{Symbol}()
+const _CHANNEL = Dict{Symbol, String}()           # name -> channel filter (Level 1, optional)
+
+# operator module -> template file path
+_operator_template_path(op::Module) = joinpath(_MISFIT_DIR, "$(nameof(op)).jl")
 
 """
-    use_misfit!(name::Symbol; from::Symbol = name)
+    use_misfit!(name; operator, output, phase=nothing, bases=nothing, channel=nothing)
 
-Load a misfit module plugin and register it in `misfit_modules()`.
+Register a misfit instance. Level 1 (base): `operator` + `phase` + `output`.
+Level 2 (composed): `operator` (aggregate) + `bases` + `output`.
 
-Loads the plugin from `shared/misfit/{from}.jl` and creates `Config.{name}`
-as an inner module with config stubs and a `preprocess()` function.
-
-When `from` differs from `name`, the plugin file is used as a template
-instantiated under a new name — useful for running the same misfit
-computation with different parameters (e.g. XCorr for P and S waves).
-
-Examples:
-  # Simple load
-  Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
-
-  # Template instantiation — both inherit from Xcorr template
-  Config.use_misfit!(:XcorrP, from = :Xcorr)
-  Config.use_misfit!(:XcorrS, from = :Xcorr)
-  Config.XcorrP.trim() = [-2.0, 5.0]
-  Config.XcorrS.trim() = [-2.0, 8.0]
-
-  # Explicit override of misfit_modules (optional)
-  function Config.misfit_modules()
-      return ["XcorrP", "XcorrS", "Polarity"]
-  end
+`output` must be in `operator.outputs()`. Level 1 creates `Config.{name}` instance
+module (per-instance parameter overrides via `Config.{name}.trim() = ...`).
+Level 2 does not create an instance module.
 """
 function use_misfit!(
     name::Symbol;
-    from::Symbol = name,
-    phase_type::Union{String, Nothing} = nothing,
+    operator::Module,
+    output::Symbol,
+    phase::Union{String, Nothing} = nothing,
+    bases = nothing,
+    channel::Union{String, Nothing} = nothing,
 )
-    :Nothing
-    file = joinpath(_MISFIT_DIR, "$from.jl")
-    if !isfile(file)
-        error("Misfit module '$name' not found at $file")
+    avail = operator.outputs()
+    output ∈ avail ||
+        error("use_misfit!($(name)): output $output not in $(nameof(operator)).outputs() ($avail)")
+
+    if bases === nothing
+        # Level 1: include operator template into instance module
+        tmpl = _operator_template_path(operator)
+        @eval module $(name)
+        include($(tmpl))
+        end
+        _PHASE_TYPE[name] = phase
+        channel !== nothing && (_CHANNEL[name] = channel)
+    else
+        push!(_IS_COMPOSED, name)
+        _BASES[name] = bases
     end
-    @eval module $name
-    include($(file))
-    end
+
+    _OPERATOR_MODULE[name] = operator
+    _OUTPUT_FIELD[name] = output
     n = string(name)
-    if !(n in _LOADED_MISFIT_MODULES)
-        push!(_LOADED_MISFIT_MODULES, n)
-    end
-    if phase_type !== nothing
-        _PHASE_TYPE[name] = phase_type
-    end
+    !(n in _LOADED_MISFIT_MODULES) && push!(_LOADED_MISFIT_MODULES, n)
     return nothing
 end
+
+# Accessors
+operator_module(name::Symbol)::Module = _OPERATOR_MODULE[name]
+output_field(name::Symbol)::Symbol = _OUTPUT_FIELD[name]
+bases_of(name::Symbol) = _BASES[name]
+is_composed(name::Symbol)::Bool = name in _IS_COMPOSED
+channel_of(name::Symbol)::Union{String, Nothing} = get(_CHANNEL, name, nothing)
+
 """
     phase_type(name::Symbol) -> Union{String, Nothing}
 

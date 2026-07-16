@@ -194,11 +194,13 @@ end
 function read_stations(h5file)::Vector{StationInfo}
     h5open(
         f -> begin
-            gr = f["stations"]
+            gr = f["station"]
             ids = [String(x) for x in read(gr["id"])]
             nets = [String(x) for x in read(gr["network"])]
             stas = [String(x) for x in read(gr["station"])]
-            chans = [String(x) for x in read(gr["channel"])]
+            chans =
+                haskey(gr, "channel") ? [String(x) for x in read(gr["channel"])] :
+                fill("", length(ids))
             lats = read(gr["latitude"])
             lons = read(gr["longitude"])
             elevs = read(gr["elevation"])
