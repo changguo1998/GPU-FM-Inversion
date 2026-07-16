@@ -7,9 +7,16 @@
 
 using Random
 
-Config.use_misfit!(:XcorrP, from = :Xcorr, phase_type = "P")
-Config.use_misfit!(:XcorrS, from = :Xcorr, phase_type = "S")
-Config.use_misfit!(:PolarityP, from = :Polarity, phase_type = "P")
+using Misfit
+
+Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(
+    :PolarityP,
+    operator = Misfit.Polarity,
+    phase = "P",
+    output = Misfit.Polarity.SYN_SIGN,
+)
 
 Config.XcorrP.trim() = [-2.0, 5.0]
 Config.XcorrP.maxlag_factor() = 0.5
