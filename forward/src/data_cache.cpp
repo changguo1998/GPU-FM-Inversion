@@ -105,11 +105,13 @@ void DataCache::load_from_database(const std::string &database_path,
         throw std::runtime_error("Cannot open " + database_path);
 
     std::vector<std::string> phase_ids;
+    std::vector<std::string> p_ids;
+    std::vector<std::string> s_ids;
     int n_stations = 0;
     try {
         // Read channel_id from each group (P then S)
-        auto p_ids = read_phase_ids(file_id, "/xcorrP/channel_id");
-        auto s_ids = read_phase_ids(file_id, "/xcorrS/channel_id");
+        p_ids = read_phase_ids(file_id, "/XcorrP/channel_id");
+        s_ids = read_phase_ids(file_id, "/XcorrS/channel_id");
         // Combine: P first, S after (matches xcorr array convention)
         phase_ids.reserve(p_ids.size() + s_ids.size());
         phase_ids.insert(phase_ids.end(), p_ids.begin(), p_ids.end());
@@ -117,7 +119,7 @@ void DataCache::load_from_database(const std::string &database_path,
         // Count unique stations from channel_id strings
         std::set<std::string> station_set;
         for (const auto &cid : phase_ids) {
-            // channel_id format: "NET.STA.CHAN" — extract station part
+            // channel_id format: "NET.STA.CHAN" - extract station part
             size_t dot = cid.find('.');
             if (dot != std::string::npos) {
                 size_t dot2 = cid.find('.', dot + 1);
@@ -199,7 +201,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // ── Map depth_idx -> depth_val from config ────────────────────────────
     std::vector<double> depth_vals;
     try {
-        depth_vals = h5.read_double_1d("/config/depth_vals");
+        depth_vals = h5.read_double_1d("/paraspace/depth");
     } catch (...) {
         depth_vals = {};
     }
@@ -215,11 +217,11 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     depth_str = depth_ss.str();
 
     // ── Read station_idx for phase->channel mapping (polarity) ─────────────
-    // Combined from xcorrP (P phases first) then xcorrS (S phases)
+    // Combined from XcorrP (P phases first) then xcorrS (S phases)
     std::vector<int> station_idx;
     try {
-        auto p_si = h5.read_int_1d("/xcorrP/station_idx");
-        auto s_si = h5.read_int_1d("/xcorrS/station_idx");
+        auto p_si = h5.read_int_1d("/XcorrP/station_idx");
+        auto s_si = h5.read_int_1d("/XcorrS/station_idx");
         station_idx.reserve(p_si.size() + s_si.size());
         station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
         station_idx.insert(station_idx.end(), s_si.begin(), s_si.end());
@@ -235,17 +237,16 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         s_indices[i] = n_p + i;
 
     // ── Read XCorr data from new schema ───────────────────────────────────
-    std::string freq_str = std::to_string(freq_idx);
 
     // Process P phases
-    if (n_p > 0 && h5.group_exists((std::string("/xcorrP/obs/") + freq_str).c_str())) {
+    if (n_p > 0 && h5.group_exists((std::string("/XcorrP/obs/") + freq_str).c_str())) {
         // Read obs: [N_samples, N_phases_P]
         int n_obs, n_ph_p;
         std::vector<double> obs_p = h5.read_double_2d(
-            (std::string("/xcorrP/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_p);
+            (std::string("/XcorrP/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_p);
         if (n_ph_p == n_p) {
             // Read GF: [N_samples, 6, N_phases_P]
-            std::string gf_path = "/xcorrP/gf/" + depth_str + "/" + freq_str + "/gf";
+            std::string gf_path = "/XcorrP/gf/" + depth_str + "/" + freq_str + "/gf";
             int n_gf, n_comp, n_ph_gf;
             std::vector<double> gf_p;
             if (h5.group_exists(gf_path.c_str())) {
@@ -278,12 +279,12 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     }
 
     // Process S phases (same approach)
-    if (n_s > 0 && h5.group_exists((std::string("/xcorrS/obs/") + freq_str).c_str())) {
+    if (n_s > 0 && h5.group_exists((std::string("/XcorrS/obs/") + freq_str).c_str())) {
         int n_obs, n_ph_s;
         std::vector<double> obs_s = h5.read_double_2d(
-            (std::string("/xcorrS/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_s);
+            (std::string("/XcorrS/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_s);
         if (n_ph_s == n_s) {
-            std::string gf_path = "/xcorrS/gf/" + depth_str + "/" + freq_str + "/gf";
+            std::string gf_path = "/XcorrS/gf/" + depth_str + "/" + freq_str + "/gf";
             int n_gf, n_comp, n_ph_gf;
             std::vector<double> gf_s;
             if (h5.group_exists(gf_path.c_str())) {
@@ -311,16 +312,16 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     }
 
     // ── Read Polarity data from new schema ────────────────────────────────
-    if (h5.group_exists("/polarity/obs")) {
+    if (h5.group_exists("/PolarityP/obs")) {
         // Obs: [N_channels] — map per-channel to per-phase via station_idx
         std::vector<double> pol_obs_all;
         try {
-            pol_obs_all = h5.read_double_1d("/polarity/obs/obs_pol");
+            pol_obs_all = h5.read_double_1d("/PolarityP/obs/1/obs");
         } catch (...) {
         }
 
         // GF: [N_pol_samples, 6, N_channels]
-        std::string pol_gf_path = "/polarity/gf/" + depth_str + "/gf_pol";
+        std::string pol_gf_path = "/PolarityP/gf/" + depth_str + "/1/gf";
         int n_pol_samp = 0, n_pol_comp = 0, n_pol_ch = 0;
         std::vector<double> pol_gf_all;
         if (h5.group_exists(pol_gf_path.c_str())) {

@@ -24,8 +24,12 @@ struct Hdf5Handle {
     // 2D reader — returns data as flat vector, outputs rows/cols
     std::vector<double> read_double_2d(const char *path, int &rows, int &cols);
 
-    // 3D reader — returns data as flat vector, outputs all three dims
+    // 3D reader - returns data as flat vector, outputs all three dims
     std::vector<double> read_double_3d(const char *path, int &dim1, int &dim2, int &dim3);
+
+    // String readers (variable-length strings)
+    std::string read_string_scalar(const char *path);
+    std::vector<std::string> read_string_1d(const char *path);
 
     // Group ops
     bool group_exists(const char *path);
@@ -33,6 +37,8 @@ struct Hdf5Handle {
 
     // Writer
     void write_double_2d(const char *path, const double *data, hsize_t dim1, hsize_t dim2);
+    void write_int32_2d(const char *path, const int32_t *data, hsize_t dim1, hsize_t dim2);
+    void write_int8_2d(const char *path, const int8_t *data, hsize_t dim1, hsize_t dim2);
 };
 
 #endif // HDF5_IO_H

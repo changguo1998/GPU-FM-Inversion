@@ -12,17 +12,28 @@
 #include "data_cache.h"
 #include "hdf5_io.h"
 #include "kernels/polarity_kernel.h"
-#include "kernels/psr_kernel.h"
 #include "kernels/xcorr_kernel.h"
 #include "mt_utils.h"
 
 // ──────────────────────────────────────────────────────────────────────────
-// main — forward stage entry point
+// main - forward stage entry point
 //
 // Usage: forward <database.h5> <status_N.h5>
 //
-// No weights. No aggregation. No strategy knowledge.
+// Reads preprocessed data + trials, runs misfit kernels, writes RAW
+// INTERMEDIATE PRODUCTS to status_N.h5:/intermediates/{Module}/.
+// Final misfit values (extract/compose) are produced by Julia assess.jl.
 // ──────────────────────────────────────────────────────────────────────────
+
+// Per-module config metadata read from database.h5:/config/{Module}/
+struct ModuleConfig {
+    std::string name;
+    std::string op;      // "Xcorr" / "Polarity"
+    std::string phase;   // "P" / "S"
+    std::string channel; // "" or "H"/"V"
+    bool is_composed;
+};
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         std::cerr << "Usage: forward <database.h5> <status_N.h5>" << std::endl;
@@ -59,9 +70,9 @@ int main(int argc, char *argv[]) {
         }
 
         // ══════════════════════════════════════════════════════════════
-        // 2. SDR → MT conversion (host-side, degrees to radians)
+        // 2. SDR -> MT conversion (host-side, degrees to radians)
         // ══════════════════════════════════════════════════════════════
-        // Two layouts: XCorr uses [6 × N_trials], Polarity/PSR use [N_trials × 6]
+        // XCorr uses [6 × N_trials] (LayoutLeft), Polarity uses [N_trials × 6]
         std::vector<double> mt_xcorr_host(static_cast<size_t>(6 * N_trials));
         std::vector<double> mt_pol_host(static_cast<size_t>(N_trials * 6));
 
@@ -70,42 +81,54 @@ int main(int argc, char *argv[]) {
             MomentTensor mt = sdr_to_mt(trials[t].strike * deg2rad, trials[t].dip * deg2rad,
                                         trials[t].rake * deg2rad);
             double comps[6] = {mt.Mxx, mt.Myy, mt.Mzz, mt.Mxy, mt.Mxz, mt.Myz};
-
-            // LayoutLeft [6, N]: element (row, col) at row + col*6
             for (int c = 0; c < 6; ++c)
                 mt_xcorr_host[c + t * 6] = comps[c];
-
-            // LayoutLeft [N, 6]: element (row, col) at row + col*N
             for (int c = 0; c < 6; ++c)
                 mt_pol_host[t + c * N_trials] = comps[c];
         }
 
         // ══════════════════════════════════════════════════════════════
-        // 3. Read station/phase index from database.h5
+        // 3. Read module config from database.h5:/config
         // ══════════════════════════════════════════════════════════════
         Hdf5Handle db_reader;
         db_reader.open(database_path.c_str(), H5F_ACC_RDONLY);
 
-        // Read station mapping from each group (data already partitioned by P/S)
-        auto p_si = db_reader.read_int_1d("/xcorrP/station_idx");
-        auto s_si = db_reader.read_int_1d("/xcorrS/station_idx");
-        int n_p = static_cast<int>(p_si.size());
-        int n_s = static_cast<int>(s_si.size());
-        int N_phases = n_p + n_s;
+        auto module_names = db_reader.read_string_1d("/config/misfit_modules");
+        std::vector<ModuleConfig> modules;
+        for (const auto &m : module_names) {
+            ModuleConfig mc;
+            mc.name = m;
+            std::string base = "/config/" + m + "/";
+            mc.op = db_reader.read_string_scalar((base + "operator").c_str());
+            mc.is_composed = db_reader.read_int_scalar((base + "is_composed").c_str()) != 0;
+            if (!mc.is_composed) {
+                mc.phase = db_reader.read_string_scalar((base + "phase").c_str());
+                mc.channel = db_reader.read_string_scalar((base + "channel").c_str());
+            }
+            modules.push_back(mc);
+        }
 
-        // Build combined station_idx (P first, S after)
+        // Read P/S station indices (data partitioned by XcorrP/XcorrS groups)
+        int n_p = 0, n_s = 0;
         std::vector<int> st_idx_vec;
-        st_idx_vec.reserve(N_phases);
-        st_idx_vec.insert(st_idx_vec.end(), p_si.begin(), p_si.end());
-        st_idx_vec.insert(st_idx_vec.end(), s_si.begin(), s_si.end());
+        if (db_reader.group_exists("/XcorrP/station_idx")) {
+            auto p_si = db_reader.read_int_1d("/XcorrP/station_idx");
+            n_p = static_cast<int>(p_si.size());
+            st_idx_vec.insert(st_idx_vec.end(), p_si.begin(), p_si.end());
+        }
+        if (db_reader.group_exists("/XcorrS/station_idx")) {
+            auto s_si = db_reader.read_int_1d("/XcorrS/station_idx");
+            n_s = static_cast<int>(s_si.size());
+            st_idx_vec.insert(st_idx_vec.end(), s_si.begin(), s_si.end());
+        }
+        int N_phases = n_p + n_s;
 
         int N_stations = 0;
         for (int s : st_idx_vec)
             if (s + 1 > N_stations)
                 N_stations = s + 1;
 
-        // Build station → (P_phase_idx, S_phase_idx) map
-        // P phases occupy indices [0, n_p); S phases occupy [n_p, N_phases)
+        // P-phase -> station, S-phase -> station maps (for polarity)
         std::vector<int> p_phase_of_station(N_stations, -1);
         std::vector<int> s_phase_of_station(N_stations, -1);
         for (int ph = 0; ph < n_p; ++ph) {
@@ -124,8 +147,6 @@ int main(int argc, char *argv[]) {
         // ══════════════════════════════════════════════════════════════
         // 4. Initialize DataCache, load preprocessed data
         // ══════════════════════════════════════════════════════════════
-        // Sensible default for XCorr maxlag; production should read
-        // from database config.
         const int maxlag = 50;
         const int cc_pp = 2 * maxlag + 1;
 
@@ -139,28 +160,31 @@ int main(int argc, char *argv[]) {
         std::vector<std::pair<int, int>> combos(combo_set.begin(), combo_set.end());
 
         // ══════════════════════════════════════════════════════════════
-        // 5. Allocate host output arrays
+        // 5. Allocate intermediate output arrays (accumulated across combos)
         // ══════════════════════════════════════════════════════════════
-        std::vector<double> xcorr_out(N_phases * N_trials,
+        bool has_xcorr_p = n_p > 0;
+        bool has_xcorr_s = n_s > 0;
+        bool has_polarity = N_stations > 0;
+
+        std::vector<double> cc_max_p(has_xcorr_p ? (size_t)n_p * N_trials : 0, 0.0);
+        std::vector<int32_t> best_lag_p(has_xcorr_p ? (size_t)n_p * N_trials : 0, 0);
+        std::vector<double> cc_max_s(has_xcorr_s ? (size_t)n_s * N_trials : 0, 0.0);
+        std::vector<int32_t> best_lag_s(has_xcorr_s ? (size_t)n_s * N_trials : 0, 0);
+        std::vector<int8_t> syn_sign(has_polarity ? (size_t)N_stations * N_trials : 0, 0);
+        std::vector<double> dot_value(has_polarity ? (size_t)N_stations * N_trials : 0,
                                       std::numeric_limits<double>::quiet_NaN());
-        std::vector<double> polarity_out(N_stations * N_trials,
-                                         std::numeric_limits<double>::quiet_NaN());
-        std::vector<double> psr_out(N_stations * N_trials,
-                                    std::numeric_limits<double>::quiet_NaN());
 
         // ══════════════════════════════════════════════════════════════
-        // 6. Launch XCorr + Polarity + PSR kernels per combo
+        // 6. Launch kernels per combo, accumulate into intermediate arrays
         // ══════════════════════════════════════════════════════════════
         for (const auto &combo : combos) {
             int f_idx = combo.first;
             int d_idx = combo.second;
 
-            // Find trial indices for this combo
             std::vector<int> trial_indices;
             for (int t = 0; t < N_trials; ++t)
                 if (trials[t].freq_idx == f_idx && trials[t].depth_idx == d_idx)
                     trial_indices.push_back(t);
-
             if (trial_indices.empty())
                 continue;
 
@@ -169,13 +193,12 @@ int main(int argc, char *argv[]) {
             try {
                 entry = cache.get_or_compute(f_idx, d_idx);
             } catch (const std::runtime_error &) {
-                // Data not available for this combo — skip
                 continue;
             }
             if (!entry || !entry->valid())
                 continue;
 
-            // ── Build MT sub-views for this combo's trials ────────────
+            // ── Build MT sub-views for this combo's trials ──
             std::vector<double> mt_xcorr_sub(static_cast<size_t>(6 * n_sub));
             std::vector<double> mt_pol_sub(static_cast<size_t>(n_sub * 6));
             for (int si = 0; si < n_sub; ++si) {
@@ -186,9 +209,8 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // ── XCorr ─────────────────────────────────────────────────
-            if (entry->xcorr.cc != nullptr) {
-                // Reshape synamp: cache stores [N_ph*6, 6]; kernel expects [N_ph, 36]
+            // ── XCorr: cc_max + best_lag per (phase, trial) ──
+            if (entry->xcorr.cc != nullptr && N_phases > 0) {
                 std::vector<double> synamp_r(static_cast<size_t>(N_phases * 36));
                 const double *synamp_src = entry->xcorr.synamp;
                 int n_syn_phases = entry->xcorr.n_syn_phases;
@@ -198,32 +220,33 @@ int main(int argc, char *argv[]) {
                             synamp_r[p + (i * 6 + j) * N_phases] =
                                 synamp_src[(p * 6 + i) + j * n_syn_phases];
 
-                // Output: [N_phases × n_sub]
-                std::vector<double> xcorr_sub(static_cast<size_t>(N_phases * n_sub));
+                std::vector<double> cc_max_sub(static_cast<size_t>(N_phases * n_sub));
+                std::vector<int32_t> best_lag_sub(static_cast<size_t>(N_phases * n_sub));
 
                 fm::launch_xcorr_misfit<Backend::OpenMP>(
-                    mt_xcorr_sub.data(),    // [6 × n_sub] col-major
-                    entry->xcorr.cc,        // [N_ph·cc_pp × 6] col-major
-                    synamp_r.data(),        // [N_ph × 36] col-major
-                    entry->xcorr.obs_norm2, // [N_ph]
-                    xcorr_sub.data(),       // [N_ph × n_sub] col-major
-                    N_phases, n_sub, cc_pp);
+                    mt_xcorr_sub.data(), entry->xcorr.cc, synamp_r.data(), entry->xcorr.obs_norm2,
+                    cc_max_sub.data(), best_lag_sub.data(), N_phases, n_sub, cc_pp, maxlag);
 
-                // Write back
+                // Write back: split P (rows 0..n_p) and S (rows n_p..N_phases)
                 for (int ph = 0; ph < N_phases; ++ph)
-                    for (int si = 0; si < n_sub; ++si)
-                        xcorr_out[ph * N_trials + trial_indices[si]] =
-                            xcorr_sub[ph + si * N_phases];
+                    for (int si = 0; si < n_sub; ++si) {
+                        double v = cc_max_sub[ph + si * N_phases];
+                        int32_t lag = best_lag_sub[ph + si * N_phases];
+                        if (ph < n_p) {
+                            cc_max_p[ph + trial_indices[si] * n_p] = v;
+                            best_lag_p[ph + trial_indices[si] * n_p] = lag;
+                        } else {
+                            int sp = ph - n_p;
+                            cc_max_s[sp + trial_indices[si] * n_s] = v;
+                            best_lag_s[sp + trial_indices[si] * n_s] = lag;
+                        }
+                    }
             }
 
-            // ── Polarity ──────────────────────────────────────────────
-            if (entry->polarity.pol_vec != nullptr) {
-                // Map per-phase → per-station:
+            // ── Polarity: syn_sign + dot_value per (station, trial) ──
+            if (entry->polarity.pol_vec != nullptr && N_stations > 0) {
                 std::vector<double> pol_vec_s(static_cast<size_t>(N_stations * 6));
-                std::vector<double> obs_pol_s(N_stations);
-
                 const double *pol_src = entry->polarity.pol_vec;
-                const double *obs_src = entry->polarity.obs_pol;
                 int n_phases_pol = entry->polarity.n_phases;
 
                 for (int s = 0; s < N_stations; ++s) {
@@ -231,102 +254,76 @@ int main(int argc, char *argv[]) {
                     if (pp >= 0) {
                         for (int c = 0; c < 6; ++c)
                             pol_vec_s[s + c * N_stations] = pol_src[pp + c * n_phases_pol];
-                        obs_pol_s[s] = obs_src[pp];
                     } else {
                         for (int c = 0; c < 6; ++c)
                             pol_vec_s[s + c * N_stations] = 0.0;
-                        obs_pol_s[s] = std::numeric_limits<double>::quiet_NaN();
                     }
                 }
 
-                std::vector<double> pol_sub(static_cast<size_t>(N_stations * n_sub));
+                std::vector<int8_t> syn_sign_sub(static_cast<size_t>(N_stations * n_sub));
+                std::vector<double> dot_sub(static_cast<size_t>(N_stations * n_sub));
 
-                fm::launch_polarity_kernel<Backend::OpenMP>(
-                    mt_pol_sub.data(), // [n_sub × 6] col-major
-                    pol_vec_s.data(),  // [N_st × 6] col-major
-                    obs_pol_s.data(),  // [N_st]
-                    pol_sub.data(),    // [N_st × n_sub] col-major
-                    N_stations, n_sub);
+                fm::launch_polarity_kernel<Backend::OpenMP>(mt_pol_sub.data(), pol_vec_s.data(),
+                                                            syn_sign_sub.data(), dot_sub.data(),
+                                                            N_stations, n_sub);
 
                 for (int s = 0; s < N_stations; ++s)
-                    for (int si = 0; si < n_sub; ++si)
-                        polarity_out[s * N_trials + trial_indices[si]] =
-                            pol_sub[s + si * N_stations];
-            }
-
-            // ── PSR ───────────────────────────────────────────────────
-            if (entry->psr.amp_P != nullptr) {
-                // Map per-phase → per-station:
-                std::vector<double> ampP_s(static_cast<size_t>(N_stations * 6 * 6));
-                std::vector<double> ampS_s(static_cast<size_t>(N_stations * 6 * 6));
-                std::vector<double> obs_psr_s(N_stations);
-
-                const double *ampP_src = entry->psr.amp_P;
-                const double *ampS_src = entry->psr.amp_S;
-                const double *opsr_src = entry->psr.obs_psr;
-                int n_phases_psr = entry->psr.n_phases;
-
-                for (int s = 0; s < N_stations; ++s) {
-                    int pp = p_phase_of_station[s];
-                    int sp = s_phase_of_station[s];
-                    if (pp >= 0 && sp >= 0) {
-                        for (int i = 0; i < 6; ++i)
-                            for (int j = 0; j < 6; ++j) {
-                                ampP_s[s + i * N_stations + j * (N_stations * 6)] =
-                                    ampP_src[pp + i * n_phases_psr + j * (n_phases_psr * 6)];
-                                ampS_s[s + i * N_stations + j * (N_stations * 6)] =
-                                    ampS_src[sp + i * n_phases_psr + j * (n_phases_psr * 6)];
-                            }
-                        obs_psr_s[s] = opsr_src[pp];
-                    } else {
-                        for (int i = 0; i < 6; ++i)
-                            for (int j = 0; j < 6; ++j) {
-                                ampP_s[s + i * N_stations + j * (N_stations * 6)] = 0.0;
-                                ampS_s[s + i * N_stations + j * (N_stations * 6)] = 0.0;
-                            }
-                        obs_psr_s[s] = std::numeric_limits<double>::quiet_NaN();
+                    for (int si = 0; si < n_sub; ++si) {
+                        syn_sign[s + trial_indices[si] * N_stations] =
+                            syn_sign_sub[s + si * N_stations];
+                        dot_value[s + trial_indices[si] * N_stations] =
+                            dot_sub[s + si * N_stations];
                     }
-                }
-
-                std::vector<double> psr_sub(static_cast<size_t>(N_stations * n_sub));
-
-                fm::launch_psr_kernel<Backend::OpenMP>(mt_pol_sub.data(), // [n_sub × 6] col-major
-                                                       ampP_s.data(),    // [N_st × 6 × 6] col-major
-                                                       ampS_s.data(),    // [N_st × 6 × 6] col-major
-                                                       obs_psr_s.data(), // [N_st]
-                                                       psr_sub.data(),   // [N_st × n_sub] col-major
-                                                       N_stations, n_sub);
-
-                for (int s = 0; s < N_stations; ++s)
-                    for (int si = 0; si < n_sub; ++si)
-                        psr_out[s * N_trials + trial_indices[si]] = psr_sub[s + si * N_stations];
             }
         }
 
         // ══════════════════════════════════════════════════════════════
-        // 7. Write misfits to status_N.h5
+        // 7. Write intermediates to status_N.h5:/intermediates/
         // ══════════════════════════════════════════════════════════════
-        if (!status_file.group_exists("/misfits"))
-            status_file.create_group("/misfits");
+        if (!status_file.group_exists("/intermediates"))
+            status_file.create_group("/intermediates");
 
-        status_file.write_double_2d("/misfits/xcorr", xcorr_out.data(),
-                                    static_cast<hsize_t>(N_phases), static_cast<hsize_t>(N_trials));
+        auto write_xcorr_inter = [&](const char *key, const std::vector<double> &cc,
+                                     const std::vector<int32_t> &lag, int n_ph) {
+            if (n_ph == 0)
+                return;
+            std::string g = std::string("/intermediates/") + key;
+            if (!status_file.group_exists(g.c_str()))
+                status_file.create_group(g.c_str());
+            status_file.write_double_2d((g + "/cc_max").c_str(), cc.data(), (hsize_t)n_ph,
+                                        (hsize_t)N_trials);
+            status_file.write_int32_2d((g + "/best_lag").c_str(), lag.data(), (hsize_t)n_ph,
+                                       (hsize_t)N_trials);
+        };
 
-        status_file.write_double_2d("/misfits/polarity", polarity_out.data(),
-                                    static_cast<hsize_t>(N_stations),
-                                    static_cast<hsize_t>(N_trials));
-
-        status_file.write_double_2d("/misfits/psr", psr_out.data(),
-                                    static_cast<hsize_t>(N_stations),
-                                    static_cast<hsize_t>(N_trials));
+        // Map module -> canonical intermediate key (operator + phase [+ channel])
+        for (const auto &mc : modules) {
+            if (mc.is_composed)
+                continue; // composed misfits have no intermediates (Julia-only)
+            std::string key = mc.op + mc.phase;
+            if (!mc.channel.empty())
+                key += "_" + mc.channel;
+            if (mc.op == "Xcorr" && mc.phase == "P")
+                write_xcorr_inter(key.c_str(), cc_max_p, best_lag_p, n_p);
+            else if (mc.op == "Xcorr" && mc.phase == "S")
+                write_xcorr_inter(key.c_str(), cc_max_s, best_lag_s, n_s);
+            else if (mc.op == "Polarity") {
+                std::string g = "/intermediates/" + key;
+                if (!status_file.group_exists(g.c_str()))
+                    status_file.create_group(g.c_str());
+                status_file.write_int8_2d((g + "/syn_sign").c_str(), syn_sign.data(),
+                                          (hsize_t)N_stations, (hsize_t)N_trials);
+                status_file.write_double_2d((g + "/dot_value").c_str(), dot_value.data(),
+                                            (hsize_t)N_stations, (hsize_t)N_trials);
+            }
+        }
 
         status_file.close();
-
-        // Free host memory (DataCache uses new[] — no GPU allocation in OpenMP build)
         cache.release_all();
 
-        std::cout << "fm_forward: " << N_trials << " trials × " << combos.size() << " combos → "
-                  << N_phases << " phases, " << N_stations << " stations" << std::endl;
+        std::cout << "fm_forward: " << N_trials << " trials × " << combos.size() << " combos -> "
+                  << N_phases << " phases, " << N_stations << " stations"
+                  << " (intermediates written)" << std::endl;
 
     } catch (const std::exception &e) {
         std::cerr << "fm_forward error: " << e.what() << std::endl;
