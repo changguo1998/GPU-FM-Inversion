@@ -1,0 +1,13 @@
+name = "Misfit"
+uuid = "1a03ced9-fb88-487f-aa94-9f0e83bb8bf2"
+version = "0.1.0"
+
+[deps]
+IO = "4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"
+Signal = "c2443ae3-2a13-43e4-b75e-3c3d3ad453ec"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

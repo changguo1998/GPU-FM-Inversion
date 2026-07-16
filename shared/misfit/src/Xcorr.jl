@@ -1,14 +1,21 @@
 # XCorr misfit plugin (template)
 #
 # Included inside Config.{name} (dynamically created inner module).
-# Template for cross-correlation misfit — instantiated per phase via
+# Template for cross-correlation misfit - instantiated per phase via
 # `Config.use_misfit!(:XcorrP, from = :Xcorr)`.
 #
 # Config stubs (user must override):
-#   trim()     — time window [pre, post] seconds relative to arrival
+#   trim()     - time window [pre, post] seconds relative to arrival
 #   maxlag_factor(), filter_order(), select_threshold(), deselect_threshold()
 
-export trim, maxlag_factor, filter_order
+# ── 输出字段常量（IDE 可补全，注册时校验）──
+const CC_MAX = :cc_max
+const BEST_LAG = :best_lag
+
+# ── Operator 元数据 ──
+outputs() = [CC_MAX, BEST_LAG]
+
+export trim, maxlag_factor, filter_order, outputs
 
 export select_threshold,
     deselect_threshold, preprocess, process, is_freq_dependent, band_low, band_high
@@ -17,31 +24,31 @@ is_freq_dependent() = true
 # -- Config namespace (user must override) --
 
 function trim()::Vector{Float64}
-    error("Xcorr.trim(): not implemented — return [-pre_sec, post_sec]  (e.g. [-2.0, 5.0])")
+    error("Xcorr.trim(): not implemented - return [-pre_sec, post_sec]  (e.g. [-2.0, 5.0])")
 end
 
 function maxlag_factor()::Float64
-    error("Xcorr.maxlag_factor(): not implemented — return Float64  (e.g. 0.5)")
+    error("Xcorr.maxlag_factor(): not implemented - return Float64  (e.g. 0.5)")
 end
 
 function filter_order()::Int
-    error("Xcorr.filter_order(): not implemented — return Int  (e.g. 4)")
+    error("Xcorr.filter_order(): not implemented - return Int  (e.g. 4)")
 end
 
 function band_low()::Vector{Int32}
-    error("Xcorr.band_low(): not implemented — return Vector{Int32} of freq-band low indices")
+    error("Xcorr.band_low(): not implemented - return Vector{Int32} of freq-band low indices")
 end
 
 function band_high()::Vector{Int32}
-    error("Xcorr.band_high(): not implemented — return Vector{Int32} of freq-band high indices")
+    error("Xcorr.band_high(): not implemented - return Vector{Int32} of freq-band high indices")
 end
 
 function select_threshold()::Float64
-    error("Xcorr.select_threshold(): not implemented — return Float64  (e.g. 0.5)")
+    error("Xcorr.select_threshold(): not implemented - return Float64  (e.g. 0.5)")
 end
 
 function deselect_threshold()::Float64
-    error("Xcorr.deselect_threshold(): not implemented — return Float64  (e.g. 0.3)")
+    error("Xcorr.deselect_threshold(): not implemented - return Float64  (e.g. 0.3)")
 end
 
 # -- Preprocessing --
