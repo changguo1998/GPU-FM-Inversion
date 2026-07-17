@@ -80,7 +80,7 @@ Each module group also carries misfit-decomposition metadata (see
 `doc/misfit-decomposition.md`):
 
 | Dataset | Type | Shape | Description |
-|---------|------|-------|-------------|
+|---------------|--------|--------|--------------------------------------------------------|
 | `operator` | String | scalar | Operator name (`"Xcorr"`/`"Polarity"`/`"StdDev"`) |
 | `output` | String | scalar | Selected output field (`"cc_max"`/`"best_lag"`/...) |
 | `is_composed` | Int8 | scalar | 0=Level 1 base, 1=Level 2 composed |
@@ -212,7 +212,7 @@ Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
 the same (operator, phase, channel) share one intermediate group.
 
 | Group | Dataset | Type | Shape | Description |
-|-------|---------|------|-------|-------------|
+|---------------|-------------|---------|---------------------------|-----------------------------------------------|
 | `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | max normalized CC value |
 | `Xcorr{P,S}` | `best_lag` | Int32 | `[N_phases × N_trials]` | best-lag offset (samples, relative to maxlag) |
 | `Polarity{P}` | `syn_sign` | Int8 | `[N_stations × N_trials]` | synthetic polarity sign (-1/0/1) |
