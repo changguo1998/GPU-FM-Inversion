@@ -1,11 +1,11 @@
 #!/usr/bin/env julia
 #
-# input.jl — 数据接入与初始化阶段
+# input.jl - 数据接入与初始化阶段
 # 管道启动后执行一次, 完成以下工作:
 #   1. 加载用户配置 (config.jl)
 #   2. 通过 Config.load_*() 读外部数据 (事件/台站/波形/格林函数)
 #   3. 预处理波形 (带通滤波 + 裁窗)
-#   4. 写入 database.h5 (/event, /station, /channel, /gf, /{ModuleName})
+#   4. 写入 database.h5 (/event, /station, /channel, /gf, /paraspace, /config, /{ModuleName})
 #   5. 写入 status_0.h5 (初始策略, 无 trial)
 #
 # Usage:
@@ -99,8 +99,6 @@ phase_types = sort(unique([pt for (_, pt, _) in phase_list]))
 # === 6. 构建 /station (物理台站, 去重) ===
 
 # 按 station.id 去重, 保持原始顺序
-
-# 按 station.id 去重, 保持原始顺序
 seen_ids = Set{String}()
 phys_stations = IO.StationInfo[]
 phys_id_to_idx = Dict{String, Int}()
@@ -114,10 +112,10 @@ for s in stations
 end
 n_phys_stations = length(phys_stations)
 
-# 全量 station_idx (18) → 物理 station_idx (6) 映射
+# 全量 station_idx -> 物理 station_idx 映射
 full_to_phys = Int32[phys_id_to_idx[s.id] for s in stations]
 
-# /station 表 (N_phys_stations=6 行)
+# /station 表 (N_phys_stations 行)
 phys_station_dict = Dict{String, Vector}()
 phys_station_dict["id"] = [s.id for s in phys_stations]
 phys_station_dict["network"] = [s.network for s in phys_stations]
@@ -145,9 +143,9 @@ phys_station_dict["P_polarity"] =
 
 @info "  station dict built ($n_stations channels, $n_phys_stations physical stations)"
 
-# === 7. 加载原始波形 → /channel ===
-# 原始波形, 仅验证/调试用
-@info "Building /channel — raw waveforms ..."
+# === 7. 加载原始波形 -> /channel ===
+# 原始波形, 写入 /channel 并作为预处理输入
+@info "Building /channel - raw waveforms ..."
 
 channel_data = Dict{String, Vector{Float64}}()
 seen_ch = Set{String}()
@@ -164,12 +162,15 @@ end
 
 @info "  $(length(channel_data)) channels loaded"
 
-# === 8. 加载格林函数 → /gf/{depth}/{channel_id} ===
+# === 8. 加载格林函数 -> /gf/{depth}/{channel_id} ===
 # Config.load_gf() 读 GF, 取第 3 维对应分量
 @info "Loading Green's functions via Config.load_gf() ..."
 
-gf_data = Dict{Float64, Dict{String, Matrix{Float64}}}()
-let n_skip = 0, n_load = 0
+"""加载所有 (station, depth) 的格林函数, 取指定通道分量。"""
+function load_greens_functions(stations, ch_map, event, depths)
+    gf_data = Dict{Float64, Dict{String, Matrix{Float64}}}()
+    n_skip = 0
+    n_load = 0
     for s in stations
         ch_id = "$(s.network).$(s.station).$(s.channel)"
         ch_idx = get(ch_map, s.channel, 3)
@@ -190,7 +191,10 @@ let n_skip = 0, n_load = 0
         end
     end
     @info "  GF loaded: $n_load (ch,depth) pairs, $n_skip skipped"
+    return gf_data
 end
+
+gf_data = load_greens_functions(stations, ch_map, event, depths)
 
 # === 9. 预处理波形 (核心) ===
 # 逐模块/频带/相位: 带通滤波 + 裁窗 + GF 预处理
@@ -204,6 +208,85 @@ for m_name in misfit_modules
     module_instances[m_name] = getfield(Config, sym)
 end
 
+# 预处理共享上下文 (NamedTuple 避免长参数列表)
+ctx = (
+    stations = stations,
+    picks = picks,
+    station_to_idx = station_to_idx,
+    channel_data = channel_data,
+    gf_data = gf_data,
+    depths = depths,
+    freq_vals = freq_vals,
+    pf = pf,
+    pol_f = pol_f,
+)
+
+"""合并多频带 result r 到已累积的 prev (prev 为 nothing 时返回 r 本身)。"""
+function merge_band_result(prev, r)
+    if prev === nothing
+        return r
+    end
+    for (band_key, band_data) in r["obs"]
+        prev["obs"][band_key] = band_data
+    end
+    for (d, bands) in r["gf"]
+        if !haskey(prev["gf"], d)
+            prev["gf"][d] = Dict{Int, Any}()
+        end
+        for (band_key, band_data) in bands
+            prev["gf"][d][band_key] = band_data
+        end
+    end
+    return prev
+end
+
+"""对单模块执行预处理, 返回累积 result (nothing 表示无有效数据)。
+
+freq-dependent 模块跨频带合并; 非 freq 模块单次 process。"""
+function preprocess_module(mod, phases_pt, ptype, ctx, prev)
+    if mod.is_freq_dependent()
+        band_low = mod.band_low()
+        band_high = mod.band_high()
+        result = prev
+        for local_idx in 1:length(band_low)
+            low_cut = ctx.freq_vals[band_low[local_idx]]
+            high_cut = ctx.freq_vals[band_high[local_idx]]
+            r = mod.process(
+                phases_pt,
+                ptype,
+                ctx.stations,
+                ctx.picks,
+                ctx.station_to_idx,
+                ctx.channel_data,
+                ctx.gf_data,
+                ctx.depths,
+                low_cut,
+                high_cut,
+                local_idx,
+                ctx.pf,
+            )
+            isempty(r["channel_id"]) && continue
+            result = merge_band_result(result, r)
+        end
+        return result
+    else
+        r = mod.process(
+            phases_pt,
+            ptype,
+            ctx.stations,
+            ctx.picks,
+            ctx.station_to_idx,
+            ctx.channel_data,
+            ctx.gf_data,
+            ctx.depths,
+            ctx.pf,
+            ctx.pol_f,
+        )
+        isempty(r["channel_id"]) && return prev
+        return r
+    end
+end
+
 # 预处理结果暂存, 最终组装 ModuleData
 module_data = Dict{String, IO.ModuleData}()
 module_results = Dict{String, Dict}()
@@ -211,71 +294,11 @@ module_results = Dict{String, Dict}()
 for ptype in phase_types
     phases_pt = [(pid, si) for (pid, pt, si) in phase_list if pt == ptype]
     isempty(phases_pt) && continue
-
     for (m_name, mod) in module_instances
-        mod_pt = Config.phase_type(Symbol(m_name))
-        mod_pt != ptype && continue
-
-        if mod.is_freq_dependent()
-            band_low = mod.band_low()
-            band_high = mod.band_high()
-            for local_idx in 1:length(band_low)
-                li = band_low[local_idx]
-                hi = band_high[local_idx]
-                low_cut = freq_vals[li]
-                high_cut = freq_vals[hi]
-
-                result = mod.process(
-                    phases_pt,
-                    ptype,
-                    stations,
-                    picks,
-                    station_to_idx,
-                    channel_data,
-                    gf_data,
-                    depths,
-                    low_cut,
-                    high_cut,
-                    local_idx,
-                    pf,
-                )
-
-                isempty(result["channel_id"]) && continue
-
-                if !haskey(module_results, m_name)
-                    module_results[m_name] = result
-                else
-                    # Merge multi-band results
-                    for (band_key, band_data) in result["obs"]
-                        module_results[m_name]["obs"][band_key] = band_data
-                    end
-                    for (d, bands) in result["gf"]
-                        if !haskey(module_results[m_name]["gf"], d)
-                            module_results[m_name]["gf"][d] = Dict{Int, Any}()
-                        end
-                        for (band_key, band_data) in bands
-                            module_results[m_name]["gf"][d][band_key] = band_data
-                        end
-                    end
-                end
-            end
-        else
-            result = mod.process(
-                phases_pt,
-                ptype,
-                stations,
-                picks,
-                station_to_idx,
-                channel_data,
-                gf_data,
-                depths,
-                pf,
-                pol_f,
-            )
-
-            isempty(result["channel_id"]) && continue
-            module_results[m_name] = result
-        end
+        Config.phase_type(Symbol(m_name)) != ptype && continue
+        prev = get(module_results, m_name, nothing)
+        result = preprocess_module(mod, phases_pt, ptype, ctx, prev)
+        result !== nothing && (module_results[m_name] = result)
     end
 end
 
@@ -339,7 +362,7 @@ for m_name in misfit_modules
     )
 end
 
-# Dict → IO.ModuleData 转换
+# Dict -> IO.ModuleData 转换
 function result_to_moduledata(result::Dict)::IO.ModuleData
     obs_str = Dict{String, Matrix{Float64}}()
     obs_n2_str = Dict{String, Vector{Float64}}()
@@ -378,7 +401,7 @@ end
 # === 11. 写入 database.h5 ===
 @info "Writing database.h5 ..."
 db_path = joinpath(data_dir, "database.h5")
-# 组装 ModuleData → /{ModuleName}/obs + /gf
+# 组装 ModuleData -> /{ModuleName}/obs + /gf
 for (m_name, result) in module_results
     module_data[m_name] = result_to_moduledata(result)
 end

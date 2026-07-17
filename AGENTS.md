@@ -70,7 +70,7 @@ These conventions apply across the entire project.
 1. Green's functions pre-computed externally — loaded by `input.jl`, never computed by pipeline.
 1. Config bootstrapped via `config.jl` (Julia script implementing `Config` module interface) — only `input.jl` reads it. All config written to `database.h5`; subsequent stages read from HDF5.
 1. HDF5 schema is the API contract between stages — schema changes require coordinated stage updates.
-1. **Flat scripts**: stage scripts have zero `function` definitions — straight-line top-level execution. No `main()` wrappers.
+1. **Flat scripts**: stage scripts execute as straight-line top-level code with no `main()` wrapper. Private helper functions are allowed to flatten deep nesting; they must be self-contained (no leaked state) and stay subordinate to the top-level flow.
 1. **Shared packages**: utility code lives in `shared/` Julia packages imported via `using`. Each package has own `Project.toml`.
 
 ### Formatting
