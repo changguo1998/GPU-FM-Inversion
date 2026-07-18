@@ -31,28 +31,63 @@ struct ModuleData
     # Per-band observation data
     obs::Dict{String, Matrix{Float64}}               # band_key -> obs matrix
     obs_norm2::Dict{String, Vector{Float64}}         # band_key -> norm2 vector
-    # Per-depth, per-band GF data
+    # Per-depth, per-band GF data (Polarity, legacy)
     gf::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band_key -> gf
     synamp::Dict{Float64, Dict{String, Array{Float64, 3}}}  # depth -> band_key -> synamp
+    # Xcorr per-lag reductions (freq-dependent)
+    synamp_lag::Dict{Float64, Dict{String, Array{Float64, 4}}}   # depth -> band -> [N,6,6,L]
+    dot_obs_gf_lag::Dict{String, Array{Float64, 3}}              # band -> [N,6,L]
+    # PSR reductions (freq-dependent)
+    amp_P::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band -> [N,6,6]
+    amp_S::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band -> [N,6,6]
+    obs_psr::Dict{String, Vector{Float64}}                  # band -> [N]
     # Phase metadata
     channel_id::Vector{String}
     station_idx::Vector{Int32}
 end
 
-# Keyword constructor — obs_norm2/synamp default to empty for Polarity-style
+# Keyword constructor - optional fields default to empty
 function ModuleData(;
     obs::Dict{String, Matrix{Float64}},
     obs_norm2::Dict{String, Vector{Float64}} = Dict{String, Vector{Float64}}(),
-    gf::Dict{Float64, Dict{String, Array{Float64, 3}}},
+    gf::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
+        Float64,
+        Dict{String, Array{Float64, 3}},
+    }(),
     synamp::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
         Float64,
         Dict{String, Array{Float64, 3}},
     }(),
+    synamp_lag::Dict{Float64, Dict{String, Array{Float64, 4}}} = Dict{
+        Float64,
+        Dict{String, Array{Float64, 4}},
+    }(),
+    dot_obs_gf_lag::Dict{String, Array{Float64, 3}} = Dict{String, Array{Float64, 3}}(),
+    amp_P::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
+        Float64,
+        Dict{String, Array{Float64, 3}},
+    }(),
+    amp_S::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
+        Float64,
+        Dict{String, Array{Float64, 3}},
+    }(),
+    obs_psr::Dict{String, Vector{Float64}} = Dict{String, Vector{Float64}}(),
     channel_id::Vector{String} = String[],
     station_idx::Vector{Int32} = Int32[],
 )
-    :ModuleData
-    return ModuleData(obs, obs_norm2, gf, synamp, channel_id, station_idx)
+    return ModuleData(
+        obs,
+        obs_norm2,
+        gf,
+        synamp,
+        synamp_lag,
+        dot_obs_gf_lag,
+        amp_P,
+        amp_S,
+        obs_psr,
+        channel_id,
+        station_idx,
+    )
 end
 
 struct PhasePick
@@ -385,6 +420,50 @@ function write_database(
                     if haskey(md.synamp, depth) && haskey(md.synamp[depth], band_key)
                         write(b_gr, "synamp", md.synamp[depth][band_key])
                     end
+                end
+            end
+            # Xcorr per-lag reductions
+            if !isempty(md.synamp_lag)
+                sl_gr = HDF5.create_group(m_gr, "synamp_lag")
+                for depth in sort(collect(keys(md.synamp_lag)))
+                    bands = md.synamp_lag[depth]
+                    d_gr = HDF5.create_group(sl_gr, string(depth))
+                    for band_key in sort(collect(keys(bands)))
+                        d_gr[band_key] = bands[band_key]
+                    end
+                end
+            end
+            if !isempty(md.dot_obs_gf_lag)
+                dog_gr = HDF5.create_group(m_gr, "dot_obs_gf_lag")
+                for band_key in sort(collect(keys(md.dot_obs_gf_lag)))
+                    dog_gr[band_key] = md.dot_obs_gf_lag[band_key]
+                end
+            end
+            # PSR reductions
+            if !isempty(md.amp_P)
+                ap_gr = HDF5.create_group(m_gr, "amp_P")
+                for depth in sort(collect(keys(md.amp_P)))
+                    bands = md.amp_P[depth]
+                    d_gr = HDF5.create_group(ap_gr, string(depth))
+                    for band_key in sort(collect(keys(bands)))
+                        d_gr[band_key] = bands[band_key]
+                    end
+                end
+            end
+            if !isempty(md.amp_S)
+                as_gr = HDF5.create_group(m_gr, "amp_S")
+                for depth in sort(collect(keys(md.amp_S)))
+                    bands = md.amp_S[depth]
+                    d_gr = HDF5.create_group(as_gr, string(depth))
+                    for band_key in sort(collect(keys(bands)))
+                        d_gr[band_key] = bands[band_key]
+                    end
+                end
+            end
+            if !isempty(md.obs_psr)
+                opsr_gr = HDF5.create_group(m_gr, "obs_psr")
+                for band_key in sort(collect(keys(md.obs_psr)))
+                    opsr_gr[band_key] = md.obs_psr[band_key]
                 end
             end
         end
