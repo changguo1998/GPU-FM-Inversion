@@ -44,3 +44,8 @@ end
     @test Misfit.Polarity.DOT_VALUE == :dot_value
     @test Misfit.Polarity.is_freq_dependent() == false
 end
+
+@testset "Polarity params" begin
+    @test !isdefined(Misfit.Polarity, :trim)
+    @test isdefined(Misfit.Polarity, :source_duration)
+end

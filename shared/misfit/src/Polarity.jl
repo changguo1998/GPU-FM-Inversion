@@ -2,6 +2,7 @@
 #
 # Included inside Config.Polarity (dynamically created inner module).
 # Config function stubs + preprocessing logic.
+# GF preprocessed by Layer 0 (demean/detrend/taper, no bandpass - not freq-dependent).
 
 # ── 输出字段常量（IDE 可补全，注册时校验）──
 const SYN_SIGN = :syn_sign
@@ -10,13 +11,13 @@ const DOT_VALUE = :dot_value
 # ── Operator 元数据 ──
 outputs() = [SYN_SIGN, DOT_VALUE]
 
-export trim, preprocess, process, is_freq_dependent, outputs
+export source_duration, preprocess, process, is_freq_dependent, outputs
 
 is_freq_dependent() = false
 # -- Config namespace (user must override) --
 
-function trim()::Vector{Float64}
-    error("Polarity.trim(): not implemented - return [t_pre, t_post]  (e.g. [0.0, 2.0])")
+function source_duration()::Float64
+    error("Polarity.source_duration(): not implemented - return Float64 seconds (e.g. 2.0)")
 end
 
 # -- Preprocessing --
@@ -26,31 +27,28 @@ const _Signal =
 const _IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
 
 """
-    preprocess(gf, dt, arrival_sample, t_source, obs_polarity) -> (gf_pol, obs_pol)
+    preprocess(gf_full, dt, arrival_sample, source_duration) -> gf_pol
 
-Trim GF to polarity window.
+Trim GF to polarity window [arrival, arrival+source_duration].
+GF is already basic-cleaned (demean/detrend/taper, no bandpass) by Layer 0.
 """
 function preprocess(
-    gf::Matrix{Float64},
+    gf_full::Matrix{Float64},
     dt::Float64,
     arrival_sample::Int,
-    t_source::Float64,
-    obs_polarity::Int8,
+    source_duration::Float64,
 )
-    gf_pol = _Signal.trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
-    obs_pol_float = if obs_polarity == Int8(-128)
-        NaN
-    else
-        Float64(obs_polarity)
-    end
-    return gf_pol, obs_pol_float
+    return _Signal.trim_to_polarity_window!(gf_full, dt, arrival_sample, source_duration)
 end
 
 """
-    process(phases_pt, ptype, stations, picks, station_to_idx, channel_data,
-            gf_data, depths, pf, pol_f)
+    process(phases_pt, ptype, stations, picks, station_to_idx,
+            prepro_gf, depths, pf, pol_f)
 
 Batch preprocess Polarity for one phase type.
+Consumes Layer 0 basic-cleaned GF (demean/detrend/taper, no bandpass).
+obs_pol from manual picks (±1/NaN), no preprocessing.
+
 Returns a Dict mirroring the HDF5 schema (band 1, no freq filtering):
   "channel_id"  => String[N_entries]
   "station_idx" => Int32[N_entries]
@@ -63,13 +61,12 @@ function process(
     stations::Vector{_IO.StationInfo},
     picks::Vector{_IO.PhasePick},
     station_to_idx::Dict{String, Int},
-    channel_data::Dict{String, Vector{Float64}},
-    gf_data::Dict,  # Dict{Float64, Dict{String, Matrix{Float64}}}
+    prepro_gf::Dict,  # Dict{Float64, Dict{String, Matrix{Float64}}}
     depths::Vector{Float64},
     pf::Dict{String, Symbol},
     pol_f::Dict{String, Symbol},
 )
-    t_source = trim()[2]
+    t_source = source_duration()
     pol_field = get(pol_f, ptype, nothing)
     pol_field === nothing && return Dict(
         "channel_id" => String[],
@@ -91,8 +88,11 @@ function process(
         dt = s.dt
         pick = picks[station_to_idx[s.id]]
         ch_id = "$(s.network).$(s.station).$(s.channel)"
-        wf = channel_data[ch_id]
-        n_samples = length(wf)
+
+        # n_samples from GF (obs waveform not needed for polarity)
+        gf_first = get(prepro_gf[depths[1]], ch_id, nothing)
+        gf_first === nothing && continue
+        n_samples = size(gf_first, 1)
 
         begin_unix = _IO.parse_time_iso(s.begin_time)
         pick_time = _IO.parse_time_iso(getfield(pick, pf[ptype]))
@@ -105,7 +105,7 @@ function process(
         gf_per_depth = Dict{Float64, Matrix{Float64}}()
         all_gf_ok = true
         for depth_val in depths
-            gf_full = get(gf_data[depth_val], ch_id, nothing)
+            gf_full = get(prepro_gf[depth_val], ch_id, nothing)
             if gf_full === nothing
                 all_gf_ok = false
                 break
@@ -125,14 +125,13 @@ function process(
         push!(sta_vec, Int32(si))
 
         # Preprocess GF at first depth to determine n_pol
-        gf_pol0, _ = preprocess(gf_per_depth[depths[1]], dt, arrival_sample, t_source, obs_pol_int8)
+        gf_pol0 = preprocess(gf_per_depth[depths[1]], dt, arrival_sample, t_source)
         n_pol = size(gf_pol0, 1)
         push!(n_pol_list, n_pol)
         push!(gf_lists[depths[1]], gf_pol0)
 
         for depth_val in depths[2:end]
-            gf_pol, _ =
-                preprocess(gf_per_depth[depth_val], dt, arrival_sample, t_source, obs_pol_int8)
+            gf_pol = preprocess(gf_per_depth[depth_val], dt, arrival_sample, t_source)
             push!(gf_lists[depth_val], gf_pol)
         end
     end
