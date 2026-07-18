@@ -140,6 +140,10 @@ function process(
     dog_lag_list = Vector{Matrix{Float64}}()
     synamp_lag_lists =
         Dict{Float64, Vector{Array{Float64, 3}}}(d => Vector{Array{Float64, 3}}() for d in depths)
+
+    # Debug: trimmed GF at lag=0
+    gf_trim_lists =
+        Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
     ch_vec = String[]
     sta_vec = Int32[]
 
@@ -201,6 +205,8 @@ function process(
         push!(synamp_lag_lists[depths[1]], synamp_lag0)
         push!(ch_vec, ch_id)
         push!(sta_vec, Int32(si))
+        gf0 = gf_per_depth[depths[1]][start_idx:end_idx, :]
+        push!(gf_trim_lists[depths[1]], gf0)
 
         for depth_val in depths[2:end]
             _, synamp_lag_d, _ = preprocess(
@@ -214,6 +220,8 @@ function process(
                 max_lag_p,
             )
             push!(synamp_lag_lists[depth_val], synamp_lag_d)
+            gf_d = gf_per_depth[depth_val][start_idx:end_idx, :]
+            push!(gf_trim_lists[depth_val], gf_d)
         end
     end
 
@@ -226,6 +234,8 @@ function process(
                 Dict(freq_idx => Dict("obs" => zeros(Float64, 0, 0), "obs_norm2" => Float64[])),
             "synamp_lag" => Dict(d => Dict(freq_idx => zeros(Float64, 0, 6, 6, 0)) for d in depths),
             "dot_obs_gf_lag" => Dict(freq_idx => zeros(Float64, 0, 6, 0)),
+            "gf" =>
+                Dict(d => Dict(freq_idx => Dict("gf" => zeros(Float64, 0, 6, 0))) for d in depths),
         )
     end
 
@@ -240,6 +250,10 @@ function process(
     for d in depths
         synamp_lag_arr[d] = zeros(Float64, n_entries, 6, 6, L)
     end
+    gf_trim_arr = Dict{Float64, Array{Float64, 3}}()
+    for d in depths
+        gf_trim_arr[d] = zeros(Float64, n_entries, 6, nt_win)
+    end
 
     for i in 1:n_entries
         obs_mat[i, :] = obs_win_list[i]
@@ -247,6 +261,7 @@ function process(
         dog_lag_arr[i, :, :] = dog_lag_list[i]
         for d in depths
             synamp_lag_arr[d][i, :, :, :] = synamp_lag_lists[d][i]
+            gf_trim_arr[d][i, :, :] = gf_trim_lists[d][i]'
         end
     end
 
@@ -256,5 +271,6 @@ function process(
         "obs" => Dict(freq_idx => Dict("obs" => obs_mat, "obs_norm2" => obs_n2_vec)),
         "synamp_lag" => Dict(d => Dict(freq_idx => synamp_lag_arr[d]) for d in depths),
         "dot_obs_gf_lag" => Dict(freq_idx => dog_lag_arr),
+        "gf" => Dict(d => Dict(freq_idx => Dict("gf" => gf_trim_arr[d])) for d in depths),
     )
 end

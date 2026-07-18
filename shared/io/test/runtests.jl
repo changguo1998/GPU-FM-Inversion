@@ -25,7 +25,7 @@ end
 
 function make_synthetic_stations()
     HDF5.h5open(tmpfile("test_stations.h5"), "w") do f
-        gr = HDF5.create_group(f, "stations")
+        gr = HDF5.create_group(f, "station")
         write(gr, "id", ["NET.STA1.BHE.P", "NET.STA1.BHN.S", "NET.STA2.BHE.P"])
         write(gr, "network", ["NET", "NET", "NET"])
         write(gr, "station", ["STA1", "STA1", "STA2"])
@@ -56,7 +56,8 @@ function make_synthetic_status()
     # ---- Strategy ----
     strategy = IO.Strategy(
         Int32[1, 2, 3],   # depth_indices
-        Int32(3),           # iteration
+        Int32[1],            # freq_indices
+        Int32(3),            # iteration
     )
 
     # ---- Trials ----
@@ -483,14 +484,14 @@ end
             HDF5.create_group(f, "trials")
             HDF5.create_group(f, "misfits")
         end
-        strat = IO.Strategy(Int32[1, 2, 3], Int32(3))
+        strat = IO.Strategy(Int32[1, 2, 3], Int32[1], Int32(3))
         # Write first time
         IO.write_strategy(fn, strat)
         r1 = IO.read_strategy(fn)
         @test r1.depth_indices == Int32[1, 2, 3]
         @test r1.iteration == 3
         # Write second time (replacement)
-        strat2 = IO.Strategy(Int32[3, 4], Int32(5))
+        strat2 = IO.Strategy(Int32[3, 4], Int32[1], Int32(5))
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
         @test r2.depth_indices == Int32[3, 4]

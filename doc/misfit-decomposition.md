@@ -50,7 +50,7 @@ AbsShiftP  = XCorr(算子) + P(震相) + best_lag -> best_lag * dt(输出)
 **Level 2（Composed）**：消费 Level 1 已算好的 misfit 值，纯 Julia 聚合，不触及波形/GF 数据。
 
 ```
-RelShift = StdDev(算子) + [AbsShiftP, AbsShiftSH, AbsShiftSV](基础 misfit 集合) + relative_offset(输出)
+RelShift = StdDev(算子) + [AbsShiftP_Z, AbsShiftS_N, AbsShiftS_E](基础 misfit 集合) + relative_offset(输出)
 ```
 
 Composer 按 station 对齐各 base misfit，跨分量取标准差。
@@ -119,7 +119,7 @@ status_N.h5:/intermediates/
 │     AbsShiftP:  best_lag -> best_lag * dt    │
 │                                              │
 │   Composer (per composed instance):          │
-│     RelShift: std(shift_P, shift_SH, shift_SV) per station
+│     RelShift: std(shift_Z, shift_N, shift_E) per station
 │                                              │
 │   写入 /misfits/                              │
 └──────────────────────────────────────────────┘
@@ -244,14 +244,14 @@ Config.use_misfit!(
     operator::Module,          # Misfit.Xcorr / Misfit.Polarity（模块引用）
     phase::String,           # "P" / "S"
     output::Symbol,          # operator.CC_MAX 等，须 ∈ operator.outputs()
-    channel::Union{String, Nothing}=nothing,  # 可选：限定 channel（如 "H"/"V"），见 §9
+    channel::Union{String, Nothing}=nothing,  # 可选：限定 channel（如 "Z"/"N"/"E"），见 §9
 )
 
 # ── Level 2: Composed misfit ──
 Config.use_misfit!(
     name::Symbol;
     operator::Module,          # StdDev 等 aggregate operator 模块
-    bases::Vector{Symbol},   # 基础 misfit 实例名，如 [:AbsShiftP, :AbsShiftSH, :AbsShiftSV]
+    bases::Vector{Symbol},   # 基础 misfit 实例名，如 [:AbsShiftP_Z, :AbsShiftS_N, :AbsShiftS_E]
     output::Symbol,          # 须 ∈ operator.outputs()
 )
 ```
@@ -277,9 +277,9 @@ Config.use_misfit!(:XcorrP_CC,
 Config.use_misfit!(:AbsShiftP,
     operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.BEST_LAG)
 
-Config.use_misfit!(:AbsShiftSH,
+Config.use_misfit!(:AbsShiftS_N,
     operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.BEST_LAG)
-# 注：SH/SV 区分由 channel 过滤实现，phase 仍为 "S"，详见 §9
+# 注：Z/N/E 区分由 channel 过滤实现，phase 仍为 "P"/"S", 详见 §9
 
 Config.use_misfit!(:PolarityP,
     operator = Misfit.Polarity, phase = "P", output = Misfit.Polarity.SYN_SIGN)
@@ -287,7 +287,7 @@ Config.use_misfit!(:PolarityP,
 # Level 2
 Config.use_misfit!(:RelShift,
     operator = Aggregate.StdDev,
-    bases  = [:AbsShiftP, :AbsShiftSH, :AbsShiftSV],
+    bases  = [:AbsShiftP_Z, :AbsShiftS_N, :AbsShiftS_E],
     output = Aggregate.StdDev.RELATIVE_OFFSET)
 
 # 参数覆盖（沿用现有模式）
@@ -382,7 +382,7 @@ end
   operator    String  scalar   "Xcorr" / "Polarity" / "StdDev"
   phase     String  scalar   "P" / "S"（Level 1）
   output    String  scalar   "cc_max" / "best_lag" / "relative_offset" ...
-  channel   String  scalar   "H" / "V" / "" （Level 1 可选，空表示不过滤）
+  channel   String  scalar   "Z" / "N" / "E" / "" （Level 1 可选，空表示不过滤）
   bases     String  [k]      基础 misfit 名（Level 2，Level 1 无此字段）
   is_composed Int8  scalar   0=base, 1=composed
 ```
@@ -492,13 +492,13 @@ end
 
 ### 三分量与 channel 子选择
 
-RelShift 示例中 `AbsShiftP`、`AbsShiftSH`、`AbsShiftSV` 是三个 Level 1 实例，对应同一台站三个分量的 AbsShift。当前 phase 模型中 phase key 含 channel（`{network}.{station}.{channel}.{phase_type}`），`use_misfit!` 的 `phase` 参数只选 phase_type（P/S），不区分 channel。
+RelShift 示例中 `AbsShiftP_Z`、`AbsShiftS_N`、`AbsShiftS_E` 是三个 Level 1 实例，对应同一台站三个分量的 AbsShift。当前 phase 模型中 phase key 含 channel（`{network}.{station}.{channel}.{phase_type}`），`use_misfit!` 的 `phase` 参数只选 phase_type（P/S），不区分 channel。
 
 为支持三分量分别建实例，Level 1 增加可选 `channel` 过滤参数：
 
 ```julia
-Config.use_misfit!(:AbsShiftSH,
-    operator = Misfit.Xcorr, phase = "S", channel = "H",
+Config.use_misfit!(:AbsShiftS_N,
+    operator = Misfit.Xcorr, phase = "S", channel = "N",
     output = Misfit.Xcorr.BEST_LAG)
 ```
 
@@ -581,7 +581,7 @@ Config.use_misfit!(:AbsShiftSH,
 1. **`feat(misfit): RelShift 组合示例`**
 
    - StdDev composer 实现
-   - `config_sample.jl` 加 AbsShiftP/SH/SV + RelShift 示例
+   - `config_sample.jl` 加 AbsShiftP_Z/S_N/S_E + RelShift 示例
    - `doc/schema.md` 更新
    - 验证：端到端跑通 AbsShift -> RelShift 组合
 
