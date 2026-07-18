@@ -49,3 +49,16 @@ end
     @test !isdefined(Misfit.Polarity, :trim)
     @test isdefined(Misfit.Polarity, :source_duration)
 end
+
+@testset "PSR outputs" begin
+    @test :psr_value in Misfit.Psr.outputs()
+    @test Misfit.Psr.PSR_VALUE == :psr_value
+    @test Misfit.Psr.is_freq_dependent() == true
+end
+
+@testset "PSR params" begin
+    @test isdefined(Misfit.Psr, :pre_P)
+    @test isdefined(Misfit.Psr, :post_P)
+    @test isdefined(Misfit.Psr, :pre_S)
+    @test isdefined(Misfit.Psr, :post_S)
+end
