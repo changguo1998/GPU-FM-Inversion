@@ -6,7 +6,7 @@ using LinearAlgebra
 using Statistics
 
 export bandpass_filter!, trim_time_window!, trim_to_polarity_window!
-export preprocess_xcorr!, preprocess_polarity!, preprocess_psr!
+export demean!, detrend!, taper!, preprocess_waveform!
 export envelope, rms_amplitude
 
 # 1. Bandpass Filtering
@@ -46,28 +46,28 @@ end
 # 2. Time-Window Trimming
 
 """
-    trim_time_window!(obs::Vector{Float64}, gf::Matrix{Float64}, dt::Float64,
-                      arrival_sample::Int, window_factor::Float64, band_high::Float64)
+    trim_time_window!(obs, gf, dt, arrival_sample, pre_periods, post_periods, band_high)
                       -> (obs_trimmed, gf_trimmed)
+
+Non-symmetric trim: [arrival - pre_periods/band_high, arrival + post_periods/band_high].
+pre_periods/post_periods are dimensionless period counts (window scales with band).
 """
 function trim_time_window!(
     obs::Vector{Float64},
     gf::Matrix{Float64},
     dt::Float64,
     arrival_sample::Int,
-    window_factor::Float64,
+    pre_periods::Float64,
+    post_periods::Float64,
     band_high::Float64,
 )
-    window_seconds = window_factor / band_high
-    half_samples = max(1, round(Int, window_seconds / dt))
-
-    n_raw = length(obs)
-    start_idx = max(1, arrival_sample - half_samples)
-    end_idx = min(n_raw, arrival_sample + half_samples)
-
-    obs_trimmed = obs[start_idx:end_idx]
-    gf_trimmed = gf[start_idx:end_idx, :]
-    return obs_trimmed, gf_trimmed
+    pre_sec = pre_periods / band_high
+    post_sec = post_periods / band_high
+    pre_n = max(1, round(Int, pre_sec / dt))
+    post_n = max(1, round(Int, post_sec / dt))
+    start_idx = max(1, arrival_sample - pre_n)
+    end_idx = min(length(obs), arrival_sample + post_n)
+    return obs[start_idx:end_idx], gf[start_idx:end_idx, :]
 end
 
 """
@@ -88,104 +88,64 @@ function trim_to_polarity_window!(
     return gf[start_idx:end_idx, :]
 end
 
-# 3. Per-Module Preprocessing
+# 3. Shared Preprocessing Primitives
+
+"""Remove mean from waveform in-place."""
+function demean!(wf::Vector{Float64})
+    wf .-= sum(wf) / length(wf)
+    return wf
+end
+
+"""Remove linear trend (least-squares) from waveform in-place."""
+function detrend!(wf::Vector{Float64})
+    n = length(wf)
+    t = collect(1.0:n)
+    # least squares: a + b*t
+    s_tt = sum(abs2, t) - (sum(t)^2) / n
+    s_ty = dot(t, wf) - (sum(t) * sum(wf)) / n
+    b = s_ty / s_tt
+    a = (sum(wf) - b * sum(t)) / n
+    wf .-= (a .+ b .* t)
+    return wf
+end
+
+"""Apply cosine taper to both ends in-place."""
+function taper!(wf::Vector{Float64}; frac::Float64 = 0.05)
+    n = length(wf)
+    ntap = max(1, round(Int, frac * n))
+    for i in 1:ntap
+        w = 0.5 * (1 - cos(pi * (i - 1) / ntap))
+        wf[i] *= w
+        wf[n - i + 1] *= w
+    end
+    return wf
+end
 
 """
-    preprocess_xcorr!(obs, gf, dt, arrival_sample, low_cut, high_cut, window_factor;
-                      filter_order=4)
-                      -> (obs_proc, gf_proc, synamp, obs_norm2)
+    preprocess_waveform!(wf, dt, low_cut, high_cut;
+                         demean=true, detrend=true, taper=true, order=4, do_bandpass=true)
+                         -> wf_proc
+
+Full-waveform preprocessing: demean -> detrend -> taper -> bandpass.
+Returns processed full waveform (no trimming). do_bandpass=false skips filter
+(for Polarity, which is not freq-dependent).
 """
-function preprocess_xcorr!(
-    obs::Vector{Float64},
-    gf::Matrix{Float64},
+function preprocess_waveform!(
+    wf::Vector{Float64},
     dt::Float64,
-    arrival_sample::Int,
     low_cut::Float64,
-    high_cut::Float64,
-    window_factor::Float64;
-    filter_order::Int = 4,
+    high_cut::Float64;
+    demean::Bool = true,
+    detrend::Bool = true,
+    taper::Bool = true,
+    order::Int = 4,
+    do_bandpass::Bool = true,
 )
-    obs_filt = copy(obs)
-    n_samples, n_comp = size(gf)
-    gf_filt = copy(gf)
-
-    bandpass_filter!(obs_filt, dt, low_cut, high_cut; order = filter_order)
-    for c in 1:n_comp
-        col = gf_filt[:, c]
-        bandpass_filter!(col, dt, low_cut, high_cut; order = filter_order)
-        gf_filt[:, c] = col
-    end
-
-    obs_proc, gf_proc =
-        trim_time_window!(obs_filt, gf_filt, dt, arrival_sample, window_factor, high_cut)
-
-    synamp = gf_proc' * gf_proc
-    obs_norm2 = dot(obs_proc, obs_proc)
-
-    return obs_proc, gf_proc, synamp, obs_norm2
-end
-
-"""
-    preprocess_polarity!(gf, dt, arrival_sample, t_source, obs_polarity)
-                         -> (gf_pol, obs_pol)
-"""
-function preprocess_polarity!(
-    gf::Matrix{Float64},
-    dt::Float64,
-    arrival_sample::Int,
-    t_source::Float64,
-    obs_polarity::Int8,
-)
-    gf_pol = trim_to_polarity_window!(gf, dt, arrival_sample, t_source)
-    obs_pol_float = if obs_polarity == Int8(-128)
-        NaN
-    else
-        Float64(obs_polarity)
-    end
-    return gf_pol, obs_pol_float
-end
-
-"""
-    preprocess_psr!(obs_P, obs_S, gf_P, gf_S, dt, arrival_P, arrival_S,
-                    pre_P_sec, post_P_sec, pre_S_sec, post_S_sec)
-                    -> (amp_P, amp_S, obs_psr)
-"""
-function preprocess_psr!(
-    obs_P::Vector{Float64},
-    obs_S::Vector{Float64},
-    gf_P::Matrix{Float64},
-    gf_S::Matrix{Float64},
-    dt::Float64,
-    arrival_P::Int,
-    arrival_S::Int,
-    pre_P_sec::Float64,
-    post_P_sec::Float64,
-    pre_S_sec::Float64,
-    post_S_sec::Float64,
-)
-    amp_P = gf_P' * gf_P
-    amp_S = gf_S' * gf_S
-
-    pre_P_samples = max(0, round(Int, pre_P_sec / dt))
-    post_P_samples = max(1, round(Int, post_P_sec / dt))
-    pre_S_samples = max(0, round(Int, pre_S_sec / dt))
-    post_S_samples = max(1, round(Int, post_S_sec / dt))
-
-    p_start = max(1, arrival_P - pre_P_samples)
-    p_end = min(length(obs_P), arrival_P + post_P_samples)
-    s_start = max(1, arrival_S - pre_S_samples)
-    s_end = min(length(obs_S), arrival_S + post_S_samples)
-
-    amp_P_obs = rms_amplitude(obs_P[p_start:p_end])
-    amp_S_obs = rms_amplitude(obs_S[s_start:s_end])
-
-    obs_psr = if amp_S_obs > 0.0
-        log10(amp_P_obs / amp_S_obs)
-    else
-        0.0
-    end
-
-    return amp_P, amp_S, obs_psr
+    demean && demean!(wf)
+    detrend && detrend!(wf)
+    taper && taper!(wf)
+    do_bandpass && bandpass_filter!(wf, dt, low_cut, high_cut; order = order)
+    return wf
 end
 
 # Utility functions
