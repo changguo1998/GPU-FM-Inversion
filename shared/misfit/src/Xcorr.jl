@@ -5,8 +5,10 @@
 # `Config.use_misfit!(:XcorrP, from = :Xcorr)`.
 #
 # Config stubs (user must override):
-#   trim()     - time window [pre, post] seconds relative to arrival
-#   maxlag_factor(), filter_order(), select_threshold(), deselect_threshold()
+#   trim()            - time window [pre, post] period counts relative to arrival
+#   max_lag_periods() - max cross-correlation lag in period counts
+#   filter_order()    - Butterworth filter order (Layer 0 bandpass)
+#   band_low()/band_high() - freq-band indices into /paraspace/frequency
 
 # ── 输出字段常量（IDE 可补全，注册时校验）──
 const CC_MAX = :cc_max
@@ -15,20 +17,19 @@ const BEST_LAG = :best_lag
 # ── Operator 元数据 ──
 outputs() = [CC_MAX, BEST_LAG]
 
-export trim, maxlag_factor, filter_order, outputs
+export trim, max_lag_periods, filter_order, outputs
+export preprocess, process, is_freq_dependent, band_low, band_high
 
-export select_threshold,
-    deselect_threshold, preprocess, process, is_freq_dependent, band_low, band_high
 
 is_freq_dependent() = true
 # -- Config namespace (user must override) --
 
 function trim()::Vector{Float64}
-    error("Xcorr.trim(): not implemented - return [-pre_sec, post_sec]  (e.g. [-2.0, 5.0])")
+    error("Xcorr.trim(): not implemented - return [-pre_periods, post_periods]  (e.g. [-2.0, 5.0])")
 end
 
-function maxlag_factor()::Float64
-    error("Xcorr.maxlag_factor(): not implemented - return Float64  (e.g. 0.5)")
+function max_lag_periods()::Float64
+    error("Xcorr.max_lag_periods(): not implemented - return Float64 period count (e.g. 3.0)")
 end
 
 function filter_order()::Int
@@ -43,14 +44,6 @@ function band_high()::Vector{Int32}
     error("Xcorr.band_high(): not implemented - return Vector{Int32} of freq-band high indices")
 end
 
-function select_threshold()::Float64
-    error("Xcorr.select_threshold(): not implemented - return Float64  (e.g. 0.5)")
-end
-
-function deselect_threshold()::Float64
-    error("Xcorr.deselect_threshold(): not implemented - return Float64  (e.g. 0.3)")
-end
-
 # -- Preprocessing --
 
 const _Signal =
@@ -58,52 +51,70 @@ const _Signal =
 const _IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
 
 """
-    preprocess(obs, gf, dt, arrival_sample, low_cut, high_cut, window_factor;
-               filter_order=4) -> (obs_proc, gf_proc, synamp, obs_norm2)
+    preprocess(gf_full, obs_win, dt, arrival_sample, pre_periods, post_periods,
+               band_high, max_lag_periods)
+               -> (obs_norm2, synamp_lag, dot_obs_gf_lag)
 
-Bandpass filter + time-window trim for cross-correlation misfit.
+Compute per-lag reductions for cross-correlation.
+- obs_win: fixed trimmed obs window [arrival-pre, arrival+post] (already preprocessed)
+- gf_full: full preprocessed GF waveform [N_full, 6]
+- synamp_lag[l] = gf_full[win-l]' * gf_full[win-l]  (6x6)
+- dot_obs_gf_lag[l] = obs_win' * gf_full[win-l]     (6-vector)
+- obs_norm2 = obs_win' * obs_win
 """
 function preprocess(
-    obs::Vector{Float64},
-    gf::Matrix{Float64},
+    gf_full::Matrix{Float64},
+    obs_win::Vector{Float64},
     dt::Float64,
     arrival_sample::Int,
-    low_cut::Float64,
-    high_cut::Float64,
-    window_factor::Float64;
-    filter_order::Int = 4,
+    pre_periods::Float64,
+    post_periods::Float64,
+    band_high::Float64,
+    max_lag_periods::Float64,
 )
-    obs_filt = copy(obs)
-    gf_filt = copy(gf)
+    pre_sec = pre_periods / band_high
+    post_sec = post_periods / band_high
+    pre_n = max(1, round(Int, pre_sec / dt))
+    post_n = max(1, round(Int, post_sec / dt))
+    nt_win = pre_n + post_n + 1
+    max_lag_sec = max_lag_periods / band_high
+    max_lag_n = min(round(Int, max_lag_sec / dt), (nt_win - 1) ÷ 2)
+    L = 2 * max_lag_n + 1
 
-    _Signal.bandpass_filter!(obs_filt, dt, low_cut, high_cut; order = filter_order)
-    for c in 1:size(gf, 2)
-        col = gf_filt[:, c]
-        _Signal.bandpass_filter!(col, dt, low_cut, high_cut; order = filter_order)
-        gf_filt[:, c] = col
+    obs_norm2 = sum(abs2, obs_win)
+    synamp_lag = zeros(Float64, 6, 6, L)
+    dog_lag = zeros(Float64, 6, L)
+
+    # window in full-gf coordinates: [arrival-pre_n, arrival+post_n]
+    w_start = arrival_sample - pre_n
+    for (li, lag) in enumerate((-max_lag_n):max_lag_n)
+        s = w_start - lag                     # syn full window start
+        e = s + nt_win - 1
+        if s < 1 || e > size(gf_full, 1)
+            continue                          # lag out of range, leave zeros
+        end
+        gf_sub = gf_full[s:e, :]
+        synamp_lag[:, :, li] = gf_sub' * gf_sub
+        dog_lag[:, li] = gf_sub' * obs_win
     end
-
-    obs_proc, gf_proc =
-        _Signal.trim_time_window!(obs_filt, gf_filt, dt, arrival_sample, window_factor, high_cut)
-
-    synamp = gf_proc' * gf_proc
-    obs_norm2 = sum(obs_proc .^ 2)
-
-    return obs_proc, gf_proc, synamp, obs_norm2
+    return obs_norm2, synamp_lag, dog_lag
 end
 
 """
-    process(phases_pt, ptype, stations, picks, station_to_idx, channel_data,
-            gf_data, depths, low_cut, high_cut, freq_idx, pf)
+    process(phases_pt, ptype, stations, picks, station_to_idx,
+            prepro_obs, prepro_gf, depths, band_high, freq_idx, pf)
 
 Batch preprocess XCorr for one phase type at one frequency band.
+Consumes Layer 0 preprocessed waveforms (prepro_obs/prepro_gf, already
+demeaned/detrended/tapered/bandpassed). Computes per-lag reductions.
+
 Returns a Dict mirroring the HDF5 schema:
-  "channel_id"  => String[N_entries]
-  "station_idx" => Int32[N_entries]
-  "obs" => Dict(freq_idx => Dict("obs" => Float64[N_entries, N_samples],
-                                 "obs_norm2" => Float64[N_entries]))
-  "gf"  => Dict(depth => Dict(freq_idx => Dict("gf" => Float64[N_entries, 6, N_samples],
-                                                "synamp" => Float64[N_entries, 6, 6])))
+  "channel_id"      => String[N_entries]
+  "station_idx"     => Int32[N_entries]
+  "obs"             => Dict(freq_idx => Dict("obs" => Float64[N, nt_win],
+                                             "obs_norm2" => Float64[N]))
+  "synamp_lag"      => Dict(depth => Dict(freq_idx => Float64[N, 6, 6, L]))
+  "dot_obs_gf_lag"  => Dict(freq_idx => Float64[N, 6, L])
 """
 function process(
     phases_pt::Vector{Tuple{String, Int}},
@@ -111,27 +122,24 @@ function process(
     stations::Vector{_IO.StationInfo},
     picks::Vector{_IO.PhasePick},
     station_to_idx::Dict{String, Int},
-    channel_data::Dict{String, Vector{Float64}},
-    gf_data::Dict,  # Dict{Float64, Dict{String, Matrix{Float64}}}
+    prepro_obs::Dict{String, Vector{Float64}},
+    prepro_gf::Dict,  # Dict{Float64, Dict{String, Matrix{Float64}}}
     depths::Vector{Float64},
-    low_cut::Float64,
-    high_cut::Float64,
+    band_high::Float64,
     freq_idx::Int,
     pf::Dict{String, Symbol},
 )
     trim_win = trim()
-    pre_sec = abs(trim_win[1])
-    post_sec = abs(trim_win[2])
-    wf_filter = max(pre_sec, post_sec) * high_cut
-    filter_order_val = filter_order()
+    pre_periods = abs(trim_win[1])
+    post_periods = abs(trim_win[2])
+    max_lag_p = max_lag_periods()
 
-    # Pass 1: collect valid entries, determine nt_xc
-    obs_list = Vector{Vector{Float64}}()
-    obs_norm2_list = Float64[]
-    gf_lists =
-        Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
-    synamp_lists =
-        Dict{Float64, Vector{Matrix{Float64}}}(d => Vector{Matrix{Float64}}() for d in depths)
+    # Pass 1: collect valid entries, determine L
+    obs_win_list = Vector{Vector{Float64}}()
+    obs_n2_list = Float64[]
+    dog_lag_list = Vector{Matrix{Float64}}()
+    synamp_lag_lists =
+        Dict{Float64, Vector{Array{Float64, 3}}}(d => Vector{Array{Float64, 3}}() for d in depths)
     ch_vec = String[]
     sta_vec = Int32[]
 
@@ -140,8 +148,9 @@ function process(
         dt = s.dt
         pick = picks[station_to_idx[s.id]]
         ch_id = "$(s.network).$(s.station).$(s.channel)"
-        wf = channel_data[ch_id]
-        n_samples = length(wf)
+        obs_full = get(prepro_obs, ch_id, nothing)
+        obs_full === nothing && continue
+        n_samples = length(obs_full)
 
         begin_unix = _IO.parse_time_iso(s.begin_time)
         pick_time = _IO.parse_time_iso(getfield(pick, pf[ptype]))
@@ -151,10 +160,22 @@ function process(
             clamp(round(Int, (pick_time - begin_unix) / dt) + 1, 1, n_samples)
         end
 
+        # obs fixed window
+        pre_n = max(1, round(Int, pre_periods / band_high / dt))
+        post_n = max(1, round(Int, post_periods / band_high / dt))
+        nt_win = pre_n + post_n + 1
+        start_idx = max(1, arrival_sample - pre_n)
+        end_idx = min(n_samples, arrival_sample + post_n)
+        if end_idx - start_idx + 1 < nt_win
+            continue                      # window clamped, skip entry
+        end
+        obs_win = obs_full[start_idx:end_idx]
+
+        # gf full per depth
         gf_per_depth = Dict{Float64, Matrix{Float64}}()
         all_gf_ok = true
         for depth_val in depths
-            gf_full = get(gf_data[depth_val], ch_id, nothing)
+            gf_full = get(prepro_gf[depth_val], ch_id, nothing)
             if gf_full === nothing
                 all_gf_ok = false
                 break
@@ -163,76 +184,69 @@ function process(
         end
         !all_gf_ok && continue
 
-        obs_proc, gf_proc0, synamp0, obs_n2 = preprocess(
-            wf,
+        # per-lag reductions at first depth (determines L)
+        obs_n2, synamp_lag0, dog_lag0 = preprocess(
             gf_per_depth[depths[1]],
+            obs_win,
             dt,
             arrival_sample,
-            low_cut,
-            high_cut,
-            wf_filter;
-            filter_order = filter_order_val,
+            pre_periods,
+            post_periods,
+            band_high,
+            max_lag_p,
         )
-        push!(obs_list, obs_proc)
-        push!(obs_norm2_list, obs_n2)
-        push!(gf_lists[depths[1]], gf_proc0)
-        push!(synamp_lists[depths[1]], synamp0)
+        push!(obs_win_list, obs_win)
+        push!(obs_n2_list, obs_n2)
+        push!(dog_lag_list, dog_lag0)
+        push!(synamp_lag_lists[depths[1]], synamp_lag0)
         push!(ch_vec, ch_id)
         push!(sta_vec, Int32(si))
 
         for depth_val in depths[2:end]
-            _, gf_proc_d, synamp_d, _ = preprocess(
-                wf,
+            _, synamp_lag_d, _ = preprocess(
                 gf_per_depth[depth_val],
+                obs_win,
                 dt,
                 arrival_sample,
-                low_cut,
-                high_cut,
-                wf_filter;
-                filter_order = filter_order_val,
+                pre_periods,
+                post_periods,
+                band_high,
+                max_lag_p,
             )
-            push!(gf_lists[depth_val], gf_proc_d)
-            push!(synamp_lists[depth_val], synamp_d)
+            push!(synamp_lag_lists[depth_val], synamp_lag_d)
         end
     end
 
     n_entries = length(ch_vec)
-    nt_xc = n_entries == 0 ? 0 : minimum(length.(obs_list))
-
-    if n_entries == 0 || nt_xc == 0
+    if n_entries == 0
         return Dict(
             "channel_id" => String[],
             "station_idx" => Int32[],
             "obs" =>
                 Dict(freq_idx => Dict("obs" => zeros(Float64, 0, 0), "obs_norm2" => Float64[])),
-            "gf" => Dict(
-                d => Dict(
-                    freq_idx => Dict(
-                        "gf" => zeros(Float64, 0, 6, 0),
-                        "synamp" => zeros(Float64, 0, 6, 6),
-                    ),
-                ) for d in depths
-            ),
+            "synamp_lag" => Dict(d => Dict(freq_idx => zeros(Float64, 0, 6, 6, 0)) for d in depths),
+            "dot_obs_gf_lag" => Dict(freq_idx => zeros(Float64, 0, 6, 0)),
         )
     end
 
+    L = size(synamp_lag_lists[depths[1]][1], 3)
+    nt_win = length(obs_win_list[1])
+
     # Pass 2: pre-allocate and fill
-    obs_mat = zeros(Float64, n_entries, nt_xc)
+    obs_mat = zeros(Float64, n_entries, nt_win)
     obs_n2_vec = zeros(Float64, n_entries)
-    gf_arr = Dict{Float64, Array{Float64, 3}}()
-    synamp_arr = Dict{Float64, Array{Float64, 3}}()
+    dog_lag_arr = zeros(Float64, n_entries, 6, L)
+    synamp_lag_arr = Dict{Float64, Array{Float64, 4}}()
     for d in depths
-        gf_arr[d] = zeros(Float64, n_entries, 6, nt_xc)
-        synamp_arr[d] = zeros(Float64, n_entries, 6, 6)
+        synamp_lag_arr[d] = zeros(Float64, n_entries, 6, 6, L)
     end
 
     for i in 1:n_entries
-        obs_mat[i, :] = obs_list[i][1:nt_xc]
-        obs_n2_vec[i] = obs_norm2_list[i]
+        obs_mat[i, :] = obs_win_list[i]
+        obs_n2_vec[i] = obs_n2_list[i]
+        dog_lag_arr[i, :, :] = dog_lag_list[i]
         for d in depths
-            gf_trimmed = gf_lists[d][i][1:nt_xc, :]
-            gf_arr[d][i, :, :] = gf_trimmed'
-            synamp_arr[d][i, :, :] = gf_trimmed' * gf_trimmed
+            synamp_lag_arr[d][i, :, :, :] = synamp_lag_lists[d][i]
         end
     end
 
@@ -240,9 +254,7 @@ function process(
         "channel_id" => ch_vec,
         "station_idx" => sta_vec,
         "obs" => Dict(freq_idx => Dict("obs" => obs_mat, "obs_norm2" => obs_n2_vec)),
-        "gf" => Dict(
-            d => Dict(freq_idx => Dict("gf" => gf_arr[d], "synamp" => synamp_arr[d])) for
-            d in depths
-        ),
+        "synamp_lag" => Dict(d => Dict(freq_idx => synamp_lag_arr[d]) for d in depths),
+        "dot_obs_gf_lag" => Dict(freq_idx => dog_lag_arr),
     )
 end
