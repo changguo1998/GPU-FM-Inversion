@@ -73,19 +73,18 @@ Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
 - **`/config/{ModuleName}/`**: Parameters depend on the module type. XCorr
-  instances have `maxlag_factor`, `filter_order`, `trim`, `select_threshold`,
-  `deselect_threshold`, `band_low`, `band_high`. Polarity has `trim`.
+  instances have `max_lag_periods`, `filter_order`, `trim`, `band_low`, `band_high`. Polarity has `source_duration`.
 
 Each module group also carries misfit-decomposition metadata (see
 `doc/misfit-decomposition.md`):
 
 | Dataset | Type | Shape | Description |
-|---------------|--------|--------|--------------------------------------------------------|
+|---------------|--------|--------|--------------------------------------------------------------|
 | `operator` | String | scalar | Operator name (`"Xcorr"`/`"Polarity"`/`"StdDev"`) |
 | `output` | String | scalar | Selected output field (`"cc_max"`/`"best_lag"`/...) |
 | `is_composed` | Int8 | scalar | 0=Level 1 base, 1=Level 2 composed |
 | `phase` | String | scalar | Phase type (`"P"`/`"S"`) — Level 1 only |
-| `channel` | String | scalar | Channel filter (`""`=none, `"H"`/`"V"`) — Level 1 only |
+| `channel` | String | scalar | Channel filter (`""`=none, `"Z"`/`"N"`/`"E"`) - Level 1 only |
 | `bases` | String | `[k]` | Base misfit names — Level 2 only |
 
 | Dataset | Type | Shape | Description |

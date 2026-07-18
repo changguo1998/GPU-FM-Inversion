@@ -151,17 +151,13 @@ const BEST_LAG = :best_lag
 function trim()::Vector{Float64}
     error("Xcorr.trim(): not implemented - return [-pre_sec, post_sec]")
 end
-function maxlag_factor()::Float64
-    error("Xcorr.maxlag_factor(): not implemented")
+function max_lag_periods()::Float64
+    error("Xcorr.max_lag_periods(): not implemented")
 end
 function filter_order()::Int
     error("Xcorr.filter_order(): not implemented")
 end
-function select_threshold()::Float64
-    error("Xcorr.select_threshold(): not implemented")
 end
-function deselect_threshold()::Float64
-    error("Xcorr.deselect_threshold(): not implemented")
 end
 function band_low()::Vector{Int32}
     error("Xcorr.band_low(): not implemented")
@@ -296,7 +292,7 @@ Config.use_misfit!(:RelShift,
 
 # 参数覆盖（沿用现有模式）
 Config.XcorrP_CC.trim()          = [-2.0, 5.0]
-Config.XcorrP_CC.maxlag_factor() = 0.5
+Config.XcorrP_CC.max_lag_periods() = 0.5
 Config.AbsShiftP.trim()          = [-2.0, 5.0]   # 独立配置，即便共享 operator
 ```
 

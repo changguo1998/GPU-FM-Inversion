@@ -37,8 +37,7 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `Misfit.Xcorr` (template) | `trim()`, `maxlag_factor()`, `filter_order()`, `select_threshold()`, `deselect_threshold()`, `outputs()`, `CC_MAX`, `BEST_LAG` |
+|--------------------------------|------------------------------------------------|
 | `Misfit.Polarity` (template) | `trim()`, `outputs()`, `SYN_SIGN`, `DOT_VALUE` |
 | `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |
 | `PolarityP` (instance) | Inherited from `Misfit.Polarity` template |
@@ -51,7 +50,7 @@ using Misfit
 Config.use_misfit!(:XcorrP,
     operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.max_lag_periods() = 0.5
 ```
 
 ### Data interface functions
@@ -88,16 +87,12 @@ Config.use_misfit!(:XcorrS,
 Config.use_misfit!(:PolarityP,
     operator = Misfit.Polarity, phase = "P", output = Misfit.Polarity.SYN_SIGN)
 Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.max_lag_periods() = 0.5
 Config.XcorrP.filter_order() = 4
-Config.XcorrP.select_threshold() = 0.5
-Config.XcorrP.deselect_threshold() = 0.3
 
 Config.XcorrS.trim() = [-2.0, 5.0]
-Config.XcorrS.maxlag_factor() = 0.5
+Config.XcorrS.max_lag_periods() = 0.5
 Config.XcorrS.filter_order() = 4
-Config.XcorrS.select_threshold() = 0.5
-Config.XcorrS.deselect_threshold() = 0.3
 
 Config.PolarityP.trim() = [0.0, 2.0]
 
