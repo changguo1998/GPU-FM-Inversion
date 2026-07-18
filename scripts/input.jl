@@ -208,17 +208,75 @@ for m_name in misfit_modules
     module_instances[m_name] = getfield(Config, sym)
 end
 
+# === 9a. Layer 0: shared full-waveform preprocessing ===
+# 完整波形 demean/detrend/taper/bandpass (per band); 独立于算子
+@info "Layer 0: shared preprocessing (demean/detrend/taper/bandpass) per band ..."
+ch_dt = Dict{String, Float64}()
+for s in stations
+    ch_dt["$(s.network).$(s.station).$(s.channel)"] = s.dt
+end
+
+# collect unique (low_cut, high_cut) bands from all freq-dependent modules
+all_bands = Set{Tuple{Float64, Float64}}()
+for (_, mod) in module_instances
+    mod.is_freq_dependent() || continue
+    bl, bh = mod.band_low(), mod.band_high()
+    for i in 1:length(bl)
+        push!(all_bands, (freq_vals[bl[i]], freq_vals[bh[i]]))
+    end
+end
+
+prepro_obs = Dict{Tuple{Float64, Float64}, Dict{String, Vector{Float64}}}()       # (lo,hi) -> ch_id -> wf
+prepro_gf = Dict{Tuple{Float64, Float64}, Dict{Float64, Dict{String, Matrix{Float64}}}}()  # (lo,hi) -> depth -> ch_id -> gf
+for (lo, hi) in all_bands
+    po = Dict{String, Vector{Float64}}()
+    for (ch_id, wf_raw) in channel_data
+        po[ch_id] = Signal.preprocess_waveform!(copy(wf_raw), ch_dt[ch_id], lo, hi)
+    end
+    prepro_obs[(lo, hi)] = po
+    pg = Dict{Float64, Dict{String, Matrix{Float64}}}()
+    for d in depths
+        pd = Dict{String, Matrix{Float64}}()
+        for (ch_id, gf_raw) in gf_data[d]
+            g = copy(gf_raw)
+            for c in 1:size(g, 2)
+                g[:, c] = Signal.preprocess_waveform!(g[:, c], ch_dt[ch_id], lo, hi)
+            end
+            pd[ch_id] = g
+        end
+        pg[d] = pd
+    end
+    prepro_gf[(lo, hi)] = pg
+end
+
+# basic-clean GF (no bandpass) for Polarity (is_freq_dependent=false)
+prepro_gf_basic = Dict{Float64, Dict{String, Matrix{Float64}}}()
+for d in depths
+    pd = Dict{String, Matrix{Float64}}()
+    for (ch_id, gf_raw) in gf_data[d]
+        g = copy(gf_raw)
+        for c in 1:size(g, 2)
+            g[:, c] =
+                Signal.preprocess_waveform!(g[:, c], ch_dt[ch_id], 0.0, 0.0; do_bandpass = false)
+        end
+        pd[ch_id] = g
+    end
+    prepro_gf_basic[d] = pd
+end
+@info "  Layer 0 complete: $(length(prepro_obs)) bands x $(length(channel_data)) channels"
+
 # 预处理共享上下文 (NamedTuple 避免长参数列表)
 ctx = (
     stations = stations,
     picks = picks,
     station_to_idx = station_to_idx,
-    channel_data = channel_data,
-    gf_data = gf_data,
     depths = depths,
     freq_vals = freq_vals,
     pf = pf,
     pol_f = pol_f,
+    prepro_obs = prepro_obs,
+    prepro_gf = prepro_gf,
+    prepro_gf_basic = prepro_gf_basic,
 )
 
 """合并多频带 result r 到已累积的 prev (prev 为 nothing 时返回 r 本身)。"""
@@ -249,19 +307,18 @@ function preprocess_module(mod, phases_pt, ptype, ctx, prev)
         band_high = mod.band_high()
         result = prev
         for local_idx in 1:length(band_low)
-            low_cut = ctx.freq_vals[band_low[local_idx]]
-            high_cut = ctx.freq_vals[band_high[local_idx]]
+            lo = ctx.freq_vals[band_low[local_idx]]
+            hi = ctx.freq_vals[band_high[local_idx]]
             r = mod.process(
                 phases_pt,
                 ptype,
                 ctx.stations,
                 ctx.picks,
                 ctx.station_to_idx,
-                ctx.channel_data,
-                ctx.gf_data,
+                ctx.prepro_obs[(lo, hi)],
+                ctx.prepro_gf[(lo, hi)],
                 ctx.depths,
-                low_cut,
-                high_cut,
+                hi,
                 local_idx,
                 ctx.pf,
             )
@@ -276,8 +333,7 @@ function preprocess_module(mod, phases_pt, ptype, ctx, prev)
             ctx.stations,
             ctx.picks,
             ctx.station_to_idx,
-            ctx.channel_data,
-            ctx.gf_data,
+            ctx.prepro_gf_basic,
             ctx.depths,
             ctx.pf,
             ctx.pol_f,
@@ -295,11 +351,39 @@ for ptype in phase_types
     phases_pt = [(pid, si) for (pid, pt, si) in phase_list if pt == ptype]
     isempty(phases_pt) && continue
     for (m_name, mod) in module_instances
-        Config.phase_type(Symbol(m_name)) != ptype && continue
+        (m_name == "Psr" || Config.phase_type(Symbol(m_name)) != ptype) && continue
         prev = get(module_results, m_name, nothing)
         result = preprocess_module(mod, phases_pt, ptype, ctx, prev)
         result !== nothing && (module_results[m_name] = result)
     end
+end
+
+# Psr special: P/S pair across ptype (not handled in per-ptype loop)
+psr_mod = get(module_instances, "Psr", nothing)
+if psr_mod !== nothing
+    phases_P = [(pid, si) for (pid, pt, si) in phase_list if pt == "P"]
+    phases_S = [(pid, si) for (pid, pt, si) in phase_list if pt == "S"]
+    bl, bh = psr_mod.band_low(), psr_mod.band_high()
+    result = nothing
+    for local_idx in 1:length(bl)
+        lo, hi = freq_vals[bl[local_idx]], freq_vals[bh[local_idx]]
+        r = psr_mod.process(
+            phases_P,
+            phases_S,
+            stations,
+            picks,
+            station_to_idx,
+            ctx.prepro_obs[(lo, hi)],
+            ctx.prepro_gf[(lo, hi)],
+            depths,
+            hi,
+            local_idx,
+            pf,
+        )
+        isempty(r["channel_id"]) && continue
+        result = merge_band_result(result, r)
+    end
+    result !== nothing && (module_results["Psr"] = result)
 end
 
 @info "  preprocessing complete ($(length(misfit_modules)) modules, $(length(freq_vals)) discrete frequencies)"
@@ -332,12 +416,24 @@ db_config = Dict{String, Any}("misfit_modules" => misfit_modules)
 # Level 1: 有 instance module 的实例（含预处理参数）
 for (m_name, mod) in module_instances
     sym = Symbol(m_name)
-    cfg_entry = Dict{String, Any}("trim" => Float64.(mod.trim()))
-    if isdefined(mod, :maxlag_factor)
-        cfg_entry["maxlag_factor"] = Float64(mod.maxlag_factor())
+    cfg_entry = Dict{String, Any}()
+    if isdefined(mod, :trim)
+        cfg_entry["trim"] = Float64.(mod.trim())
+    end
+    if isdefined(mod, :max_lag_periods)
+        cfg_entry["max_lag_periods"] = Float64(mod.max_lag_periods())
         cfg_entry["filter_order"] = Int32(mod.filter_order())
-        cfg_entry["select_threshold"] = Float64(mod.select_threshold())
-        cfg_entry["deselect_threshold"] = Float64(mod.deselect_threshold())
+        cfg_entry["band_low"] = mod.band_low()
+        cfg_entry["band_high"] = mod.band_high()
+    end
+    if isdefined(mod, :source_duration)
+        cfg_entry["source_duration"] = Float64(mod.source_duration())
+    end
+    if isdefined(mod, :pre_P)
+        cfg_entry["pre_P"] = Float64(mod.pre_P())
+        cfg_entry["post_P"] = Float64(mod.post_P())
+        cfg_entry["pre_S"] = Float64(mod.pre_S())
+        cfg_entry["post_S"] = Float64(mod.post_S())
         cfg_entry["band_low"] = mod.band_low()
         cfg_entry["band_high"] = mod.band_high()
     end
@@ -366,25 +462,69 @@ end
 function result_to_moduledata(result::Dict)::IO.ModuleData
     obs_str = Dict{String, Matrix{Float64}}()
     obs_n2_str = Dict{String, Vector{Float64}}()
+    obs_psr_str = Dict{String, Vector{Float64}}()
     for (bk, bv) in result["obs"]
         k = string(bk)
-        obs_val = bv["obs"]
-        obs_str[k] = obs_val isa Vector ? reshape(obs_val, length(obs_val), 1) : obs_val
-        if haskey(bv, "obs_norm2")
-            obs_n2_str[k] = bv["obs_norm2"]
+        if haskey(bv, "obs")
+            obs_val = bv["obs"]
+            obs_str[k] = obs_val isa Vector ? reshape(obs_val, length(obs_val), 1) : obs_val
+            if haskey(bv, "obs_norm2")
+                obs_n2_str[k] = bv["obs_norm2"]
+            end
+        elseif haskey(bv, "obs_psr")
+            obs_psr_str[k] = bv["obs_psr"]
         end
     end
 
     gf_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
     syn_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
-    for (d, bands) in result["gf"]
-        gf_str[d] = Dict{String, Array{Float64, 3}}()
-        syn_str[d] = Dict{String, Array{Float64, 3}}()
-        for (bk, bv) in bands
-            k = string(bk)
-            gf_str[d][k] = bv["gf"]
-            if haskey(bv, "synamp")
-                syn_str[d][k] = bv["synamp"]
+    if haskey(result, "gf")
+        for (d, bands) in result["gf"]
+            gf_str[d] = Dict{String, Array{Float64, 3}}()
+            syn_str[d] = Dict{String, Array{Float64, 3}}()
+            for (bk, bv) in bands
+                k = string(bk)
+                gf_str[d][k] = bv["gf"]
+                if haskey(bv, "synamp")
+                    syn_str[d][k] = bv["synamp"]
+                end
+            end
+        end
+    end
+
+    # Xcorr per-lag reductions
+    synamp_lag_str = Dict{Float64, Dict{String, Array{Float64, 4}}}()
+    if haskey(result, "synamp_lag")
+        for (d, bands) in result["synamp_lag"]
+            synamp_lag_str[d] = Dict{String, Array{Float64, 4}}()
+            for (bk, bv) in bands
+                synamp_lag_str[d][string(bk)] = bv
+            end
+        end
+    end
+    dog_lag_str = Dict{String, Array{Float64, 3}}()
+    if haskey(result, "dot_obs_gf_lag")
+        for (bk, bv) in result["dot_obs_gf_lag"]
+            dog_lag_str[string(bk)] = bv
+        end
+    end
+
+    # PSR reductions
+    amp_P_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+    amp_S_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+    if haskey(result, "amp_P")
+        for (d, bands) in result["amp_P"]
+            amp_P_str[d] = Dict{String, Array{Float64, 3}}()
+            for (bk, bv) in bands
+                amp_P_str[d][string(bk)] = bv
+            end
+        end
+    end
+    if haskey(result, "amp_S")
+        for (d, bands) in result["amp_S"]
+            amp_S_str[d] = Dict{String, Array{Float64, 3}}()
+            for (bk, bv) in bands
+                amp_S_str[d][string(bk)] = bv
             end
         end
     end
@@ -394,6 +534,11 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         obs_norm2 = obs_n2_str,
         gf = gf_str,
         synamp = syn_str,
+        synamp_lag = synamp_lag_str,
+        dot_obs_gf_lag = dog_lag_str,
+        amp_P = amp_P_str,
+        amp_S = amp_S_str,
+        obs_psr = obs_psr_str,
         channel_id = result["channel_id"],
         station_idx = full_to_phys[result["station_idx"]],
     )
@@ -416,6 +561,29 @@ IO.write_database(
     module_data;
     paraspace = paraspace,
 )
+
+# persist Layer 0 intermediate (debug): /preprocess, /gf_preprocessed
+h5open(db_path, "r+") do f
+    pp = create_group(f, "preprocess")
+    for ((lo, hi), chs) in prepro_obs
+        bkey = "$(lo)_$(hi)"
+        cg = create_group(pp, bkey)
+        for (ch_id, wf) in chs
+            cg[ch_id] = wf
+        end
+    end
+    gp = create_group(f, "gf_preprocessed")
+    for ((lo, hi), depths_dict) in prepro_gf
+        bkey = "$(lo)_$(hi)"
+        bg = create_group(gp, bkey)
+        for (d, chs) in depths_dict
+            dg = create_group(bg, string(d))
+            for (ch_id, gf) in chs
+                dg[ch_id] = gf
+            end
+        end
+    end
+end
 mod_summary = join(
     [
         "$(length(module_results[mn]["channel_id"])) $mn" for

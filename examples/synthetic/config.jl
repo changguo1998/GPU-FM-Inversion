@@ -33,40 +33,32 @@ Config.use_misfit!(
 )
 
 Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.max_lag_periods() = 3.0
 Config.XcorrP.filter_order() = 4
-Config.XcorrP.select_threshold() = 0.5
-Config.XcorrP.deselect_threshold() = 0.3
 Config.XcorrP.band_low() = Int32[1]
 Config.XcorrP.band_high() = Int32[2]
 
 # AbsShiftP shares XcorrP params (same kernel, different output field)
 Config.AbsShiftP.trim() = [-2.0, 5.0]
-Config.AbsShiftP.maxlag_factor() = 0.5
+Config.AbsShiftP.max_lag_periods() = 3.0
 Config.AbsShiftP.filter_order() = 4
 Config.AbsShiftP.band_low() = Int32[1]
 Config.AbsShiftP.band_high() = Int32[2]
-Config.AbsShiftP.select_threshold() = 0.5
-Config.AbsShiftP.deselect_threshold() = 0.3
 
 Config.XcorrS.trim() = [-2.0, 8.0]
-Config.XcorrS.maxlag_factor() = 0.5
+Config.XcorrS.max_lag_periods() = 3.0
 Config.XcorrS.filter_order() = 4
-Config.XcorrS.select_threshold() = 0.5
-Config.XcorrS.deselect_threshold() = 0.3
 Config.XcorrS.band_low() = Int32[1]
 Config.XcorrS.band_high() = Int32[2]
 
-Config.PolarityP.trim() = [0.0, 2.0]
+Config.PolarityP.source_duration() = 2.0
 
 # AbsShiftS shares XcorrS params
 Config.AbsShiftS.trim() = [-2.0, 8.0]
-Config.AbsShiftS.maxlag_factor() = 0.5
+Config.AbsShiftS.max_lag_periods() = 3.0
 Config.AbsShiftS.filter_order() = 4
 Config.AbsShiftS.band_low() = Int32[1]
 Config.AbsShiftS.band_high() = Int32[2]
-Config.AbsShiftS.select_threshold() = 0.5
-Config.AbsShiftS.deselect_threshold() = 0.3
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]

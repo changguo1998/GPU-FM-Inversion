@@ -41,18 +41,14 @@ Config.use_misfit!(
 )
 
 Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.maxlag_factor() = 0.5
+Config.XcorrP.max_lag_periods() = 3.0
 Config.XcorrP.filter_order() = 4
-Config.XcorrP.select_threshold() = 0.5
-Config.XcorrP.deselect_threshold() = 0.3
 
 Config.XcorrS.trim() = [-2.0, 8.0]
-Config.XcorrS.maxlag_factor() = 0.5
+Config.XcorrS.max_lag_periods() = 3.0
 Config.XcorrS.filter_order() = 4
-Config.XcorrS.select_threshold() = 0.5
-Config.XcorrS.deselect_threshold() = 0.3
 
-Config.PolarityP.trim() = [0.0, 2.0]
+Config.PolarityP.source_duration() = 2.0
 
 # Frequency bands
 Config.freq_bands() = [(0.5, 2.0)]
