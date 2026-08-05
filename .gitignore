@@ -18,3 +18,4 @@ tmp/
 
 # Subagent artifacts
 .pi-subagents/
+.pi-glla/
