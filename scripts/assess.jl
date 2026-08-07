@@ -138,3 +138,12 @@ end
 for (m_name, m) in sort(collect(misfits), by = first)
     @info "  $m_name : $(size(m))"
 end
+
+# 收敛决策: 写 $DATA_DIR/.decision.txt (driver 读取)。
+# 空文件 = 收敛 → driver 停止循环。权重聚合/网格细化落地后,
+# 在此用实际收敛判据决定写空或写 "continue"。
+if haskey(ENV, "DATA_DIR")
+    decision_path = joinpath(ENV["DATA_DIR"], ".decision.txt")
+    write(decision_path, "")
+    @info "assess: converged — wrote empty decision for driver"
+end

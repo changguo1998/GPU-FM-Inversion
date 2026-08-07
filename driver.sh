@@ -107,6 +107,8 @@ fi
 
 # Main pipeline
 
+export DATA_DIR
+
 # Stage 1: input (once)
 mkdir -p "$STATUS_DIR"
 : >"$LOG_FILE"
@@ -119,29 +121,29 @@ else
 	error "failed to generate status_0.h5"
 	exit 1
 fi
-exit 0 # TEMP: only input.jl is finished — preprocess/forward/assess/output stages below are defined but unreachable (remove this exit when stages are ready)
-
 iteration=1
-# Loop: preprocess → forward → assess
+# Loop: preprocess → forward → assess (at least one iteration).
+# assess writes $ASSESS_DECISION_FILE: non-empty = continue, empty = converged.
 while true; do
-	# Read decision from assess.jl; empty or missing file = stop
-	if [[ ! -f "$ASSESS_DECISION_FILE" ]]; then
-		break
-	fi
-	DECISION="$(cat "$ASSESS_DECISION_FILE")"
-	if [[ -z $DECISION ]]; then
-		break
+	STATUS_FILE="$(ls "$STATUS_DIR"/status_*.h5 2>/dev/null | sort -V | tail -1)"
+	if [[ -z "$STATUS_FILE" ]]; then
+		error "no status file found in $STATUS_DIR"
+		exit 1
 	fi
 
 	info "($iteration) preprocess"
 	$CALL_PREPROCESS
 
-	info "($iteration) misfit"
-	$CALL_FORWARD
+	info "($iteration) forward"
+	$CALL_FORWARD "$DATABASE_H5" "$STATUS_FILE"
 
 	info "($iteration) assess"
-	$CALL_ASSESS
+	$CALL_ASSESS "$DATABASE_H5" "$STATUS_FILE"
 
+	if [[ ! -f "$ASSESS_DECISION_FILE" || -z "$(cat "$ASSESS_DECISION_FILE")" ]]; then
+		info "assess converged — stopping after iteration $iteration"
+		break
+	fi
 	((iteration += 1))
 done
 
