@@ -14,17 +14,15 @@ depth values (km).
 ## Usage
 
 ```bash
-FM_DATA_DIR=/path/to/data julia scripts/preprocess.jl
+DATA_DIR=/path/to/data julia scripts/preprocess.jl
 ```
 
-No CLI arguments. Files are located via `ENV["FM_DATA_DIR"]`:
+No CLI arguments. Files are located via `ENV["DATA_DIR"]` (exported by driver.sh):
 
-| File | Path (relative to `FM_DATA_DIR`) | Access |
-|---------------|----------------------------------|---------------------------------------|
-| `database.h5` | `database.h5` | Read (`/config/depth_vals`) |
+| File | Path (relative to `DATA_DIR`) | Access |
+|---------------|-------------------------------|---------------------------------------|
+| `database.h5` | `database.h5` | Read (`/paraspace/depth`) |
 | latest status | `status/status_N.h5` | Read (`/strategy`), Write (`/trials`) |
-
-The driver.sh exports `FM_DATA_DIR` before invoking each stage.
 
 ## Inputs
 
@@ -74,11 +72,10 @@ for the `/trials/depth` dataset (see Index Convention in `doc/schema.md`).
    `status_N.h5`. The file already exists from either `input.jl` (iteration 0)
    or the previous `assess.jl` (iteration N+1).
 1. **Read strategy**: load `/strategy` group via `IO.read_strategy()`.
-1. **Read depth_vals**: load `/config/depth_vals` from `database.h5` via
-   `IO.read_config()`.
-1. **Convert to GridStrategy**: extract strategy fields into
-   `Grid.GridStrategy`, including `depth_indices`.
-1. **Generate trials**: call `Grid.generate_trials(strategy, depth_vals)`.
+1. **Read depth_vals**: load `/paraspace/depth` from `database.h5` via
+   `IO.read_paraspace()`.
+1. **Generate trials**: call `Grid.generate_trials(strategy, depth_vals)`
+   — consumes the full `IO.Strategy` (SDR grid + depth/freq indices) directly.
 1. **Write trials**: replace `/trials` group via `IO.write_trials()`.
 
 ## Script Style
@@ -87,12 +84,12 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 
 - Shared modules via `using IO, Grid, StageLog`
 - Logger prefix: `"preprocess"`
-- Log file: `{FM_DATA_DIR}/preprocess.log`
+- Log file: `{DATA_DIR}/preprocess.log`
 
 ## Dependencies
 
 - `IO.jl` — read_strategy, read_config, write_trials, find_latest_status
-- `Grid.jl` — GridStrategy, generate_trials
+- `Grid.jl` — generate_trials, TrialResult
 - `StageLog.jl` — setup_logger!
 
 ## What It Does NOT Do
@@ -106,25 +103,10 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 
 ## Design Notes (from review)
 
-### `GridStrategy` must include `depth_indices`
-
-`Grid.generate_trials()` iterates over `strategy.depth_indices` to generate
-depth-axis trials. The `GridStrategy` struct in `trial_gen.jl` is missing
-this field — documented in AGENTS.md but not implemented. Will be added.
-
-### `Grid.TrialSet` to be removed, `IO.TrialSet` used exclusively
-
-`Grid.TrialSet` and `IO.TrialSet` are identical structs (same fields, same
-types). The duplicate will be removed; `Grid.generate_trials()` will return
-`H5IO.TrialSet` (the IO module's type, accessed via Grid's `H5IO` alias).
-This eliminates a type-conversion step in `preprocess.jl`.
-
-### Environment variable, not CLI args
-
-Stage scripts take no CLI arguments. The driver.sh exports `FM_DATA_DIR` to
-locate data files. This keeps the driver.sh in control of directory layout
-and keeps stage scripts simple.
+- `GridStrategy`/`Grid.TrialSet` duplicates were removed (2026-08-07): `Grid.generate_trials`
+  consumes the full `IO.Strategy` and returns `IO.TrialSet` directly — no conversion step.
+- Stage scripts take no CLI arguments; driver.sh exports `DATA_DIR` to locate data files.
+- All indices (`depth_indices`, `freq_indices`, `station_idx`, `depth_idx`, `freq_idx`) are
+  1-based. See Index Convention in `doc/schema.md` for the full table.
 
 ### 1-based index convention
-
-All indices (`depth_indices`, `freq_indices`, `station_idx`, `depth_idx`, `freq_idx`) are 1-based. See Index Convention in `doc/schema.md` for the full table.
