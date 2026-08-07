@@ -106,7 +106,29 @@ struct TrialSet
     freq_idx::Vector{Int32}
 end
 
+# Default full-space 5°-resolution grid (matches search-space convention).
+const DEFAULT_GRID = (
+    strike0 = 0.0,
+    dstrike = 5.0,
+    nstrike = Int32(71),
+    dip0 = 0.0,
+    ddip = 5.0,
+    ndip = Int32(19),
+    rake0 = -90.0,
+    drake = 5.0,
+    nrake = Int32(37),
+)
+
 struct Strategy
+    strike0::Float64
+    dstrike::Float64
+    nstrike::Int32
+    dip0::Float64
+    ddip::Float64
+    ndip::Int32
+    rake0::Float64
+    drake::Float64
+    nrake::Int32
     depth_indices::Vector{Int32}
     freq_indices::Vector{Int32}
     iteration::Int32
@@ -117,6 +139,7 @@ end
 
 export EventInfo, StationInfo, PhasePick, TrialSet, Strategy, ModuleData
 export h5create_group, h5exists
+export DEFAULT_GRID
 export read_config, read_event, read_phase_picks, read_stations
 export read_waveform, read_trials, read_strategy, read_misfits
 export read_greens
@@ -283,15 +306,51 @@ function read_trials(h5file)::TrialSet
 end
 
 function read_strategy(h5file)::Strategy
-    h5open(f -> begin
-        gr = f["strategy"]
-        fi = if haskey(gr, "freq_indices")
-            read(gr["freq_indices"])
-        else
-            Int32[]
-        end
-        Strategy(read(gr["depth_indices"]), fi, read(gr["iteration"]))
-    end, h5file, "r")
+    h5open(
+        f -> begin
+            gr = f["strategy"]
+            di = read(gr["depth_indices"])
+            fi = if haskey(gr, "freq_indices")
+                read(gr["freq_indices"])
+            else
+                Int32[]
+            end
+            it = read(gr["iteration"])
+            if haskey(gr, "strike0")
+                return Strategy(
+                    read(gr["strike0"]),
+                    read(gr["dstrike"]),
+                    read(gr["nstrike"]),
+                    read(gr["dip0"]),
+                    read(gr["ddip"]),
+                    read(gr["ndip"]),
+                    read(gr["rake0"]),
+                    read(gr["drake"]),
+                    read(gr["nrake"]),
+                    di,
+                    fi,
+                    it,
+                )
+            end
+            # Legacy 3-field strategy file: fall back to full-space 5° grid.
+            return Strategy(
+                DEFAULT_GRID.strike0,
+                DEFAULT_GRID.dstrike,
+                DEFAULT_GRID.nstrike,
+                DEFAULT_GRID.dip0,
+                DEFAULT_GRID.ddip,
+                DEFAULT_GRID.ndip,
+                DEFAULT_GRID.rake0,
+                DEFAULT_GRID.drake,
+                DEFAULT_GRID.nrake,
+                di,
+                fi,
+                it,
+            )
+        end,
+        h5file,
+        "r",
+    )
 end
 
 function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
@@ -517,6 +576,15 @@ function write_strategy(h5file, strategy::Strategy)
             HDF5.delete_object(f["strategy"])
         end
         gr = HDF5.create_group(f, "strategy")
+        write(gr, "strike0", strategy.strike0)
+        write(gr, "dstrike", strategy.dstrike)
+        write(gr, "nstrike", strategy.nstrike)
+        write(gr, "dip0", strategy.dip0)
+        write(gr, "ddip", strategy.ddip)
+        write(gr, "ndip", strategy.ndip)
+        write(gr, "rake0", strategy.rake0)
+        write(gr, "drake", strategy.drake)
+        write(gr, "nrake", strategy.nrake)
         write(gr, "depth_indices", strategy.depth_indices)
         write(gr, "freq_indices", strategy.freq_indices)
         write(gr, "iteration", strategy.iteration)

@@ -3,19 +3,23 @@
 ## Types
 
 | Struct | Export | Fields | Notes |
-|---------------|--------|---------------------------------------------------------------------------------|-----------------------------------------|
+|---------------|-------------|----------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------|
 | `EventInfo` | Yes | `longitude`, `latitude`, `depth`, `magnitude`, `origintime` | Event location and magnitude |
 | `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `lat`, `lon`, `elev`, `dt`, `begin_time` | Station metadata |
-| `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
+| `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `synamp_lag`, `dot_obs_gf_lag`, `amp_P`, `amp_S`, `obs_psr`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
 | `PhasePick` | Yes | `station_id`, `P_time`, `S_time`, `P_polarity` | Phase arrival picks |
 | `TrialSet` | Yes | `strike`, `dip`, `rake`, `depth`, `depth_idx`, `freq_idx` | Grid trial generation output |
-|| `Strategy` | No | `depth_indices`, `iteration` | Integer indices into `/paraspace` |
+| `Strategy` | No | `strike0`, `dstrike`, `nstrike`, `dip0`, `ddip`, `ndip`, `rake0`, `drake`, `nrake`, `depth_indices`, `freq_indices`, `iteration` | Full search-grid definition + indices into `/paraspace` |
 | `ConfigError` | No (Config) | `func`, `msg` | Config interface error |
 
 `ModuleData` replaced the earlier `XCorrObs`, `XCorrGF`, `PolarityGF` structs.
 It stores per-band observation data and per-depth per-band GF data, with
-optional `obs_norm2` and `synamp` fields that are populated only for XCorr-type
-modules.
+per-operator reduction fields populated depending on module type:
+
+- `obs_norm2`, `synamp_lag`, `dot_obs_gf_lag` — XCorr (per-lag reductions)
+- `synamp` — legacy single-window Gram matrix (XCorr, pre per-lag refactor)
+- `amp_P`, `amp_S`, `obs_psr` — PSR
+- `gf` — trimmed GF waveforms (debug-only, XCorr)
 
 ## Key Functions
 

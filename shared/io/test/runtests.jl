@@ -55,9 +55,18 @@ function make_synthetic_status()
 
     # ---- Strategy ----
     strategy = IO.Strategy(
-        Int32[1, 2, 3],   # depth_indices
-        Int32[1],            # freq_indices
-        Int32(3),            # iteration
+        0.0,
+        Int32(71),
+        5.0,      # not used below; see SDR round-trip test
+        0.0,
+        Int32(19),
+        5.0,
+        -90.0,
+        Int32(37),
+        5.0,
+        Int32[1, 2, 3],           # depth_indices
+        Int32[1],                 # freq_indices
+        Int32(3),                 # iteration
     )
 
     # ---- Trials ----
@@ -484,18 +493,49 @@ end
             HDF5.create_group(f, "trials")
             HDF5.create_group(f, "misfits")
         end
-        strat = IO.Strategy(Int32[1, 2, 3], Int32[1], Int32(3))
+        strat = IO.Strategy(
+            10.0,
+            2.0,
+            Int32(5),
+            20.0,
+            2.0,
+            Int32(5),
+            0.0,
+            2.0,
+            Int32(5),
+            Int32[1, 2, 3],
+            Int32[1],
+            Int32(3),
+        )
         # Write first time
         IO.write_strategy(fn, strat)
         r1 = IO.read_strategy(fn)
         @test r1.depth_indices == Int32[1, 2, 3]
         @test r1.iteration == 3
+        @test r1.strike0 == 10.0 && r1.dstrike == 2.0 && r1.nstrike == 5
+        @test r1.dip0 == 20.0 && r1.ddip == 2.0 && r1.ndip == 5
+        @test r1.rake0 == 0.0 && r1.drake == 2.0 && r1.nrake == 5
+        @test r1.freq_indices == Int32[1]
         # Write second time (replacement)
-        strat2 = IO.Strategy(Int32[3, 4], Int32[1], Int32(5))
+        strat2 = IO.Strategy(
+            30.0,
+            1.0,
+            Int32(3),
+            40.0,
+            1.0,
+            Int32(3),
+            10.0,
+            1.0,
+            Int32(3),
+            Int32[3, 4],
+            Int32[1],
+            Int32(5),
+        )
         IO.write_strategy(fn, strat2)
         r2 = IO.read_strategy(fn)
         @test r2.depth_indices == Int32[3, 4]
         @test r2.iteration == 5
+        @test r2.strike0 == 30.0 && r2.dstrike == 1.0 && r2.nstrike == 3
         rm(fn; force = true)
     end
 
