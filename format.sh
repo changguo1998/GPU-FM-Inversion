@@ -129,6 +129,7 @@ project_files() {
 		-not -path '*/node_modules/*' \
 		-not -path '*/build/*' \
 		-not -path '*/.git/*' \
+		-not -path '*/.pi-glla/*' \
 		-not -path '*/Manifest.toml' |
 		sort
 }
