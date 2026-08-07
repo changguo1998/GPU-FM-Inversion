@@ -2,13 +2,13 @@
 
 ## Project identity
 
-震源机制反演管道。Julia 数据接入 + 预处理，HDF5 数据交换。当前为从头开发第一阶段，仅完成数据接入与初始化。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成数据接入、Misfit 算子、aggregate 两级聚合与**全管道贯通**（单迭代闭环）；多迭代细化（assess 权重聚合/网格细化）待开发。
 
 ## Project layout
 
 ```
-scripts/        Flat stage scripts (当前仅 input.jl)
-shared/         Julia packages by function (io, mt, grid, signal, aggregate, config, stage_log)
+scripts/        Flat stage scripts (input/preprocess/assess/output — 全部已实现)
+shared/         Julia packages by function (io, mt, grid, signal, aggregate, misfit, config, stage_log)
 config_sample.jl   Template pipeline configuration
 ```
 
@@ -26,13 +26,13 @@ config_sample.jl   Template pipeline configuration
 
 ## 当前阶段
 
-仅完成 `input.jl` — 数据接入与初始化阶段。
+已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr/Polarity/Psr)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5
 ```
 
-后续阶段（preprocess → forward → assess → output）待开发，接口契约由 `database.h5` 和 `status_N.h5` schema 定义（见 `doc/schema.md`）。
+后续阶段（preprocess → forward → assess → output）持续推进，接口契约由 `database.h5` 和 `status_N.h5` schema 定义（见 `doc/schema.md`）。
 
 ## HDF5 files
 
@@ -55,7 +55,7 @@ See `doc/schema.md` for details.
 - **Moment tensor**: 6 components in NED: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
 - **Source params**: strike \[0,360), dip [0,90], rake [-90,90] (degrees)
 - **Green's functions**: 6-component waveforms per station, pre-computed externally
-- **Misfit modules**: XCorr, Polarity (active). PSR, AbsShift, RelShift — deferred. CAP — cancelled.
+- **Misfit modules**: XCorr, Polarity, Psr (operators). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). Psr implemented but no instance registered in sample configs. CAP — cancelled.
 - **Trial**: one combination of variable params (SDR, depth, frequency, etc.)
 - **Phase** = station + channel + wave type (P/S) — channels subsumed by phases
 - **Phase key**: `{network}.{station}.{channel}.{phase_type}` (e.g. `IU.COLA.00.P`)

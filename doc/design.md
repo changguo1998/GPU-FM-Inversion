@@ -2,19 +2,19 @@
 
 ## Overview
 
-震源机制反演管道。当前为从头开发第一阶段，仅完成数据接入与初始化。Julia 数据接入 + 预处理，HDF5 数据交换。后续阶段（试次生成、失配计算、加权聚合、输出编译）待开发。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成：数据接入 (input.jl)、Misfit 算子 (Xcorr/Polarity/Psr)、aggregate 两级聚合、assess.jl；待开发：preprocess.jl 试次生成、输出编译 (output.jl)。
 
 ## Current Project Layout
 
 ```
-scripts/        Flat stage scripts (当前仅 input.jl)
+scripts/        Flat stage scripts (input/preprocess/assess/output — 全部已实现)
 shared/         Julia packages by function (not stage)
   io/           (module: IO)        ← HDF5 I/O abstractions
   mt/           (module: MT)        ← SDR ↔ MT conversion
   grid/         (module: Grid)      ← Trial generation + grid refinement
   signal/       (module: Signal)    ← Waveform preprocessing (filtering, trimming)
   config/       (module: Config)    ← Pipeline configuration interface
-  misfit/       (module: Misfit)    ← Misfit 算子 package（XCorr/Polarity 模板 + 输出字段常量）
+  misfit/       (module: Misfit)    ← Misfit 算子 package（XCorr/Polarity/Psr 模板 + 输出字段常量）
   aggregate/    (module: Aggregate) ← Output extractor + composer 注册表
   stage_log/    (module: StageLog)  ← Per-stage logging
 forward/        C++ forward stage (GPU) ← kernel 产出中间产物
@@ -58,19 +58,19 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 ### 三层分离：值 / 索引 / 参数
 
 | 文件 | 组 | 职责 | 示例 |
-|-----------------|--------------|-----------------------------------------------------------|------------------------------------------------------------------------|
+|-----------------|--------------|------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
 | `database.h5` | `/paraspace` | **存值**：展开的浮点数组，所有参数空间维度 | `strike[71]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
-| `database.h5` | `/config` | **参数**：算法元数据、模块设置，**不含任何索引或浮点参数值** | `misfit_modules`, `n_bands`, `xcorr/maxlag_factor` |
-| `status_{N}.h5` | `/strategy` | **索引**：整数索引指向 `/paraspace`，定义当前迭代搜索范围 | `depth_indices[3]`, `freq_low_idx[1]`, `freq_high_idx[1]`, `iteration` |
+| `database.h5` | `/config` | **参数**：算法元数据、模块设置，**不含任何索引或浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods` |
+| `status_{N}.h5` | `/strategy` | **网格定义**：SDR 展开轴参数 + 整数索引指向 `/paraspace`，定义当前迭代搜索范围 | `strike0/dstrike/nstrike…`, `depth_indices[3]`, `freq_indices[2]`, `iteration` |
 
 规则：
 
 - `/paraspace` 存实际浮点值（`Float64[N]`），永不存入整数索引
 - `/config` 存模块参数和元数据，**永不存储整数索引或浮点参数值**
 - `/strategy` 存整数索引（`Int32[N]`），永不存原始浮点值
-- `freq_low_idx` / `freq_high_idx` 定义每个频带的低切/高切在 `frequency` 数组中的位置
+- `freq_indices` 选择搜索哪些频带（1..N_bands）；模块经 `/config/{ModuleName}/band_low`、`band_high` 指向 `/paraspace/frequency`
 - `depth_indices` 选择搜索哪些深度
-- 没有 `freq_indices` — 所有频带由 `freq_low_idx` / `freq_high_idx` 隐式定义
+- 频率维度由 `/paraspace/frequency` 存离散值、`/config` 存模块频带索引对、`/strategy` 存迭代搜索的频带索引
 
 ## Key Design Rules (Current)
 
@@ -78,7 +78,7 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 1. **格林函数外部预计算** — 由 `input.jl` 加载，管道内不计算格林函数。
 1. **配置通过 `config.jl` 引导** — 实现 `Config` 模块接口，仅 `input.jl` 读取。所有配置写入 `database.h5`；后续阶段从 HDF5 读取。
 1. **HDF5 schema 是阶段间接口契约** — schema 变更需要协调的阶段更新。
-1. **Flat scripts** — 阶段脚本无 `function` 定义，顶层直列执行。
+1. **Flat scripts** — 阶段脚本执行时无 `main()` 包装，顶层直列执行；允许私有辅助函数扁平化深层嵌套（保持自包含、从属于主流程）。
 1. **`/strategy` 仅含网格定义** — 无迭代状态字段（weights, best-fit, convergence）。状态由各阶段自行管理。
 1. **`forward` 模块无状态** - 读数据 + trials，写**中间产物**到 `/intermediates/`（不产出最终 misfit）。不涉及权重、聚合、策略、输出变换。
 1. **shared packages** — 工具代码在 `shared/` Julia 包中，通过 `using` 导入。
@@ -113,7 +113,7 @@ C++ 只做重计算，Julia 做语义解释。边界为 HDF5 文件交换。
 Config.use_misfit!(:XcorrP_CC, operator=Misfit.Xcorr, phase="P", output=Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:AbsShiftP, operator=Misfit.Xcorr, phase="P", output=Misfit.Xcorr.BEST_LAG)
 Config.use_misfit!(:RelShift,  operator=Aggregate.StdDev,
-                  bases=[:AbsShiftP, :AbsShiftSH, :AbsShiftSV],
+                  bases=[:AbsShiftP, :AbsShiftS],  # 三分量 Z/N/E 可用 channel 过滤，见 misfit-decomposition §9
                   output=Aggregate.StdDev.RELATIVE_OFFSET)
 ```
 

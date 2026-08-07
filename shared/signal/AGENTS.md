@@ -2,7 +2,7 @@
 
 ## Role
 
-Waveform preprocessing: filtering, time-window trimming, per-module preprocessing. Called by `input.jl` for each phase during data ingestion. Pure computation — no HDF5 I/O.
+Waveform preprocessing: demeaning, detrending, tapering, bandpass filtering, time-window trimming (Layer 0 shared preprocessing consumed by `input.jl`). Per-module reductions live in `shared/misfit/` operators, which call back into these primitives. Pure computation — no HDF5 I/O.
 
 Used by: `input.jl`.
 
@@ -29,13 +29,16 @@ Butterworth `order=4`. Zero-phase via forward-backward `filtfilt`. Clamps high c
 | `trim_time_window!(obs, gf, dt, arrival_sample, window_factor, band_high)` | Trim obs/gf to time window around arrival. Window = `(window_factor / band_high)` seconds. Returns trimmed arrays. |
 | `trim_to_polarity_window!(gf, dt, arrival_sample, t_source)` | Trim GF to `[arrival, arrival + t_source]` window. Returns trimmed matrix. |
 
-### Per-module preprocessing
+### Layer 0 shared preprocessing
 
 | Function | Input | Output | Used for |
-|------------------------|-------------------------------------------------------------------------------|-----------------------------------------------|--------------------------------------------------------------------|
-| `preprocess_xcorr!` | obs waveform, GF matrix, dt, arrival_sample, low_cut, high_cut, window_factor | `(obs_proc, gf_proc, synamp[6×6], obs_norm2)` | XCorr module — filtered + trimmed obs/GF + auto-correlation matrix |
-| `preprocess_polarity!` | GF matrix, dt, arrival_sample, t_source, obs_polarity(Int8) | `(gf_pol[N_pol×6], obs_pol_float)` | Polarity module — GF in polarity window; -128→NaN |
-| `preprocess_psr!` | obs_P, obs_S, GF_P, GF_S, dt, arrival_P/S, pre/post seconds | `(amp_P[6×6], amp_S[6×6], obs_psr)` | PSR module — GF auto-correlation matrices + log10 RMS ratio |
+|------------------------|-----------------------------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------------|
+| `preprocess_waveform!` | waveform, dt, low_cut, high_cut (0/0 = no bandpass) | filtered waveform (in-place option) | XCorr/PSR per-band obs + GF preprocessing (with `do_bandpass=false` → basic clean for Polarity) |
+
+`preprocess_waveform!` runs `demean!` → `detrend!` → `taper!` then
+`bandpass_filter!` (unless `do_bandpass=false`). `input.jl` applies it per band
+to every observed trace and every GF component (Layer 0); operator-specific
+windows/reductions are computed afterwards by the `shared/misfit/` modules.
 
 ### Utilities
 
@@ -44,13 +47,11 @@ Butterworth `order=4`. Zero-phase via forward-backward `filtfilt`. Clamps high c
 | `envelope(x)` | Hilbert envelope (analytic signal magnitude) via FFT |
 | `rms_amplitude(x)` | Root-mean-square amplitude |
 
-## Preprocessing sequence (per phase, per freq band)
+## Preprocessing sequence (input.jl, per freq band)
 
-1. `bandpass_filter!` on obs and each GF component
-1. `trim_time_window!` for XCorr — centered on arrival, scaled by `window_factor / high_cut`
-1. Compute `synamp = gf'·gf` (6×6 Gram matrix) + `obs_norm2 = ‖obs‖²`
-1. `trim_to_polarity_window!` for Polarity — GF for P-wave only
-1. PSR data (`preprocess_psr!`) not called by current `input.jl` — C++ DataCache handles PSR data when present in database.h5
+1. **Layer 0** — `preprocess_waveform!` (demean/detrend/taper + bandpass) on every obs trace and each GF component of every freq-dependent module's bands; `do_bandpass=false` for the Polarity (non-freq-dependent) basic-clean GF.
+1. XCorr/Psr `preprocess()`/`process()` compute operator windows and per-lag / Gram-matrix / amplitude-ratio reductions (see `shared/misfit/AGENTS.md`).
+1. `trim_time_window!` / `trim_to_polarity_window!` are called from within the XCorr/Polarity operators.
 
 ## Coding conventions
 

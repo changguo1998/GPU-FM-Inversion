@@ -73,7 +73,7 @@ Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
 - **`/config/{ModuleName}/`**: Parameters depend on the module type. XCorr
-  instances have `max_lag_periods`, `filter_order`, `trim`, `band_low`, `band_high`. Polarity has `source_duration`.
+  instances have `max_lag_periods`, `filter_order`, `trim`, `band_low`, `band_high`. Polarity has `source_duration`. PSR has `pre_P`/`post_P`/`pre_S`/`post_S`, `band_low`, `band_high`.
 
 Each module group also carries misfit-decomposition metadata (see
 `doc/misfit-decomposition.md`):
@@ -155,23 +155,34 @@ The internal structure follows a general schema:
 Observation data per frequency band. `band` is the 1-indexed band number.
 
 | Dataset | Type | Shape | Description |
-|-------------|---------|--------------------------|-------------------------------------------|
-| `obs` | Float64 | `[N_entries, N_samples]` | Preprocessed observed data |
+|-------------|---------|--------------------------|-----------------------------------------------------------|
+| `obs` | Float64 | `[N_entries, N_samples]` | Preprocessed observed data (XCorr: fixed obs window) |
 | `obs_norm2` | Float64 | `[N_entries]` | Energy of each trace (XCorr modules only) |
+| `obs_psr` | Float64 | `[N_entries]` | `log10(rms_P / rms_S)` amplitude ratio (PSR modules only) |
 
 **`/{ModuleName}/gf/{depth}/{band}/`**
 
 Green's function data per depth and frequency band.
 
 | Dataset | Type | Shape | Description |
-|----------|---------|-----------------------------|------------------------------------------|
+|------------------|---------|-----------------------------|--------------------------------------------------------------------------------------|
 | `gf` | Float64 | `[N_entries, 6, N_samples]` | Preprocessed Green's functions |
-| `synamp` | Float64 | `[N_entries, 6, 6]` | GF auto-correlation (XCorr modules only) |
+| `synamp_lag` | Float64 | `[N_entries, 6, 6, L]` | Per-lag GF auto-correlation (XCorr only); `L = 2*max_lag_n + 1` |
+| `dot_obs_gf_lag` | Float64 | `[N_entries, 6, L]` | Per-lag obs·GF dot products (XCorr only) |
+| `amp_P` | Float64 | `[N_entries, 6, 6]` | GFᵀ·GF within P window (PSR only) |
+| `amp_S` | Float64 | `[N_entries, 6, 6]` | GFᵀ·GF within S window (PSR only) |
+| `synamp` | Float64 | `[N_entries, 6, 6]` | Single-window GF auto-correlation — legacy (pre per-lag refactor), no longer written |
 
 The exact shape dimensions depend on the module type:
 
 - For XCorr instances: `N_entries = N_phases_{P,S}` (number of phase entries)
 - For Polarity: `N_entries = N_channels` (number of channels)
+- For PSR: `N_entries = N_stations` (one entry per station with both P and S picks)
+
+Note: `/{ModuleName}/gf/...` above reflects per-lag reductions (XCorr) and
+amplitude ratios (PSR). `input.jl` additionally persists Layer 0 preprocessed
+waveforms to `/preprocess` and `/gf_preprocessed` — debug leftovers, not part
+of the stable contract.
 
 ______________________________________________________________________
 
@@ -181,15 +192,29 @@ One file per iteration, built incrementally by pipeline stages.
 
 ### `/strategy`
 
-Integer indices into `/paraspace` arrays, plus iteration counter.
-Trial generation reads the expanded float values from `/paraspace`
-and selects subsets by these indices.
+Current-iteration search grid definition. SDR axes are expanded inline
+(start + k·step, `n` values) to build the trial space; `depth_indices` and
+`freq_indices` select subsets of `/paraspace/depth` and `/paraspace/frequency`.
+Plus the iteration counter.
 
 | Dataset | Type | Shape | Description |
-|-----------------|-------|--------|--------------------------------------------------------|
+|-----------------|---------|--------|--------------------------------------------------------|
+| `strike0` | Float64 | scalar | Strike grid start (deg) |
+| `dstrike` | Float64 | scalar | Strike step (deg) |
+| `nstrike` | Int32 | scalar | Strike count (71 = full space 5°) |
+| `dip0` | Float64 | scalar | Dip grid start (deg) |
+| `ddip` | Float64 | scalar | Dip step (deg) |
+| `ndip` | Int32 | scalar | Dip count (19 = full space 5°) |
+| `rake0` | Float64 | scalar | Rake grid start (deg) |
+| `drake` | Float64 | scalar | Rake step (deg) |
+| `nrake` | Int32 | scalar | Rake count (37 = full space 5°) |
 | `depth_indices` | Int32 | `[n]` | Indices into `/paraspace/depth` |
 | `freq_indices` | Int32 | `[n]` | Indices into `/paraspace/frequency` bands (1..N_bands) |
 | `iteration` | Int32 | scalar | Iteration number |
+
+The full-space 5° grid (initial iteration) is the single source of truth
+`IO.DEFAULT_GRID` / `Grid.default_grid()`. `assess.jl` writes a refined
+(3×3×3, halved step, best-centered) grid into `status_{N+1}.h5` each iteration.
 
 ### `/trials`
 

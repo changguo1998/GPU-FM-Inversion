@@ -24,7 +24,7 @@
 
 - 不改预处理阶段的数据流（`input.jl` 的 `process()` 逻辑不变，仍写 `database.h5`）。
 - 不引入 ccall 共享库——C++/Julia 边界仍为 HDF5 文件交换。
-- 不实现 PSR 的组合（PSR kernel 已存在但属 deferred，本设计仅保证框架对其兼容）。
+- 不实现 PSR 的组合（PSR 算子已实现于 `shared/misfit/src/Psr.jl`，但 PSR 的组合/extractor 未实现，且 sample config 未注册 Psr 实例）。
 
 ## 2. 概念模型
 

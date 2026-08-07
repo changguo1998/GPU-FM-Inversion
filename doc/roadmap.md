@@ -1,6 +1,6 @@
 # Roadmap - 震源机制反演管道（从头开发）
 
-当前为从头开发第一阶段，仅完成数据接入与初始化（`input.jl`）。以下为后续阶段规划。
+已完成数据接入与初始化（`input.jl`）及 Misfit 分解框架（Phase 1，2026-07-16 merge）与算子预处理重构（2026-07-18 merge）。以下为后续阶段规划。
 
 ## Legend
 
@@ -12,12 +12,15 @@ ______________________________________________________________________
 ## 已完成
 
 | Task | 说明 |
-|-----------------------------------------------------------------------------|---------------------|
+|------------------------------------------------------------------------------------------|---------------------------------------------|
 | [x] IO module - HDF5 read/write, type structs, geophysics utilities | `shared/io/` |
 | [x] MT module - SDR↔MT conversion | `shared/mt/` |
 | [x] Grid module - trial generation + grid refinement | `shared/grid/` |
 | [x] StageLog module - per-stage logging | `shared/stage_log/` |
 | [x] `input.jl` - data ingestion, preprocessing, database + initial strategy | `scripts/input.jl` |
+| [x] Misfit 算子 package - Xcorr/Polarity/Psr (process + outputs) | `shared/misfit/` |
+| [x] Aggregate 两级聚合 - extractors + composers + StdDev | `shared/aggregate/` + `scripts/assess.jl` |
+| [x] Layer 0 共享预处理 - demean/detrend/taper/bandpass per band + per-lag/PSR reductions | 07-18 feat/operator-preprocessing (c030626) |
 
 ______________________________________________________________________
 
@@ -31,27 +34,29 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Phase 1: Misfit 分解框架
+## Phase 1: Misfit 分解框架 ✅ (2026-07-16 完成)
 
 落地 Operator × Phase × Output 三层分解。详见 `doc/misfit-decomposition.md` §12。
 
 | Task | Priority | 说明 |
 |--------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [ ] Misfit package 化 + 输出字段常量 | P0 | `shared/misfit/` 转 package；XCorr/Polarity 加 `outputs()` + 常量；`Config.use_misfit!` 新签名（operator/output）+ 校验；`config_sample.jl` 适配 |
-| [ ] forward kernel 产出中间产物 | P0 | `xcorr_kernel.h` 加 `best_lag` 输出；`polarity_kernel.h` 输出 `syn_sign`+`dot_value`；`main.cpp` 写 `/intermediates/` 而非 `/misfits/`，按 (operator,phase,channel) 去重跑 kernel |
-| [ ] aggregate extractor + composer | P0 | `shared/aggregate/` 新 package；EXTRACTORS/COMPOSERS 注册表；`scripts/assess.jl` 实现 extract + compose |
-| [ ] RelShift 组合示例 | P1 | StdDev composer 实现；`config_sample.jl` 加 AbsShiftP/SH/SV + RelShift 示例；`doc/schema.md` 更新 `/intermediates` |
+| [x] Misfit package 化 + 输出字段常量 | P0 | `shared/misfit/` 转 package；XCorr/Polarity 加 `outputs()` + 常量；`Config.use_misfit!` 新签名（operator/output）+ 校验；`config_sample.jl` 适配 |
+| [x] forward kernel 产出中间产物 | P0 | `xcorr_kernel.h` 加 `best_lag` 输出；`polarity_kernel.h` 输出 `syn_sign`+`dot_value`；`main.cpp` 写 `/intermediates/` 而非 `/misfits/`，按 (operator,phase,channel) 去重跑 kernel |
+| [x] aggregate extractor + composer | P0 | `shared/aggregate/` 新 package；EXTRACTORS/COMPOSERS 注册表；`scripts/assess.jl` 实现 extract + compose |
+| [x] RelShift 组合示例 | P1 | StdDev composer 实现；`config_sample.jl` 加 AbsShiftP/S + RelShift 示例；`doc/schema.md` 更新 `/intermediates` |
 
 ## Phase 2: 管道贯通
 
 | Task | Priority | 说明 |
-|-----------------------------------------------|----------|-----------------------------------------------------------------------------|
-| [ ] `preprocess.jl` - 从 strategy 生成 trials | P0 | 写 status_N.h5 /trials group |
-| [ ] `assess.jl` - 加权/聚合/网格细化 | P0 | 读 misfits，写 refined strategy（在 Phase 1 extract/compose 基础上加权重聚合） |
-| [ ] `output.jl` - 输出编译 | P0 | 读所有 status 文件，写 output.h5 |
-| [ ] `driver.sh` - 管道编排 | P0 | 5 阶段循环 + exit code 检测 |
+|-----------------------------------------------|----------|------------------------------------------------------------------------------|
+| [x] `preprocess.jl` - 从 strategy 生成 trials | P0 | 写 status_N.h5 /trials group（已实现，2026-08-07） |
+| [ ] `assess.jl` - 加权/聚合/网格细化 | P0 | 读 misfits，写 refined strategy（extract+compose + 收敛决策已实现；**权重聚合/网格细化待补**） |
+| [x] `output.jl` - 输出编译 | P0 | 读所有 status 文件，写 output.h5（已实现最小版，2026-08-07：Xcorr 主 misfit 选 best；加权聚合落地后完善） |
+| [x] `driver.sh` - 管道编排 | P0 | input →（preprocess→forward→assess 循环）→ output 全链已打通（2026-08-07，单迭代收敛，exit code 检测）；多迭代细化待 assess 落地 |
 
 ## Phase 3: 验证
+
+状态：package 单元测试已通过（io 92、mt 95、config、signal、misfit、aggregate；grid 无测试目录，从根环境 include 运行）。下列为待补项。
 
 | Task | 说明 |
 |---------------------------------|------------------------------------------------|
@@ -63,6 +68,6 @@ ______________________________________________________________________
 ## Phase 4: 高级模块
 
 | Task | 说明 |
-|----------------------------|--------------------------------|
-| [ ] PSR module | 延期（kernel 已存在，待接入框架） |
+|----------------------------|-------------------------------------------------------------|
+| [x] PSR module | 算子已实现（`Psr.jl` + tests，07-18）；实例未注册 sample config |
 | [ ] 非交互 operator prompt | 延期 |
