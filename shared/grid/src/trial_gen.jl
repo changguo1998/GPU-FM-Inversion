@@ -1,62 +1,17 @@
 # Trial Generation
 
 """
-    default_grid() -> NamedTuple{(:strike0, :dstrike, :nstrike,
-                                 :dip0, :ddip, :ndip,
-                                 :rake0, :drake, :nrake)}
+    default_grid() -> NamedTuple (see IO.DEFAULT_GRID)
 
-Default initial search grid covering the full parameter space at 5° resolution.
-strike: 0:5:355  (71 values)
-dip:    0:5:90   (19 values)
-rake:   -90:5:90 (37 values)
+Default initial search grid covering the full parameter space at 5° resolution
+(single source of truth: `IO.DEFAULT_GRID`).
+strike: 0:5:355 (71), dip: 0:5:90 (19), rake: -90:5:90 (37).
 """
-function default_grid()
-    return (
-        strike0 = 0.0,
-        dstrike = 5.0,
-        nstrike = Int32(71),
-        dip0 = 0.0,
-        ddip = 5.0,
-        ndip = Int32(19),
-        rake0 = -90.0,
-        drake = 5.0,
-        nrake = Int32(37),
-    )
-end
+default_grid() = H5IO.DEFAULT_GRID
 
 
-"""
-    GridStrategy
-
-Grid parameters extracted from the full Strategy struct in `IO.jl`.
-Contains only the fields needed for trial generation.
-"""
-struct GridStrategy
-    strike0::Float64
-    dstrike::Float64
-    nstrike::Int32
-    dip0::Float64
-    ddip::Float64
-    ndip::Int32
-    rake0::Float64
-    drake::Float64
-    nrake::Int32
-    freq_indices::Vector{Int32}
-end
-
-"""
-    TrialSet
-
-Output of trial generation. Column vectors of length N_trials.
-"""
-struct TrialSet
-    strike::Vector{Float64}
-    dip::Vector{Float64}
-    rake::Vector{Float64}
-    depth::Vector{Float64}
-    depth_idx::Vector{Int32}
-    freq_idx::Vector{Int32}
-end
+# Note: uses `H5IO.Strategy` (full 12-field grid definition) directly and
+# returns `H5IO.TrialSet` — no separate GridStrategy/Grid.TrialSet types.
 
 # Axis expansion helper
 
@@ -76,12 +31,13 @@ end
 # Main function
 
 """
-    generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64}) -> TrialSet
+    generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64}) -> H5IO.TrialSet
 
 Generate trials as the Cartesian product of varying axes:
 strike (outermost) → dip → rake → depth → freq (innermost).
+Depth/freq axes use the strategy's `depth_indices`/`freq_indices` subsets.
 """
-function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::TrialSet
+function generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64})::H5IO.TrialSet
     strikes = expand_axis(strategy.strike0, strategy.dstrike, strategy.nstrike)
     dips = expand_axis(strategy.dip0, strategy.ddip, strategy.ndip)
     rakes = expand_axis(strategy.rake0, strategy.drake, strategy.nrake)
@@ -137,5 +93,5 @@ function generate_trials(strategy::GridStrategy, depth_vals::Vector{Float64})::T
         end
     end
 
-    return TrialSet(strikes_out, dips_out, rakes_out, depths_out, depth_idx_out, freq_idx_out)
+    return H5IO.TrialSet(strikes_out, dips_out, rakes_out, depths_out, depth_idx_out, freq_idx_out)
 end

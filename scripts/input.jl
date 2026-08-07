@@ -359,12 +359,21 @@ for ptype in phase_types
 end
 
 # Psr special: P/S pair across ptype (not handled in per-ptype loop)
-psr_mod = get(module_instances, "Psr", nothing)
-if psr_mod !== nothing
-    phases_P = [(pid, si) for (pid, pt, si) in phase_list if pt == "P"]
-    phases_S = [(pid, si) for (pid, pt, si) in phase_list if pt == "S"]
+"""逐频带累积 Psr 算子结果 (P/S 配对)。返回累积 result (nothing 表示无有效数据)。"""
+function preprocess_psr(
+    psr_mod,
+    phases_P,
+    phases_S,
+    stations,
+    picks,
+    station_to_idx,
+    ctx,
+    depths,
+    freq_vals,
+    pf,
+)
     bl, bh = psr_mod.band_low(), psr_mod.band_high()
-    result = nothing
+    acc = nothing
     for local_idx in 1:length(bl)
         lo, hi = freq_vals[bl[local_idx]], freq_vals[bh[local_idx]]
         r = psr_mod.process(
@@ -381,9 +390,28 @@ if psr_mod !== nothing
             pf,
         )
         isempty(r["channel_id"]) && continue
-        result = merge_band_result(result, r)
+        acc = merge_band_result(acc, r)
     end
-    result !== nothing && (module_results["Psr"] = result)
+    return acc
+end
+
+psr_mod = get(module_instances, "Psr", nothing)
+if psr_mod !== nothing
+    phases_P = [(pid, si) for (pid, pt, si) in phase_list if pt == "P"]
+    phases_S = [(pid, si) for (pid, pt, si) in phase_list if pt == "S"]
+    psr_result = preprocess_psr(
+        psr_mod,
+        phases_P,
+        phases_S,
+        stations,
+        picks,
+        station_to_idx,
+        ctx,
+        depths,
+        freq_vals,
+        pf,
+    )
+    psr_result !== nothing && (module_results["Psr"] = psr_result)
 end
 
 @info "  preprocessing complete ($(length(misfit_modules)) modules, $(length(freq_vals)) discrete frequencies)"
@@ -594,10 +622,24 @@ mod_summary = join(
 @info "  phase metadata written ($mod_summary)"
 
 # === 12. 写入 status_0.h5 (初始策略) ===
-# 记录 /strategy: depth_indices + 频带索引
+# /strategy: 全空间 5° 默认网格 (SDR) + 全 depth/freq 索引, iteration 0
 @info "Writing status_0.h5 ..."
 
-strategy = IO.Strategy(Int32.(1:n_depths), Int32.(1:n_bands), Int32(0))
+g0 = Grid.default_grid()
+strategy = IO.Strategy(
+    g0.strike0,
+    g0.dstrike,
+    g0.nstrike,
+    g0.dip0,
+    g0.ddip,
+    g0.ndip,
+    g0.rake0,
+    g0.drake,
+    g0.nrake,
+    Int32.(1:n_depths),
+    Int32.(1:n_bands),
+    Int32(0),
+)
 
 status0_path = joinpath(data_dir, "status_0.h5")
 h5open(status0_path, "w") do f

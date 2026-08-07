@@ -42,17 +42,19 @@ The caller (assess.jl) prompts the operator and writes the strategy to
 `status_{N+1}.h5`.
 """
 function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.Strategy
-    # SDR center ← best trial
-    new_strike0 = best_trial.sdr[1]
-    new_dip0 = best_trial.sdr[2]
-    new_rake0 = best_trial.sdr[3]
-
     # Halve step sizes
     new_dstrike = current.dstrike / 2.0
     new_ddip = current.ddip / 2.0
     new_drake = current.drake / 2.0
 
-    # Fixed 3×3×3 SDR grid
+    # Fixed 3×3×3 SDR grid centered on best trial. expand_axis(var0, d, 3)
+    # yields [var0, var0+d, var0+2d] — best must land at index 2, so
+    # var0 = best - d. Clamp to source-parameter domains:
+    # strike [0,360), dip [0,90], rake [-90,90].
+    new_strike0 = mod(best_trial.sdr[1] - new_dstrike, 360.0)
+    new_dip0 = clamp(best_trial.sdr[2] - new_ddip, 0.0, 90.0)
+    new_rake0 = clamp(best_trial.sdr[3] - new_drake, -90.0, 90.0)
+
     new_nstrike = Int32(3)
     new_ndip = Int32(3)
     new_nrake = Int32(3)
