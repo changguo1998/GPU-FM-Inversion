@@ -38,9 +38,9 @@ Each loaded plugin creates a `Config.{name}` inner module. Functions depend on t
 
 | Plugin | Functions |
 |--------------------------------|------------------------------------------------|
-| `Misfit.Polarity` (template) | `trim()`, `outputs()`, `SYN_SIGN`, `DOT_VALUE` |
+`Misfit.Polarity` (template) — deferred (XCorr-only mode)
 | `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |
-| `PolarityP` (instance) | Inherited from `Misfit.Polarity` template |
+`PolarityP` (instance) — deferred (XCorr-only mode)
 
 Users instantiate operators with `Config.use_misfit!(...; operator=Misfit.Xcorr, output=Misfit.Xcorr.CC_MAX)` then override functions:
 

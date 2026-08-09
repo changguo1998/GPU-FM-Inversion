@@ -2,6 +2,11 @@
 
 ## 1. 背景与动机
 
+> **状态 (2026-08-09)**: 管道运行在 **XCorr-only** 模式。Polarity/Psr 算子已实现
+> （`shared/misfit/` + C++ kernels）但 **deferred**——示例 config 不再注册实例，
+> `input.jl` 对注册的 Polarity/Psr 实例显式报错。本文档中 Polarity/Psr 相关内容为设计
+> 记录；恢复时按 git HEAD 0a9ad69 重新注册与接线。
+
 ### 现状问题
 
 当前 misfit 模块采用扁平命名（`XcorrP`、`XcorrS`、`PolarityP`），算子、震相、输出三者耦合：

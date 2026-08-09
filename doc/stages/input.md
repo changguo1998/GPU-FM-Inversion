@@ -32,12 +32,12 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 6. 预处理波形 (Layer 0 共享预处理 + 算子 process)
    ├─ Layer 0: 对每个 freq-dependent 模块的频带, 对 obs 逐道 + GF 逐分量
    │    Signal.preprocess_waveform! (demean/detrend/taper + butterworth bandpass)
-   │    Polarity (非 freq) 用 do_bandpass=false 的 basic-clean GF
    ├─ 算子 process(): XcorrP/S 输出 obs/obs_norm2 + per-lag
    │    synamp_lag[depth][band] + dot_obs_gf_lag[band]
-   │    PolarityP 极性窗口 obs[nc×1], gf[nc×6×npolarity_samples]
-   │    Psr (如注册): obs_psr + amp_P/amp_S
    └─ 各深度独立预处理 GF
+       (Polarity/Psr 分支 deferred — XCorr-only 模式: basic-clean GF /
+        极性窗口 / obs_psr 路径均已移除)
+
 
 7. 组装字典
    ├─ paraspace: strike/dip/rake 展开 (0:5:355 / 0:5:90 / -90:5:90), depth, frequency(unique排序)
@@ -66,7 +66,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 - **各深度 GF 独立预处理**: 不再复用第一个深度
 - **config 无索引**: `band_low`/`band_high`/`freq_indices` 为整数索引，分别存于 `/config` 与 `/strategy`
 
-当前已完成：数据接入 (input.jl) + Layer 0 共享预处理 + Misfit 算子 (Xcorr/Polarity/Psr) + aggregate 两级聚合；`preprocess.jl`/`assess.jl`/`output.jl`/`driver.sh` 全部已实现，管道单迭代闭环贯通。输出 `database.h5` 和 `status_0.h5` 作为后续阶段的接口契约。
+当前已完成：数据接入 (input.jl) + Layer 0 共享预处理 + Misfit 算子 (Xcorr 活跃；Polarity/Psr **deferred**) + aggregate 两级聚合；`preprocess.jl`/`assess.jl`/`output.jl`/`driver.sh` 全部已实现，管道单迭代闭环贯通（**XCorr-only 模式**）。输出 `database.h5` 和 `status_0.h5` 作为后续阶段的接口契约。
 
 ## Inputs
 
@@ -93,14 +93,14 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 ## Responsibilities
 
-1. **Preprocess raw data**: filter waveforms to frequency bands, trim time windows, extract XCorr and Polarity preprocessing output (GF preprocessed independently per depth), store in `database.h5`
+1. **Preprocess raw data**: filter waveforms to frequency bands, trim time windows, extract XCorr preprocessing output (Polarity 分支已 deferred), store in `database.h5`
 1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
 1. **Write algorithm config**: load `config.jl`, write `db_config` (module list, module params) into `database.h5` — **no indices, no float parameter values**
 1. **Write expanded parameter space**: compute grid axis expansions (strike/dip/rake) via `Grid.expand_axis()`, build `frequency` from unique band edges, store all as `/paraspace` in `database.h5`
 1. **Write initial strategy**: build `IO.Strategy(depth_indices, freq_indices, iteration=0)` → `/strategy` in `status_0.h5`
 1. **Write phase metadata**: write `channel_id` + `station_idx` into each `/{ModuleName}` group in `database.h5` (carried by `ModuleData`)
 1. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated.
-1. **Per-depth GF preprocessing**: each trial depth independently filters and windows its own Green's functions during XCorr/Polarity preprocessing (previously all depths reused the first depth's GF).
+1. **Per-depth GF preprocessing**: each trial depth independently filters and windows its own Green's functions during XCorr preprocessing (Polarity 已 deferred; 此前所有深度复用第一个深度的 GF).
 
 ## Script Style
 
@@ -108,7 +108,7 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when `include`
 
 Tooling functions (time parsing, distance/azimuth computation, phase ID extraction) live in `shared/io/` (module `IO`) and are called as `IO.parse_time_iso`, `IO.haversine_distance`, etc.
 
-- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). Psr 算子如注册则在其 `process()` 中计算 `obs_psr`/`amp_P`/`amp_S` 并写入 database.h5；当前 sample config 未注册 Psr 实例。
+- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). Psr 算子 **deferred**（XCorr-only 模式）——其 `process()` 计算 `obs_psr`/`amp_P`/`amp_S` 的路径已移除，恢复时按 git HEAD 0a9ad69 重新接线。
 - Butterworth bandpass filter (DSP.jl, zero-phase forward-backward)
 - Time-window trimming
 - Green's function loader

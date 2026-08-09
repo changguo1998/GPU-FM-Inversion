@@ -25,8 +25,8 @@ Used by: `scripts/assess.jl`.
 |---------------------------|--------------------------------------------------------|
 | `(:Xcorr, :cc_max)` | `1 .- cc_max` (normalized CC misfit) |
 | `(:Xcorr, :best_lag)` | `best_lag * dt` (absolute time shift in seconds) |
-| `(:Polarity, :syn_sign)` | mismatch vs observed polarity (`syn_sign .!= obs_pol`) |
-| `(:Polarity, :dot_value)` | `abs(dot_value)` (confidence weight) |
+| `(:Polarity, :syn_sign)` | mismatch vs observed polarity (`syn_sign .!= obs_pol`) — deferred, no registered instance |
+| `(:Polarity, :dot_value)` | `abs(dot_value)` (confidence weight) — deferred, no registered instance |
 
 ## Composers (`COMPOSERS[operator]`)
 

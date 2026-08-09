@@ -180,9 +180,13 @@ The exact shape dimensions depend on the module type:
 - For PSR: `N_entries = N_stations` (one entry per station with both P and S picks)
 
 Note: `/{ModuleName}/gf/...` above reflects per-lag reductions (XCorr) and
-amplitude ratios (PSR). `input.jl` additionally persists Layer 0 preprocessed
-waveforms to `/preprocess` and `/gf_preprocessed` — debug leftovers, not part
-of the stable contract.
+amplitude ratios (PSR). The Layer 0 `/preprocess` and `/gf_preprocessed` debug
+persistence was removed in the XCorr-only cleanup (2026-08-09).
+
+> Operator status (2026-08-09): pipeline runs **XCorr-only**. Polarity and PSR
+> operators remain implemented (Julia `shared/misfit/` + C++ kernels) but are
+> **deferred** — no instances registered in sample configs; `input.jl` errors
+> loudly on any registered Polarity/Psr instance.
 
 ______________________________________________________________________
 

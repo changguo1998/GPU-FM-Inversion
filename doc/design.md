@@ -2,7 +2,7 @@
 
 ## Overview
 
-震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成：数据接入 (input.jl)、Misfit 算子 (Xcorr/Polarity/Psr)、aggregate 两级聚合、assess.jl；待开发：preprocess.jl 试次生成、输出编译 (output.jl)。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成：数据接入 (input.jl)、Misfit 算子、aggregate 两级聚合、assess.jl、preprocess.jl 试次生成、output.jl 输出编译、driver.sh 全管道贯通（单迭代闭环，**XCorr-only**）。Misfit 算子：Xcorr 活跃运行；Polarity/Psr 已实现但 **deferred**（未注册实例）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ## Current Project Layout
 
@@ -14,7 +14,7 @@ shared/         Julia packages by function (not stage)
   grid/         (module: Grid)      ← Trial generation + grid refinement
   signal/       (module: Signal)    ← Waveform preprocessing (filtering, trimming)
   config/       (module: Config)    ← Pipeline configuration interface
-  misfit/       (module: Misfit)    ← Misfit 算子 package（XCorr/Polarity/Psr 模板 + 输出字段常量）
+  misfit/       (module: Misfit)    ← Misfit 算子 package（Xcorr 活跃；Polarity/Psr 模板 + 输出字段常量，deferred）
   aggregate/    (module: Aggregate) ← Output extractor + composer 注册表
   stage_log/    (module: StageLog)  ← Per-stage logging
 forward/        C++ forward stage (GPU) ← kernel 产出中间产物

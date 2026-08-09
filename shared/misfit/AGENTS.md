@@ -6,7 +6,7 @@ Per-module preprocessing for misfit computation. Each module is a template
 included inside a dynamically-created Config inner module at pipeline init.
 Provides single-trace `preprocess()` and batch `process()` functions.
 
-Operators: Xcorr, Polarity, Psr. AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). PSR operator implemented but no instance registered in sample configs. CAP cancelled.
+Operators: Xcorr (active); Polarity/Psr implemented but **deferred** (XCorr-only mode, 2026-08-09 — no instances registered; `input.jl` errors loudly if registered). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). CAP cancelled.
 
 ## Files
 

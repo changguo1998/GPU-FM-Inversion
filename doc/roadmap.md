@@ -18,7 +18,7 @@ ______________________________________________________________________
 | [x] Grid module - trial generation + grid refinement | `shared/grid/` |
 | [x] StageLog module - per-stage logging | `shared/stage_log/` |
 | [x] `input.jl` - data ingestion, preprocessing, database + initial strategy | `scripts/input.jl` |
-| [x] Misfit 算子 package - Xcorr/Polarity/Psr (process + outputs) | `shared/misfit/` |
+| [x] Misfit 算子 package - Xcorr/Polarity/Psr (process + outputs) | `shared/misfit/`（Polarity/Psr **deferred** — XCorr-only 模式，2026-08-09） |
 | [x] Aggregate 两级聚合 - extractors + composers + StdDev | `shared/aggregate/` + `scripts/assess.jl` |
 | [x] Layer 0 共享预处理 - demean/detrend/taper/bandpass per band + per-lag/PSR reductions | 07-18 feat/operator-preprocessing (c030626) |
 
@@ -69,5 +69,5 @@ ______________________________________________________________________
 
 | Task | 说明 |
 |----------------------------|-------------------------------------------------------------|
-| [x] PSR module | 算子已实现（`Psr.jl` + tests，07-18）；实例未注册 sample config |
+| [x] PSR module | 算子已实现（`Psr.jl` + tests，07-18）；**deferred**（XCorr-only 模式，未注册实例） |
 | [ ] 非交互 operator prompt | 延期 |

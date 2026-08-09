@@ -2,7 +2,7 @@
 
 ## Description
 
-Parallel kernels for computing per-module misfits. Each kernel operates on a flat grid over `(phase × trial)` work items (XCorr) or `(channel × trial)` work items (Polarity/PSR). Kernels are templated on `Backend` and dispatched via `Device<B>::parallel_for` — single source compiles to both OpenMP (`#pragma omp parallel for`) and CUDA (`__global__` kernel). No external GPU framework dependency.
+work items (Polarity/PSR — kernels deferred, XCorr-only mode). Kernels are templated
 
 All kernel functions live in the `fm` namespace and are header-only (`forward/src/kernels/`).
 
@@ -50,7 +50,7 @@ obs_norm2    // [N_phases]
 misfit       // [N_phases × N_trials] column-major: misfit[phase + trial * N_phases]
 ```
 
-## Polarity Kernel
+## Polarity Kernel (deferred — XCorr-only mode)
 
 **Misfit formula:**
 

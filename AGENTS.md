@@ -26,7 +26,7 @@ config_sample.jl   Template pipeline configuration
 
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr/Polarity/Psr)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr 活跃；Polarity/Psr 已实现但 **deferred**，XCorr-only 模式)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛，XCorr-only）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5
@@ -55,7 +55,7 @@ See `doc/schema.md` for details.
 - **Moment tensor**: 6 components in NED: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
 - **Source params**: strike \[0,360), dip [0,90], rake [-90,90] (degrees)
 - **Green's functions**: 6-component waveforms per station, pre-computed externally
-- **Misfit modules**: XCorr, Polarity, Psr (operators). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). Psr implemented but no instance registered in sample configs. CAP — cancelled.
+- **Misfit modules**: XCorr active; Polarity/Psr implemented but **deferred** (XCorr-only mode, 2026-08-09). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). CAP — cancelled.
 - **Trial**: one combination of variable params (SDR, depth, frequency, etc.)
 - **Phase** = station + channel + wave type (P/S) — channels subsumed by phases
 - **Phase key**: `{network}.{station}.{channel}.{phase_type}` (e.g. `IU.COLA.00.P`)

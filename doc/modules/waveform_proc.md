@@ -32,8 +32,8 @@ Filter, trim, and preprocess observed waveforms and Green's functions for each f
 | Module | Operation | Output | Status |
 |----------|--------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------------|
 | XCorr | Layer 0 bandpass + fixed obs window; per-lag reductions | `obs`, `obs_norm2`, `synamp_lag`, `dot_obs_gf_lag` | active |
-| Polarity | Trim GF to polarity window `[0, t_source]` | `gf_pol`, `obs_pol` | active |
-| PSR | Compute/store P/S amplitude-ratio observation and reductions | `amp_P`, `amp_S`, `obs_psr` | active (operator implemented; no instance in sample config) |
+| Polarity | Trim GF to polarity window `[0, t_source]` | `gf_pol`, `obs_pol` | **deferred** |
+| PSR | Compute/store P/S amplitude-ratio observation and reductions | `amp_P`, `amp_S`, `obs_psr` | **deferred** (operator implemented; XCorr-only mode) |
 | AbsShift | Spatial component decomposition | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 | RelShift | Spatial component concatenation | `obs[3×N]`, `gf[3×N×6]` | **deferred** |
 | CAP | Cut-and-paste waveform fitting | `obs[3×N]`, `gf[3×N×6]` | **cancelled** |
