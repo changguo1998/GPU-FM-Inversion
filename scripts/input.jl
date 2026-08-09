@@ -15,7 +15,6 @@
 using HDF5
 using LinearAlgebra
 using Dates
-using Random
 
 using StageLog
 
@@ -38,6 +37,9 @@ include(abspath(config_jl))
 
 # 读取配置中的管道参数
 misfit_modules = Config.misfit_modules()
+if "Psr" in misfit_modules
+    error("Psr operator deferred (XCorr-only mode) — see TODO(deferred) in input.jl")
+end
 freq_bands = Config.freq_bands()
 depths = Config.depths()
 
@@ -67,7 +69,6 @@ n_picks = length(picks)
 # === 5. 构建相位列表 ===
 # 震相字段映射由 config.jl 定义 (Config.phase_fields/polarity_fields)
 pf = Config.phase_fields()
-pol_f = Config.polarity_fields()
 
 ch_map = Dict("N" => 1, "E" => 2, "Z" => 3)  # GF 通道顺序 [N, E, D]
 
@@ -249,20 +250,7 @@ for (lo, hi) in all_bands
     prepro_gf[(lo, hi)] = pg
 end
 
-# basic-clean GF (no bandpass) for Polarity (is_freq_dependent=false)
-prepro_gf_basic = Dict{Float64, Dict{String, Matrix{Float64}}}()
-for d in depths
-    pd = Dict{String, Matrix{Float64}}()
-    for (ch_id, gf_raw) in gf_data[d]
-        g = copy(gf_raw)
-        for c in 1:size(g, 2)
-            g[:, c] =
-                Signal.preprocess_waveform!(g[:, c], ch_dt[ch_id], 0.0, 0.0; do_bandpass = false)
-        end
-        pd[ch_id] = g
-    end
-    prepro_gf_basic[d] = pd
-end
+# TODO(deferred): prepro_gf_basic (Polarity input) removed — XCorr-only mode, restore from git HEAD 0a9ad69.
 @info "  Layer 0 complete: $(length(prepro_obs)) bands x $(length(channel_data)) channels"
 
 # 预处理共享上下文 (NamedTuple 避免长参数列表)
@@ -273,10 +261,8 @@ ctx = (
     depths = depths,
     freq_vals = freq_vals,
     pf = pf,
-    pol_f = pol_f,
     prepro_obs = prepro_obs,
     prepro_gf = prepro_gf,
-    prepro_gf_basic = prepro_gf_basic,
 )
 
 """合并多频带 result r 到已累积的 prev (prev 为 nothing 时返回 r 本身)。"""
@@ -327,19 +313,7 @@ function preprocess_module(mod, phases_pt, ptype, ctx, prev)
         end
         return result
     else
-        r = mod.process(
-            phases_pt,
-            ptype,
-            ctx.stations,
-            ctx.picks,
-            ctx.station_to_idx,
-            ctx.prepro_gf_basic,
-            ctx.depths,
-            ctx.pf,
-            ctx.pol_f,
-        )
-        isempty(r["channel_id"]) && return prev
-        return r
+        error("non-freq-dependent operator deferred (XCorr-only mode): $(nameof(mod))")
     end
 end
 
@@ -351,68 +325,14 @@ for ptype in phase_types
     phases_pt = [(pid, si) for (pid, pt, si) in phase_list if pt == ptype]
     isempty(phases_pt) && continue
     for (m_name, mod) in module_instances
-        (m_name == "Psr" || Config.phase_type(Symbol(m_name)) != ptype) && continue
+        Config.phase_type(Symbol(m_name)) != ptype && continue
         prev = get(module_results, m_name, nothing)
         result = preprocess_module(mod, phases_pt, ptype, ctx, prev)
         result !== nothing && (module_results[m_name] = result)
     end
 end
 
-# Psr special: P/S pair across ptype (not handled in per-ptype loop)
-"""逐频带累积 Psr 算子结果 (P/S 配对)。返回累积 result (nothing 表示无有效数据)。"""
-function preprocess_psr(
-    psr_mod,
-    phases_P,
-    phases_S,
-    stations,
-    picks,
-    station_to_idx,
-    ctx,
-    depths,
-    freq_vals,
-    pf,
-)
-    bl, bh = psr_mod.band_low(), psr_mod.band_high()
-    acc = nothing
-    for local_idx in 1:length(bl)
-        lo, hi = freq_vals[bl[local_idx]], freq_vals[bh[local_idx]]
-        r = psr_mod.process(
-            phases_P,
-            phases_S,
-            stations,
-            picks,
-            station_to_idx,
-            ctx.prepro_obs[(lo, hi)],
-            ctx.prepro_gf[(lo, hi)],
-            depths,
-            hi,
-            local_idx,
-            pf,
-        )
-        isempty(r["channel_id"]) && continue
-        acc = merge_band_result(acc, r)
-    end
-    return acc
-end
-
-psr_mod = get(module_instances, "Psr", nothing)
-if psr_mod !== nothing
-    phases_P = [(pid, si) for (pid, pt, si) in phase_list if pt == "P"]
-    phases_S = [(pid, si) for (pid, pt, si) in phase_list if pt == "S"]
-    psr_result = preprocess_psr(
-        psr_mod,
-        phases_P,
-        phases_S,
-        stations,
-        picks,
-        station_to_idx,
-        ctx,
-        depths,
-        freq_vals,
-        pf,
-    )
-    psr_result !== nothing && (module_results["Psr"] = psr_result)
-end
+# TODO(deferred): preprocess_psr + Psr wiring removed — XCorr-only mode, restore from git HEAD 0a9ad69.
 
 @info "  preprocessing complete ($(length(misfit_modules)) modules, $(length(freq_vals)) discrete frequencies)"
 
@@ -426,9 +346,10 @@ event_dict = Dict{String, Any}(
     "origintime" => event.origintime,
 )
 
-strike_vals = Grid.expand_axis(0.0, 5.0, Int32(71))
-dip_vals = Grid.expand_axis(0.0, 5.0, Int32(19))
-rake_vals = Grid.expand_axis(-90.0, 5.0, Int32(37))
+g0 = Grid.default_grid()
+strike_vals = Grid.expand_axis(g0.strike0, g0.dstrike, g0.nstrike)
+dip_vals = Grid.expand_axis(g0.dip0, g0.ddip, g0.ndip)
+rake_vals = Grid.expand_axis(g0.rake0, g0.drake, g0.nrake)
 
 paraspace = Dict{String, Any}(
     "strike" => strike_vals,
@@ -490,7 +411,6 @@ end
 function result_to_moduledata(result::Dict)::IO.ModuleData
     obs_str = Dict{String, Matrix{Float64}}()
     obs_n2_str = Dict{String, Vector{Float64}}()
-    obs_psr_str = Dict{String, Vector{Float64}}()
     for (bk, bv) in result["obs"]
         k = string(bk)
         if haskey(bv, "obs")
@@ -499,8 +419,7 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
             if haskey(bv, "obs_norm2")
                 obs_n2_str[k] = bv["obs_norm2"]
             end
-        elseif haskey(bv, "obs_psr")
-            obs_psr_str[k] = bv["obs_psr"]
+
         end
     end
 
@@ -537,25 +456,6 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         end
     end
 
-    # PSR reductions
-    amp_P_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
-    amp_S_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
-    if haskey(result, "amp_P")
-        for (d, bands) in result["amp_P"]
-            amp_P_str[d] = Dict{String, Array{Float64, 3}}()
-            for (bk, bv) in bands
-                amp_P_str[d][string(bk)] = bv
-            end
-        end
-    end
-    if haskey(result, "amp_S")
-        for (d, bands) in result["amp_S"]
-            amp_S_str[d] = Dict{String, Array{Float64, 3}}()
-            for (bk, bv) in bands
-                amp_S_str[d][string(bk)] = bv
-            end
-        end
-    end
 
     return IO.ModuleData(
         obs = obs_str,
@@ -564,9 +464,10 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         synamp = syn_str,
         synamp_lag = synamp_lag_str,
         dot_obs_gf_lag = dog_lag_str,
-        amp_P = amp_P_str,
-        amp_S = amp_S_str,
-        obs_psr = obs_psr_str,
+        # TODO(deferred): PSR regions stay empty in XCorr-only mode — restore when Psr re-enabled.
+        amp_P = Dict{Float64, Dict{String, Array{Float64, 3}}}(),
+        amp_S = Dict{Float64, Dict{String, Array{Float64, 3}}}(),
+        obs_psr = Dict{String, Vector{Float64}}(),
         channel_id = result["channel_id"],
         station_idx = full_to_phys[result["station_idx"]],
     )
@@ -590,28 +491,7 @@ IO.write_database(
     paraspace = paraspace,
 )
 
-# persist Layer 0 intermediate (debug): /preprocess, /gf_preprocessed
-h5open(db_path, "r+") do f
-    pp = create_group(f, "preprocess")
-    for ((lo, hi), chs) in prepro_obs
-        bkey = "$(lo)_$(hi)"
-        cg = create_group(pp, bkey)
-        for (ch_id, wf) in chs
-            cg[ch_id] = wf
-        end
-    end
-    gp = create_group(f, "gf_preprocessed")
-    for ((lo, hi), depths_dict) in prepro_gf
-        bkey = "$(lo)_$(hi)"
-        bg = create_group(gp, bkey)
-        for (d, chs) in depths_dict
-            dg = create_group(bg, string(d))
-            for (ch_id, gf) in chs
-                dg[ch_id] = gf
-            end
-        end
-    end
-end
+# TODO(deferred): /preprocess + /gf_preprocessed debug persistence removed — XCorr-only mode, restore from git HEAD 0a9ad69.
 mod_summary = join(
     [
         "$(length(module_results[mn]["channel_id"])) $mn" for
@@ -625,7 +505,6 @@ mod_summary = join(
 # /strategy: 全空间 5° 默认网格 (SDR) + 全 depth/freq 索引, iteration 0
 @info "Writing status_0.h5 ..."
 
-g0 = Grid.default_grid()
 strategy = IO.Strategy(
     g0.strike0,
     g0.dstrike,

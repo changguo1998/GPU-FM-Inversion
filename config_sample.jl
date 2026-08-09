@@ -19,13 +19,7 @@ using Misfit
 
 Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(
-    :PolarityP,
-    operator = Misfit.Polarity,
-    phase = "P",
-    output = Misfit.Polarity.SYN_SIGN,
-)
-
+# TODO(deferred): PolarityP registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
 using Aggregate
 
 # AbsShift: XCorr best_lag -> time shift (Level 1)
@@ -48,7 +42,6 @@ Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.max_lag_periods() = 3.0
 Config.XcorrS.filter_order() = 4
 
-Config.PolarityP.source_duration() = 2.0
 
 # Frequency bands
 Config.freq_bands() = [(0.5, 2.0)]
