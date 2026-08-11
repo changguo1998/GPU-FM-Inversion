@@ -37,8 +37,14 @@ status_path, iter_n = IO.find_latest_status(status_dir)
 trials = IO.read_trials(status_path)
 misfits = IO.read_misfits(status_path)  # Dict{Symbol, Matrix{Float64}} [entries × trials]
 modules = sort(collect(keys(misfits)))
+# Physical axis values live only in /paraspace; trials carry indices.
+_ps = IO.read_paraspace(db_path)
+paraspace_strike = Float64.(_ps["strike"])
+paraspace_dip = Float64.(_ps["dip"])
+paraspace_rake = Float64.(_ps["rake"])
+paraspace_depth = Float64.(_ps["depth"])
 
-n_trials = length(trials.strike)
+n_trials = length(trials.strike_idx)
 xcorr_mods = [Symbol(m) for m in (:XcorrP, :XcorrS) if haskey(misfits, Symbol(m))]
 # 无 Xcorr → 退化为任意模块
 if isempty(xcorr_mods)
@@ -62,10 +68,10 @@ for m in xcorr_mods
 end
 best_idx = argmin(total)
 best = (
-    strike = trials.strike[best_idx],
-    dip = trials.dip[best_idx],
-    rake = trials.rake[best_idx],
-    depth = trials.depth[best_idx],
+    strike = paraspace_strike[trials.strike_idx[best_idx]],
+    dip = paraspace_dip[trials.dip_idx[best_idx]],
+    rake = paraspace_rake[trials.rake_idx[best_idx]],
+    depth = paraspace_depth[trials.depth_idx[best_idx]],
     depth_idx = trials.depth_idx[best_idx],
     freq_idx = trials.freq_idx[best_idx],
     misfit = total[best_idx],
@@ -89,10 +95,13 @@ thr = best.misfit * 1.05
 nb = findall(total .<= thr)
 nb2 = length(nb) >= 2 ? nb : [best_idx]
 uncertainty = Dict{String, Any}(
-    "strike_std" => std(trials.strike[nb2]),
-    "dip_std" => std(trials.dip[nb2]),
-    "rake_std" => std(trials.rake[nb2]),
-    "depth_range" => [minimum(trials.depth[nb2]), maximum(trials.depth[nb2])],
+    "strike_std" => std(paraspace_strike[trials.strike_idx[nb2]]),
+    "dip_std" => std(paraspace_dip[trials.dip_idx[nb2]]),
+    "rake_std" => std(paraspace_rake[trials.rake_idx[nb2]]),
+    "depth_range" => [
+        minimum(paraspace_depth[di] for di in trials.depth_idx[nb2]),
+        maximum(paraspace_depth[di] for di in trials.depth_idx[nb2]),
+    ],
     "freq_test_misfit_curve" => fill(NaN, 1, 1),
 )
 

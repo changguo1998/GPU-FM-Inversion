@@ -50,23 +50,41 @@ int main(int argc, char *argv[]) {
         Hdf5Handle status_file;
         status_file.open(status_path.c_str(), H5F_ACC_RDWR);
 
+        // Physical axis values from /paraspace (sole authority); trials carry indices
+        Hdf5Handle db_reader;
+        db_reader.open(database_path.c_str(), H5F_ACC_RDONLY);
+
         int N_trials = status_file.read_int_scalar("/trials/N_trials");
 
-        auto strike_host = status_file.read_double_1d("/trials/strike");
-        auto dip_host = status_file.read_double_1d("/trials/dip");
-        auto rake_host = status_file.read_double_1d("/trials/rake");
-        auto depth_host = status_file.read_double_1d("/trials/depth");
-        auto d_idx_host = status_file.read_int_1d("/trials/depth_idx");
+        auto s_idx_host = status_file.read_int_1d("/trials/strike_idx");
+        auto d_idx_host = status_file.read_int_1d("/trials/dip_idx");
+        auto r_idx_host = status_file.read_int_1d("/trials/rake_idx");
+        auto dep_idx_host = status_file.read_int_1d("/trials/depth_idx");
         auto f_idx_host = status_file.read_int_1d("/trials/freq_idx");
+
+        auto strike_vals = db_reader.read_double_1d("/paraspace/strike");
+        auto dip_vals = db_reader.read_double_1d("/paraspace/dip");
+        auto rake_vals = db_reader.read_double_1d("/paraspace/rake");
+
+        auto axis_val = [](const std::vector<double> &vals, int idx) -> double {
+            return (idx >= 1 && idx <= static_cast<int>(vals.size())) ? vals[idx - 1] : 0.0;
+        };
 
         std::vector<Trial> trials(N_trials);
         for (int i = 0; i < N_trials; ++i) {
-            trials[i] = Trial {strike_host[i],
-                               dip_host[i],
-                               rake_host[i],
-                               depth_host[i],
-                               static_cast<int32_t>(d_idx_host[i]),
-                               static_cast<int32_t>(f_idx_host[i])};
+            int32_t si = static_cast<int32_t>(s_idx_host[i]);
+            int32_t di = static_cast<int32_t>(d_idx_host[i]);
+            int32_t ri = static_cast<int32_t>(r_idx_host[i]);
+            int32_t depi = static_cast<int32_t>(dep_idx_host[i]);
+            int32_t fi = static_cast<int32_t>(f_idx_host[i]);
+            trials[i] = Trial {si,
+                               di,
+                               ri,
+                               depi,
+                               fi,
+                               axis_val(strike_vals, si),
+                               axis_val(dip_vals, di),
+                               axis_val(rake_vals, ri)};
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -88,11 +106,8 @@ int main(int argc, char *argv[]) {
         }
 
         // ══════════════════════════════════════════════════════════════
-        // 3. Read module config from database.h5:/config
+        // 3. Read module config from database.h5:/config (db_reader open above)
         // ══════════════════════════════════════════════════════════════
-        Hdf5Handle db_reader;
-        db_reader.open(database_path.c_str(), H5F_ACC_RDONLY);
-
         auto module_names = db_reader.read_string_1d("/config/misfit_modules");
         std::vector<ModuleConfig> modules;
         for (const auto &m : module_names) {

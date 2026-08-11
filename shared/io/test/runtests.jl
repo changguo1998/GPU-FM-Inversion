@@ -71,10 +71,9 @@ function make_synthetic_status()
 
     # ---- Trials ----
     trials = IO.TrialSet(
-        collect(100.0:10.0:200.0),  # strike
-        collect(40.0:5.0:60.0),     # dip
-        collect(-120.0:20.0:-60.0), # rake
-        fill(12.3, 11),             # depth
+        Int32.(1:11),               # strike_idx
+        fill(Int32(2), 11),         # dip_idx
+        Int32.(1:11),               # rake_idx
         Int32.(1:11),               # depth_idx
         fill(Int32(1), 11),         # freq_idx
     )
@@ -327,9 +326,10 @@ end
     @testset "trials round-trip" begin
         fn = tmpfile("test_status.h5")
         trials = IO.read_trials(fn)
-        @test length(trials.strike) == 11
-        @test trials.strike[1] ≈ 100.0
-        @test trials.strike[end] ≈ 200.0
+        @test length(trials.strike_idx) == 11
+        @test trials.strike_idx[1] == 1
+        @test trials.strike_idx[end] == 11
+        @test trials.dip_idx == fill(Int32(2), 11)
         @test trials.depth_idx isa Vector{Int32}
         @test all(trials.freq_idx .== 1)
     end

@@ -109,9 +109,11 @@ void DataCache::load_from_database(const std::string &database_path,
     std::vector<std::string> s_ids;
     int n_stations = 0;
     try {
-        // Read channel_id from each group (P then S)
-        p_ids = read_phase_ids(file_id, "/XcorrP/channel_id");
-        s_ids = read_phase_ids(file_id, "/XcorrS/channel_id");
+        // Read channel_id from each group (P then S) -- each group optional
+        if (H5Lexists(file_id, "/XcorrP/channel_id", H5P_DEFAULT) > 0)
+            p_ids = read_phase_ids(file_id, "/XcorrP/channel_id");
+        if (H5Lexists(file_id, "/XcorrS/channel_id", H5P_DEFAULT) > 0)
+            s_ids = read_phase_ids(file_id, "/XcorrS/channel_id");
         // Combine: P first, S after (matches xcorr array convention)
         phase_ids.reserve(p_ids.size() + s_ids.size());
         phase_ids.insert(phase_ids.end(), p_ids.begin(), p_ids.end());
@@ -176,7 +178,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     h5.open(database_path.c_str(), H5F_ACC_RDONLY);
 
     std::string freq_str = std::to_string(freq_idx);
-    std::string depth_str; // will be set from depth_vals below
+    std::string depth_str; // 1-based GF depth index (matches /paraspace/depth, /trials/depth_idx)
 
     int n_ph = entry.n_phases;
 
@@ -198,36 +200,24 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     bool has_polarity = false;
     bool has_psr = false;
 
-    // ── Map depth_idx -> depth_val from config ────────────────────────────
-    std::vector<double> depth_vals;
-    try {
-        depth_vals = h5.read_double_1d("/paraspace/depth");
-    } catch (...) {
-        depth_vals = {};
-    }
-    double depth_val = 0.0;
-    if (depth_idx >= 1 && depth_idx <= static_cast<int>(depth_vals.size())) {
-        depth_val = depth_vals[depth_idx - 1]; // 1-based index -> 0-based
-    } else {
-        std::cerr << "DataCache: depth_idx " << depth_idx
-                  << " out of range (depth_vals size=" << depth_vals.size() << ")" << std::endl;
-    }
-    std::ostringstream depth_ss;
-    depth_ss << std::fixed << std::setprecision(1) << depth_val;
-    depth_str = depth_ss.str();
+    // ── GF group names = 1-based depth index (matches /paraspace/depth) ──
+    // Physical values live only in /paraspace/depth; path construction uses
+    // the index directly so no float formatting can skew group names.
+    depth_str = std::to_string(depth_idx);
 
     // ── Read station_idx for phase->channel mapping (polarity) ─────────────
     // Combined from XcorrP (P phases first) then xcorrS (S phases)
     std::vector<int> station_idx;
-    try {
-        auto p_si = h5.read_int_1d("/XcorrP/station_idx");
-        auto s_si = h5.read_int_1d("/XcorrS/station_idx");
-        station_idx.reserve(p_si.size() + s_si.size());
-        station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
-        station_idx.insert(station_idx.end(), s_si.begin(), s_si.end());
-    } catch (...) {
+    std::vector<int> p_si, s_si;
+    if (H5Lexists(h5.file_id, "/XcorrP/station_idx", H5P_DEFAULT) > 0)
+        p_si = h5.read_int_1d("/XcorrP/station_idx");
+    if (H5Lexists(h5.file_id, "/XcorrS/station_idx", H5P_DEFAULT) > 0)
+        s_si = h5.read_int_1d("/XcorrS/station_idx");
+    station_idx.reserve(p_si.size() + s_si.size());
+    station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
+    station_idx.insert(station_idx.end(), s_si.begin(), s_si.end());
+    if (station_idx.empty())
         station_idx.resize(n_ph, 0);
-    }
 
     // ── Determine P/S indices (data already partitioned in groups) ──────
     std::vector<int> p_indices(n_p), s_indices(n_s);

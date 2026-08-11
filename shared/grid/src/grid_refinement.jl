@@ -8,7 +8,7 @@ search grid.
 
 # Fields
 - `sdr::Vector{Float64}`: best [strike, dip, rake] in degrees
-- `depth_idx::Int32`: index of best depth into `/config/depth_vals`
+- `depth_idx::Int32`: index of best depth into `/paraspace/depth`
 - `freq_idx::Int32`: index of best frequency band
 - `misfit::Float64`: weighted misfit of best trial
 - `depth_misfits::Vector{Float64}`: misfit per depth index at best SDR `[N_depths]`

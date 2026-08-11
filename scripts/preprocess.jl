@@ -3,7 +3,8 @@
 # preprocess.jl - 试次生成 (trial generation)
 #
 # 读最新 status_N.h5 的 /strategy（完整网格定义 + depth/freq 索引），
-# 从 database.h5 /paraspace/depth 取物理深度值，生成笛卡尔积试次，
+# 生成笛卡尔积试次（depth/freq 以整数索引表示，物理深度值仅存于
+# database.h5 /paraspace/depth，output 时按需解析），
 # 写回同一 status_N.h5 的 /trials。forward 阶段随后消费 /trials。
 #
 # Usage:
@@ -22,7 +23,6 @@ using IO, Grid
 data_dir = ENV["DATA_DIR"]
 StageLog.setup_logger!("preprocess", joinpath(data_dir, "preprocess.log"))
 
-db_path = joinpath(data_dir, "database.h5")
 status_dir = joinpath(data_dir, "status")
 
 status_path, iter_n = IO.find_latest_status(status_dir)
@@ -35,17 +35,13 @@ status_path, iter_n = IO.find_latest_status(status_dir)
 # === 2. 读策略（完整网格） ===
 strategy = IO.read_strategy(status_path)
 
-# === 3. 读物理深度值 ===
-paraspace = IO.read_paraspace(db_path)
-depth_vals = Float64.(paraspace["depth"])
-
-# === 4. 生成试次 ===
+# === 3. 生成试次 === (depth/freq 以整数索引表示; 物理深度值仅存于 /paraspace/depth)
 @info "  grid: strike $(strategy.nstrike) × dip $(strategy.ndip) × rake $(strategy.nrake) @ $(strategy.dstrike)°, depth $(length(strategy.depth_indices)), freq $(length(strategy.freq_indices))"
 t0 = time()
-trials = Grid.generate_trials(strategy, depth_vals)
+trials = Grid.generate_trials(strategy)
 elapsed = time() - t0
 
-@info "  generated $(length(trials.strike)) trials in $(round(elapsed, digits = 3)) s"
+@info "  generated $(length(trials.strike_idx)) trials in $(round(elapsed, digits = 3)) s"
 
 # === 5. 写 /trials ===
 IO.write_trials(status_path, trials)

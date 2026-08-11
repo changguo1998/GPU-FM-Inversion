@@ -16,12 +16,16 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 struct Trial {
+    // 1-based indices into /paraspace axes; physical values resolved below
+    int32_t strike_idx;
+    int32_t dip_idx;
+    int32_t rake_idx;
+    int32_t depth_idx;
+    int32_t freq_idx;
+    // Resolved physical values from /paraspace (angles in degrees, for MT)
     double strike;
     double dip;
     double rake;
-    double depth;
-    int32_t depth_idx;
-    int32_t freq_idx;
 };
 
 // ──────────────────────────────────────────────────────────────────────────

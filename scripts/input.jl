@@ -347,7 +347,10 @@ event_dict = Dict{String, Any}(
 )
 
 g0 = Grid.default_grid()
-strike_vals = Grid.expand_axis(g0.strike0, g0.dstrike, g0.nstrike)
+# strike: 全圆周闭合采样 0:5:355 (72 点)。末点 355+5=360 ≡ 0，
+# 均匀覆盖整个圆周无空洞。dip/rake 为区间采样 (0..90 / -90..90)。
+strike_vals = collect(g0.strike0:g0.dstrike:(360.0 - g0.dstrike))
+@assert length(strike_vals) == Int(g0.nstrike) "paraspace strike 与 strategy.nstrike 不一致"
 dip_vals = Grid.expand_axis(g0.dip0, g0.ddip, g0.ndip)
 rake_vals = Grid.expand_axis(g0.rake0, g0.drake, g0.nrake)
 

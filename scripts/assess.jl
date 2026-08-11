@@ -24,7 +24,7 @@ modules = cfg["misfit_modules"]
 stations = IO.read_stations(db_path)
 N_stations = length(stations)
 trials = IO.read_trials(status_path)
-N_trials = length(trials.strike)
+N_trials = length(trials.strike_idx)
 
 # station_idx per module (from database.h5 /{Module}/station_idx, 1-based Int32)
 module_station_idx = Dict{String, Vector{Int32}}()

@@ -98,19 +98,19 @@ struct PhasePick
 end
 
 struct TrialSet
-    strike::Vector{Float64}
-    dip::Vector{Float64}
-    rake::Vector{Float64}
-    depth::Vector{Float64}
+    strike_idx::Vector{Int32}
+    dip_idx::Vector{Int32}
+    rake_idx::Vector{Int32}
     depth_idx::Vector{Int32}
     freq_idx::Vector{Int32}
 end
 
 # Default full-space 5°-resolution grid (matches search-space convention).
+# Strike wraps the full circle: 0:5:355 = 72 points (355+5 = 360 ≡ 0).
 const DEFAULT_GRID = (
     strike0 = 0.0,
     dstrike = 5.0,
-    nstrike = Int32(71),
+    nstrike = Int32(72),
     dip0 = 0.0,
     ddip = 5.0,
     ndip = Int32(19),
@@ -292,10 +292,9 @@ function read_trials(h5file)::TrialSet
         f -> begin
             gr = f["trials"]
             TrialSet(
-                read(gr["strike"]),
-                read(gr["dip"]),
-                read(gr["rake"]),
-                read(gr["depth"]),
+                read(gr["strike_idx"]),
+                read(gr["dip_idx"]),
+                read(gr["rake_idx"]),
                 read(gr["depth_idx"]),
                 read(gr["freq_idx"]),
             )
@@ -365,15 +364,12 @@ function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
 end
 
 function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
-    # New schema: /gf/{depth_val}/{channel_id}
+    # Schema: /gf/{idx}/{channel_id} — idx = 1-based index into /paraspace/depth
+    # (no physical-value formatting on group names)
     # Extract channel_id from phase_id (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
     parts = split(phase_id, ".")
     ch_id = join(parts[1:3], ".")
-    # Read depth from paraspace to map index -> depth value
-    ps = read_paraspace(h5file)
-    depth_vals = ps["depth"]
-    depth_val = depth_vals[depth_idx]
-    gf_path = "/gf/$(depth_val)/$(ch_id)"
+    gf_path = "/gf/$(depth_idx)/$(ch_id)"
     return h5open(f -> read(f[gf_path]), h5file, "r")
 end
 
@@ -398,6 +394,15 @@ end
 
 # Writers
 
+# Map a GF depth key (physical value, km) -> 1-based index into /paraspace/depth.
+# GF group names are indices (matching /trials/depth_idx), so physical values
+# never leak into group names; a missing depth is a hard error, not a silent rename.
+function _gf_depth_index(paraspace_depth::Vector{Float64}, depth::Float64)::Int
+    idx = findfirst(==(depth), paraspace_depth)
+    idx === nothing && error("write_database: GF depth $depth not found in /paraspace/depth")
+    return idx
+end
+
 function write_database(
     h5file,
     config,
@@ -408,6 +413,14 @@ function write_database(
     module_data::Dict{String, ModuleData};
     paraspace = nothing,
 )
+    # GF group names are 1-based indices into /paraspace/depth (matching
+    # /trials/depth_idx); physical depth values live only in /paraspace.
+    paraspace_depth =
+        paraspace !== nothing ? Float64.(get(paraspace, "depth", Float64[])) : Float64[]
+    if !isempty(gf_data) && isempty(paraspace_depth)
+        error("write_database: gf_data requires /paraspace/depth for index-based group naming")
+    end
+
     h5open(h5file, "w") do f
         # /paraspace - expanded parameter-space float arrays
         if paraspace !== nothing
@@ -439,10 +452,10 @@ function write_database(
             write(chgr, ch_id, wf)
         end
 
-        # /gf/{depth}/{channel_id}
+        # /gf/{idx}/{channel_id} — idx = 1-based index into /paraspace/depth
         gfgr = HDF5.create_group(f, "gf")
         for (depth, ch_data) in gf_data
-            dgr = HDF5.create_group(gfgr, string(depth))
+            dgr = HDF5.create_group(gfgr, string(_gf_depth_index(paraspace_depth, depth)))
             for (ch_id, gf_mat) in ch_data
                 write(dgr, ch_id, gf_mat)
             end
@@ -471,7 +484,7 @@ function write_database(
             gf_gr = HDF5.create_group(m_gr, "gf")
             for depth in sort(collect(keys(md.gf)))
                 bands = md.gf[depth]
-                d_gr = HDF5.create_group(gf_gr, string(depth))
+                d_gr = HDF5.create_group(gf_gr, string(_gf_depth_index(paraspace_depth, depth)))
                 for band_key in sort(collect(keys(bands)))
                     gf_arr = bands[band_key]
                     b_gr = HDF5.create_group(d_gr, band_key)
@@ -486,7 +499,7 @@ function write_database(
                 sl_gr = HDF5.create_group(m_gr, "synamp_lag")
                 for depth in sort(collect(keys(md.synamp_lag)))
                     bands = md.synamp_lag[depth]
-                    d_gr = HDF5.create_group(sl_gr, string(depth))
+                    d_gr = HDF5.create_group(sl_gr, string(_gf_depth_index(paraspace_depth, depth)))
                     for band_key in sort(collect(keys(bands)))
                         d_gr[band_key] = bands[band_key]
                     end
@@ -503,7 +516,7 @@ function write_database(
                 ap_gr = HDF5.create_group(m_gr, "amp_P")
                 for depth in sort(collect(keys(md.amp_P)))
                     bands = md.amp_P[depth]
-                    d_gr = HDF5.create_group(ap_gr, string(depth))
+                    d_gr = HDF5.create_group(ap_gr, string(_gf_depth_index(paraspace_depth, depth)))
                     for band_key in sort(collect(keys(bands)))
                         d_gr[band_key] = bands[band_key]
                     end
@@ -513,7 +526,7 @@ function write_database(
                 as_gr = HDF5.create_group(m_gr, "amp_S")
                 for depth in sort(collect(keys(md.amp_S)))
                     bands = md.amp_S[depth]
-                    d_gr = HDF5.create_group(as_gr, string(depth))
+                    d_gr = HDF5.create_group(as_gr, string(_gf_depth_index(paraspace_depth, depth)))
                     for band_key in sort(collect(keys(bands)))
                         d_gr[band_key] = bands[band_key]
                     end
@@ -535,13 +548,12 @@ function write_trials(h5file, trials::TrialSet)
             HDF5.delete_object(f["trials"])
         end
         gr = HDF5.create_group(f, "trials")
-        write(gr, "strike", trials.strike)
-        write(gr, "dip", trials.dip)
-        write(gr, "rake", trials.rake)
-        write(gr, "depth", trials.depth)
+        write(gr, "strike_idx", trials.strike_idx)
+        write(gr, "dip_idx", trials.dip_idx)
+        write(gr, "rake_idx", trials.rake_idx)
         write(gr, "depth_idx", trials.depth_idx)
         write(gr, "freq_idx", trials.freq_idx)
-        write(gr, "N_trials", Int32(length(trials.strike)))
+        write(gr, "N_trials", Int32(length(trials.strike_idx)))
     end
 end
 

@@ -5,7 +5,7 @@
 
 Default initial search grid covering the full parameter space at 5° resolution
 (single source of truth: `IO.DEFAULT_GRID`).
-strike: 0:5:355 (71), dip: 0:5:90 (19), rake: -90:5:90 (37).
+strike: 0:5:355 (72, full circle), dip: 0:5:90 (19), rake: -90:5:90 (37).
 """
 default_grid() = H5IO.DEFAULT_GRID
 
@@ -31,16 +31,20 @@ end
 # Main function
 
 """
-    generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64}) -> H5IO.TrialSet
+    generate_trials(strategy::H5IO.Strategy) -> H5IO.TrialSet
 
 Generate trials as the Cartesian product of varying axes:
 strike (outermost) → dip → rake → depth → freq (innermost).
 Depth/freq axes use the strategy's `depth_indices`/`freq_indices` subsets.
+Trials carry **indices only** (strike_idx/dip_idx/rake_idx/depth_idx/freq_idx,
+1-based into `/paraspace` axes) — physical values live exclusively in
+`/paraspace` and are resolved on forward (MT) / output.
 """
-function generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64})::H5IO.TrialSet
-    strikes = expand_axis(strategy.strike0, strategy.dstrike, strategy.nstrike)
-    dips = expand_axis(strategy.dip0, strategy.ddip, strategy.ndip)
-    rakes = expand_axis(strategy.rake0, strategy.drake, strategy.nrake)
+function generate_trials(strategy::H5IO.Strategy)::H5IO.TrialSet
+    # Axis lengths: SDR from grid dims (n<=0 => single point), depth/freq from indices
+    strike_idxs = Int32.(1:max(Int(strategy.nstrike), 1))
+    dip_idxs = Int32.(1:max(Int(strategy.ndip), 1))
+    rake_idxs = Int32.(1:max(Int(strategy.nrake), 1))
 
     if isempty(strategy.depth_indices)
         depth_idxs = Int32[1]
@@ -54,37 +58,30 @@ function generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64})::
         freq_idxs = strategy.freq_indices
     end
 
-    n_strikes = length(strikes)
-    n_dips = length(dips)
-    n_rakes = length(rakes)
+    n_strikes = length(strike_idxs)
+    n_dips = length(dip_idxs)
+    n_rakes = length(rake_idxs)
     n_depths = length(depth_idxs)
     n_freqs = length(freq_idxs)
 
     n_trials = n_strikes * n_dips * n_rakes * n_depths * n_freqs
 
-    strikes_out = Vector{Float64}(undef, n_trials)
-    dips_out = Vector{Float64}(undef, n_trials)
-    rakes_out = Vector{Float64}(undef, n_trials)
-    depths_out = Vector{Float64}(undef, n_trials)
+    strikes_out = Vector{Int32}(undef, n_trials)
+    dips_out = Vector{Int32}(undef, n_trials)
+    rakes_out = Vector{Int32}(undef, n_trials)
     depth_idx_out = Vector{Int32}(undef, n_trials)
     freq_idx_out = Vector{Int32}(undef, n_trials)
 
     idx = 1
-    for s in strikes
-        for d in dips
-            for r in rakes
+    for s in strike_idxs
+        for d in dip_idxs
+            for r in rake_idxs
                 for didx in depth_idxs
-                    depth_val = if 1 <= didx <= length(depth_vals)
-                        depth_vals[didx]
-                    else
-                        NaN
-                    end
                     for fidx in freq_idxs
                         strikes_out[idx] = s
                         dips_out[idx] = d
                         rakes_out[idx] = r
                         depth_idx_out[idx] = didx
-                        depths_out[idx] = depth_val
                         freq_idx_out[idx] = fidx
                         idx += 1
                     end
@@ -93,5 +90,5 @@ function generate_trials(strategy::H5IO.Strategy, depth_vals::Vector{Float64})::
         end
     end
 
-    return H5IO.TrialSet(strikes_out, dips_out, rakes_out, depths_out, depth_idx_out, freq_idx_out)
+    return H5IO.TrialSet(strikes_out, dips_out, rakes_out, depth_idx_out, freq_idx_out)
 end

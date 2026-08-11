@@ -17,12 +17,12 @@ end
 @testset "default_grid matches IO.DEFAULT_GRID" begin
     g = Grid.default_grid()
     @test g == IO.DEFAULT_GRID
-    @test g.nstrike == 71 && g.ndip == 19 && g.nrake == 37
+    @test g.nstrike == 72 && g.ndip == 19 && g.nrake == 37
 end
 
 # === generate_trials ===
 
-# Full-space default strategy: 71×19×37 strikes/dips/rakes × 3 depths × 1 freq
+# Full-space default strategy: 72×19×37 strikes/dips/rakes × 3 depths × 1 freq
 function full_strategy()
     return IO.Strategy(
         IO.DEFAULT_GRID.strike0,
@@ -41,15 +41,13 @@ function full_strategy()
 end
 
 @testset "generate_trials count and nesting" begin
-    trials = Grid.generate_trials(full_strategy(), [10.0, 20.0, 30.0])
-    n = 71 * 19 * 37 * 3 * 1
-    @test length(trials.strike) == n
-    # nesting: strike outermost, freq innermost
-    @test trials.strike[1] == 0.0 && trials.strike[n] == 350.0  # 0:5:350 = 71 values
+    trials = Grid.generate_trials(full_strategy())
+    n = 72 * 19 * 37 * 3 * 1
+    @test length(trials.strike_idx) == n
+    # nesting: strike outermost, freq innermost; all params are 1-based indices
+    @test trials.strike_idx[1] == 1 && trials.strike_idx[n] == 72  # 72-axis
     @test trials.freq_idx[1] == 1
-    # depth values mapped from depth_vals by index; depth cycles within each
-    # (strike,dip,rake) combo (strike → dip → rake → depth → freq nesting)
-    @test trials.depth[1:3] == [10.0, 20.0, 30.0]
+    # cycles within each (strike,dip,rake) combo (strike → dip → rake → depth → freq)
     @test trials.depth_idx[1:3] == Int32[1, 2, 3]
     @test trials.depth_idx == Int32.(repeat([1, 2, 3], n ÷ 3))
 end
@@ -69,32 +67,11 @@ end
         Int32[],
         Int32(0),
     )
-    trials = Grid.generate_trials(s, [10.0])
+    trials = Grid.generate_trials(s)
     # SDR 3×3×3 × depth[1] × freq[1]
-    @test length(trials.strike) == 27
+    @test length(trials.strike_idx) == 27
     @test all(trials.depth_idx .== 1)
     @test all(trials.freq_idx .== 1)
-end
-
-@testset "generate_trials out-of-range depth_idx → NaN depth" begin
-    s = IO.Strategy(
-        0.0,
-        5.0,
-        Int32(1),
-        0.0,
-        5.0,
-        Int32(1),
-        0.0,
-        5.0,
-        Int32(1),
-        Int32[5],
-        Int32[1],
-        Int32(0),  # depth_idx 5 out of range of depth_vals
-    )
-    trials = Grid.generate_trials(s, [10.0])
-    @test length(trials.strike) == 1
-    @test isnan(trials.depth[1])
-    @test trials.depth_idx == Int32[5]
 end
 
 # === refine_strategy ===
