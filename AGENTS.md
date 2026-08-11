@@ -24,9 +24,19 @@ config_sample.jl   Template pipeline configuration
 | Config | `shared/config/AGENTS.md` | Pipeline configuration interface |
 | StageLog | `shared/stage_log/AGENTS.md` | Per-stage logging |
 
+## 开发路线 (Development approach)
+
+围绕一个事例数据（`examples/synthetic`），先以 **XCorr 为唯一目标函数** 打通并打磨全流程
+（input → preprocess → forward → assess → output），最后再扩展其他算子（Polarity/Psr）。
+
+- 当前所有开发决策以 `examples/synthetic` 为准：改动必须保持 XCorr 全流程在该事例上端到端可跑，best 结果可复现。
+  - **验收基线（修复 mt 布局 bug 后，2026-08-10）**：72 网格全链 best = **(30,65,-90) @ 10 km, misfit ≈ 0.1593**（XCorrS-only，9 通道）。合成数据真实源为 (30,60,90,10 km)（`tests/synthetic_data.jl` DEFAULT\_\*）；rake ±90 为 |cc_max| 无极性下的互补节点，misfit 相同；dip 60 vs 65 因数据噪声/台站几何仅差 ~0.009。
+  - **历史警告**：2026-08-10 前所有 e2e 的 best #29522 (65,90,85, 0.15518) 均由 XCorr kernel 的 **MT 布局 bug**（kernel 列主读 `mt[trial + c*N]`、main 行主写 `mt[trial*6+c]`）产生，已作废。该 bug 与 trial 规模耦合（n_sub=1 时行列主等价掩盖），在 strike 72 网格（n_sub=50616）暴露为"misfit 错乱"；修复后 71/72 网格结果完全一致。
+- XCorr 一族（XcorrP/S、AbsShiftP/S、RelShift）为活跃目标函数/派生诊断；Polarity/Psr 属"算子扩展"阶段，恢复时按 `git HEAD 367dfd1` 前的注册与预处理接线为准。
+
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr 活跃；Polarity/Psr 已实现但 **deferred**，XCorr-only 模式)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛，XCorr-only）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr 活跃；Polarity/Psr 已实现但 **deferred**，XCorr-only 模式)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛，XCorr-only）、**XCorr kernel MT 布局 bug 修复（2026-08-10）**、trials 全参数索引化（strike/dip/rake/depth/freq 均以 `/paraspace` 索引表示）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5

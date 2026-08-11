@@ -2,6 +2,11 @@
 
 已完成数据接入与初始化（`input.jl`）及 Misfit 分解框架（Phase 1，2026-07-16 merge）与算子预处理重构（2026-07-18 merge）。以下为后续阶段规划。
 
+## 开发路线
+
+围绕一个事例数据（`examples/synthetic`），先以 **XCorr 为唯一目标函数** 打通并打磨全流程
+（input → preprocess → forward → assess → output），验证收敛后再扩展其他算子（Polarity/Psr —— 见 Phase 4 / 最后阶段）。
+
 ## Legend
 
 - [x] Completed
@@ -12,7 +17,7 @@ ______________________________________________________________________
 ## 已完成
 
 | Task | 说明 |
-|------------------------------------------------------------------------------------------|---------------------------------------------|
+|------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | [x] IO module - HDF5 read/write, type structs, geophysics utilities | `shared/io/` |
 | [x] MT module - SDR↔MT conversion | `shared/mt/` |
 | [x] Grid module - trial generation + grid refinement | `shared/grid/` |
@@ -27,10 +32,10 @@ ______________________________________________________________________
 ## 设计基线
 
 | 设计文档 | 内容 |
-|-------------------------------|----------------------------------------------------------------------------------------|
+|-------------------------------|-------------------------------------------------------------------------------------------|
 | `doc/design.md` | 管道总体设计（值/索引/参数三层分离、阶段划分） |
 | `doc/schema.md` | HDF5 schema 完整规范 |
-| `doc/misfit-decomposition.md` | Misfit 三层分解（Operator × Phase × Output），C++/GPU 中间产物 + Julia extractor/composer |
+| `doc/misfit-decomposition.md` | Misfit 三层分解（Operator × Phase × Output），C++/OpenMP 中间产物 + Julia extractor/composer |
 
 ______________________________________________________________________
 
@@ -39,16 +44,16 @@ ______________________________________________________________________
 落地 Operator × Phase × Output 三层分解。详见 `doc/misfit-decomposition.md` §12。
 
 | Task | Priority | 说明 |
-|--------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|--------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [x] Misfit package 化 + 输出字段常量 | P0 | `shared/misfit/` 转 package；XCorr/Polarity 加 `outputs()` + 常量；`Config.use_misfit!` 新签名（operator/output）+ 校验；`config_sample.jl` 适配 |
 | [x] forward kernel 产出中间产物 | P0 | `xcorr_kernel.h` 加 `best_lag` 输出；`polarity_kernel.h` 输出 `syn_sign`+`dot_value`；`main.cpp` 写 `/intermediates/` 而非 `/misfits/`，按 (operator,phase,channel) 去重跑 kernel |
 | [x] aggregate extractor + composer | P0 | `shared/aggregate/` 新 package；EXTRACTORS/COMPOSERS 注册表；`scripts/assess.jl` 实现 extract + compose |
-| [x] RelShift 组合示例 | P1 | StdDev composer 实现；`config_sample.jl` 加 AbsShiftP/S + RelShift 示例；`doc/schema.md` 更新 `/intermediates` |
+| [x] RelShift 组合示例 | P1 | StdDev composer 实现；`config_sample.jl` 加 AbsShiftP/S + RelShift 示例；`doc/schema.md` 更新 `/intermediates`（**示例已于 2026-08-09 XCorrS-only 清理时移除**；StdDev composer 保留于 `shared/aggregate/`） |
 
 ## Phase 2: 管道贯通
 
 | Task | Priority | 说明 |
-|-----------------------------------------------|----------|------------------------------------------------------------------------------|
+|-----------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------|
 | [x] `preprocess.jl` - 从 strategy 生成 trials | P0 | 写 status_N.h5 /trials group（已实现，2026-08-07） |
 | [ ] `assess.jl` - 加权/聚合/网格细化 | P0 | 读 misfits，写 refined strategy（extract+compose + 收敛决策已实现；**权重聚合/网格细化待补**） |
 | [x] `output.jl` - 输出编译 | P0 | 读所有 status 文件，写 output.h5（已实现最小版，2026-08-07：Xcorr 主 misfit 选 best；加权聚合落地后完善） |
@@ -56,18 +61,18 @@ ______________________________________________________________________
 
 ## Phase 3: 验证
 
-状态：package 单元测试已通过（io 92、mt 95、config、signal、misfit、aggregate；grid 无测试目录，从根环境 include 运行）。下列为待补项。
+状态：package 单元测试已通过（io 97、mt 95、grid 34、config、signal、misfit、aggregate；从根环境 `julia --project=. -e 'include("shared/<pkg>/test/runtests.jl")'` include 运行）。下列为待补项。
 
 | Task | 说明 |
 |---------------------------------|------------------------------------------------|
 | [ ] input.jl 单元测试 | 验证 database.h5 + status_0.h5 schema |
 | [ ] forward 中间产物测试 | 验证 /intermediates/ 字段（cc_max, best_lag 等） |
 | [ ] assess extract/compose 测试 | 验证 extractor 变换 + composer 聚合 + 拓扑排序 |
-| [ ] 端到端集成测试 | 全管道贯通测试（含 RelShift 组合） |
+| [ ] 端到端集成测试 | 全管道贯通测试（XCorrS-only 单模块） |
 
 ## Phase 4: 高级模块
 
 | Task | 说明 |
-|----------------------------|-------------------------------------------------------------|
+|----------------------------|-----------------------------------------------------------------------------|
 | [x] PSR module | 算子已实现（`Psr.jl` + tests，07-18）；**deferred**（XCorr-only 模式，未注册实例） |
 | [ ] 非交互 operator prompt | 延期 |

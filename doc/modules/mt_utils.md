@@ -75,4 +75,4 @@ Angles are in **radians**. No batch interface in C++ — the Julia side generate
 - `sdr_to_mt_device` is marked `MT_HOST_DEVICE` (expands to `__host__ __device__` under `__CUDACC__`, empty otherwise) for use in both CUDA kernel launches and OpenMP parallel loops (single source, dual-compile).
 - Per-trial SDR→MT conversion may happen during kernel launch or in a separate pre-conversion pass.
 - When pre-converting all trials to `mt[N_trials × 6]`, the conversion runs on device via `Device<Backend>::parallel_for` — same dispatch pattern as the misfit kernels.
-- Flat arrays with explicit strides replace `Kokkos::View`. All data is column-major `double*` with manual index computation.
+- Flat arrays with explicit strides replace `Kokkos::View`. Data is `double*` with manual index computation. Most arrays are column-major; the XCorr MT input is **row-major** (`mt[trial * 6 + comp]`, see `misfit_kernel.md` — fixed 2026-08-10).

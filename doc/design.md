@@ -17,7 +17,7 @@ shared/         Julia packages by function (not stage)
   misfit/       (module: Misfit)    ← Misfit 算子 package（Xcorr 活跃；Polarity/Psr 模板 + 输出字段常量，deferred）
   aggregate/    (module: Aggregate) ← Output extractor + composer 注册表
   stage_log/    (module: StageLog)  ← Per-stage logging
-forward/        C++ forward stage (GPU) ← kernel 产出中间产物
+forward/        C++ forward stage (OpenMP CPU) ← kernel 产出中间产物
 config_sample.jl   Template pipeline configuration
 ```
 
@@ -36,10 +36,10 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 ```
 
 | Stage | Role |
-|-------------------|---------------------------------------------------------------------------------------|
+|--------------------------|---------------------------------------------------------------------------------------|
 | `input.jl` | 已完成。数据接入 -> `database.h5`；初始 strategy -> `status_0.h5` |
 | `preprocess.jl` | 待开发。从 strategy 生成 trials -> `status_{N}.h5` |
-| forward (C++/GPU) | 已设计。kernel 产出**中间产物** -> `status_{N}.h5:/intermediates/`（见 Misfit 分解设计） |
+| forward (C++/OpenMP CPU) | 已实现。kernel 产出**中间产物** -> `status_{N}.h5:/intermediates/`（见 Misfit 分解设计） |
 | `assess.jl` | 待开发。Output extractor + Composer -> `status_{N}.h5:/misfits/`；加权、聚合、网格细化 |
 | `output.jl` | 待开发。编译最终结果 -> `output.h5` |
 | 编排层 | 待设计。状态检测、阶段调用、循环控制 |
@@ -59,7 +59,7 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 
 | 文件 | 组 | 职责 | 示例 |
 |-----------------|--------------|------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| `database.h5` | `/paraspace` | **存值**：展开的浮点数组，所有参数空间维度 | `strike[71]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
+| `database.h5` | `/paraspace` | **存值**：展开的浮点数组，所有参数空间维度 | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
 | `database.h5` | `/config` | **参数**：算法元数据、模块设置，**不含任何索引或浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods` |
 | `status_{N}.h5` | `/strategy` | **网格定义**：SDR 展开轴参数 + 整数索引指向 `/paraspace`，定义当前迭代搜索范围 | `strike0/dstrike/nstrike…`, `depth_indices[3]`, `freq_indices[2]`, `iteration` |
 
@@ -83,7 +83,7 @@ input (once) → loop: [preprocess → forward → assess → [repeat]] → outp
 1. **`forward` 模块无状态** - 读数据 + trials，写**中间产物**到 `/intermediates/`（不产出最终 misfit）。不涉及权重、聚合、策略、输出变换。
 1. **shared packages** — 工具代码在 `shared/` Julia 包中，通过 `using` 导入。
 1. **三层分离** — `/paraspace` 存值，`/config` 存参数，`/strategy` 存索引。三者永不混杂。
-1. **Misfit 三层分解** - Misfit = Operator × Phase × Output。C++/GPU kernel 产出中间产物（`/intermediates/`），Julia extractor/composer 产出最终 misfit（`/misfits/`）。详见 `doc/misfit-decomposition.md`。
+1. **Misfit 三层分解** - Misfit = Operator × Phase × Output。C++/OpenMP kernel 产出中间产物（`/intermediates/`），Julia extractor/composer 产出最终 misfit（`/misfits/`）。详见 `doc/misfit-decomposition.md`。
 
 ## Misfit 分解设计
 
@@ -91,13 +91,13 @@ Misfit = **Operator × Phase × Output**，三者正交组合。完整设计见 
 
 ### 两级 Misfit
 
-- **Level 1（Base）**：Operator（XCorr/Polarity）× Phase（P/S）× Output（cc_max/best_lag/...）。C++/GPU kernel 消费预处理数据，产出**中间产物**写入 `status_{N}.h5:/intermediates/{Operator}{Phase}[_{channel}]/`。同一 (Operator, Phase) 可派生多个 Base misfit，共享一次 kernel 运行。
+- **Level 1（Base）**：Operator（XCorr/Polarity）× Phase（P/S）× Output（cc_max/best_lag/...）。C++/OpenMP kernel 消费预处理数据，产出**中间产物**写入 `status_{N}.h5:/intermediates/{Operator}{Phase}[_{channel}]/`。同一 (Operator, Phase) 可派生多个 Base misfit，共享一次 kernel 运行。
 - **Level 2（Composed）**：Aggregate Operator（StdDev/...）× Base misfit 集合 × Output。纯 Julia，消费 Level 1 已算好的 misfit 值做聚合，不触及波形/GF。
 
 ### C++/Julia 边界
 
 ```
-C++ forward (GPU)  -> /intermediates/   （kernel 重计算）
+C++ forward (OpenMP CPU) -> /intermediates/   （kernel 重计算）
 Julia assess       -> /misfits/         （extractor + composer，语义解释）
 ```
 
@@ -110,12 +110,12 @@ C++ 只做重计算，Julia 做语义解释。边界为 HDF5 文件交换。
 ### Config 接口
 
 ```julia
-Config.use_misfit!(:XcorrP_CC, operator=Misfit.Xcorr, phase="P", output=Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(:AbsShiftP, operator=Misfit.Xcorr, phase="P", output=Misfit.Xcorr.BEST_LAG)
-Config.use_misfit!(:RelShift,  operator=Aggregate.StdDev,
-                  bases=[:AbsShiftP, :AbsShiftS],  # 三分量 Z/N/E 可用 channel 过滤，见 misfit-decomposition §9
-                  output=Aggregate.StdDev.RELATIVE_OFFSET)
+# XCorrS-only 现状注册 (examples/synthetic/config.jl):
+Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
 ```
+
+接口支持多实例/多输出（P 相 CC、时移派生、组合算子等），具体扩展写法见
+`doc/misfit-decomposition.md`；多模块注册已在 XCorrS-only 清理（2026-08-09）时移除。
 
 ## Dimension Symbols
 

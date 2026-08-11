@@ -22,7 +22,7 @@ Used by: `scripts/assess.jl`.
 ## Extractors (`EXTRACTORS[(operator, output)]`)
 
 | Key | Transform |
-|---------------------------|--------------------------------------------------------|
+|---------------------------|-------------------------------------------------------------------------------------------|
 | `(:Xcorr, :cc_max)` | `1 .- cc_max` (normalized CC misfit) |
 | `(:Xcorr, :best_lag)` | `best_lag * dt` (absolute time shift in seconds) |
 | `(:Polarity, :syn_sign)` | mismatch vs observed polarity (`syn_sign .!= obs_pol`) — deferred, no registered instance |

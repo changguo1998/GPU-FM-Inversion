@@ -67,8 +67,8 @@ Algorithm metadata and module-specific parameters. No float parameter-space
 values or integer indices — those live in `/paraspace` and `/strategy` respectively.
 
 | Dataset | Type | Shape | Description |
-|------------------|--------|---------------|------------------------------------------------|
-| `misfit_modules` | String | `[N_modules]` | Active module instance names (e.g. `"XcorrP"`) |
+|------------------|--------|---------------|------------------------------------------------------------------------------|
+| `misfit_modules` | String | `[N_modules]` | Active module instance names (e.g. `"XcorrS"`; XCorrS-only since 2026-08-09) |
 Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
@@ -130,16 +130,22 @@ One dataset per channel-station pair. Dataset name: `{station_id}.{channel}`
 
 ### `/gf`
 
-Green's functions, grouped by depth. One dataset per channel-station pair per depth.
+Green's functions, grouped by **depth index**. One dataset per channel-station
+pair per depth.
+
+Depth group names are **1-based indices into `/paraspace/depth`** (matching
+`/trials/depth_idx`); physical depth values live only in `/paraspace/depth`, so
+group names never carry float-formatted depth strings.
 
 ```
-/gf/{depth}/{station_id}.{channel}    Float64[N_samples_raw × 6]   GF matrix (time × MT components)
+/gf/{idx}/{station_id}.{channel}    Float64[N_samples_raw × 6]   GF matrix (time × MT components)
 ```
 
 ### `/{ModuleName}` — Per-Misfit-Module Data
 
 Each active misfit module instance gets its own group, named after the module
-instance as listed in `misfit_modules` (e.g. `XcorrP`, `XcorrS`, `Polarity`).
+instance as listed in `misfit_modules` (e.g. `XcorrS`; other operators registered
+only when restored from the XCorrS-only mode).
 
 The internal structure follows a general schema:
 
@@ -160,9 +166,9 @@ Observation data per frequency band. `band` is the 1-indexed band number.
 | `obs_norm2` | Float64 | `[N_entries]` | Energy of each trace (XCorr modules only) |
 | `obs_psr` | Float64 | `[N_entries]` | `log10(rms_P / rms_S)` amplitude ratio (PSR modules only) |
 
-**`/{ModuleName}/gf/{depth}/{band}/`**
+**`/{ModuleName}/gf/{idx}/{band}/`**
 
-Green's function data per depth and frequency band.
+Green's function data per depth (index) and frequency band.
 
 | Dataset | Type | Shape | Description |
 |------------------|---------|-----------------------------|--------------------------------------------------------------------------------------|
@@ -178,6 +184,9 @@ The exact shape dimensions depend on the module type:
 - For XCorr instances: `N_entries = N_phases_{P,S}` (number of phase entries)
 - For Polarity: `N_entries = N_channels` (number of channels)
 - For PSR: `N_entries = N_stations` (one entry per station with both P and S picks)
+
+Depth group names follow `/gf/{idx}` (1-based index into `/paraspace/depth`),
+consistent with `/trials/depth_idx`.
 
 Note: `/{ModuleName}/gf/...` above reflects per-lag reductions (XCorr) and
 amplitude ratios (PSR). The Layer 0 `/preprocess` and `/gf_preprocessed` debug
@@ -205,7 +214,7 @@ Plus the iteration counter.
 |-----------------|---------|--------|--------------------------------------------------------|
 | `strike0` | Float64 | scalar | Strike grid start (deg) |
 | `dstrike` | Float64 | scalar | Strike step (deg) |
-| `nstrike` | Int32 | scalar | Strike count (71 = full space 5°) |
+| `nstrike` | Int32 | scalar | Strike count (72 = full space 5°, wraps 0..355) |
 | `dip0` | Float64 | scalar | Dip grid start (deg) |
 | `ddip` | Float64 | scalar | Dip step (deg) |
 | `ndip` | Int32 | scalar | Dip count (19 = full space 5°) |
@@ -223,21 +232,26 @@ The full-space 5° grid (initial iteration) is the single source of truth
 ### `/trials`
 
 | Dataset | Type | Shape | Description |
-|-------------|---------|--------------|----------------------|
-| `strike` | Float64 | `[N_trials]` | Strike angles (deg) |
-| `dip` | Float64 | `[N_trials]` | Dip angles (deg) |
-| `rake` | Float64 | `[N_trials]` | Rake angles (deg) |
-| `depth` | Float64 | `[N_trials]` | Depth (km) |
-| `depth_idx` | Int32 | `[N_trials]` | GF depth index |
+|--------------|-------|--------------|------------------------------------------------------|
+| `strike_idx` | Int32 | `[N_trials]` | Strike axis index into `/paraspace/strike` (1-based) |
+| `dip_idx` | Int32 | `[N_trials]` | Dip axis index into `/paraspace/dip` (1-based) |
+| `rake_idx` | Int32 | `[N_trials]` | Rake axis index into `/paraspace/rake` (1-based) |
+| `depth_idx` | Int32 | `[N_trials]` | Depth index into `/paraspace/depth` (1-based) |
 | `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
 | `N_trials` | Int32 | scalar | Trial count |
+
+Trials carry **indices only** — physical values (strike/dip/rake/depth angles
+and km) are not stored per trial. They live exclusively in the `/paraspace`
+axis arrays and are resolved on demand (forward MT conversion, `output.jl`
+best-trial/uncertainty).
 
 ### `/intermediates`
 
 Raw kernel intermediate products (written by C++ forward, consumed by
 Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
-(e.g. `XcorrP`, `XcorrS`, `PolarityP`). Multiple misfit instances sharing
-the same (operator, phase, channel) share one intermediate group.
+(e.g. `XcorrS`; the key scheme applies to any active operator — `XcorrP`,
+`PolarityP`, etc. when restored). Multiple misfit instances sharing the same
+(operator, phase, channel) share one intermediate group.
 
 | Group | Dataset | Type | Shape | Description |
 |---------------|-------------|---------|---------------------------|-----------------------------------------------|

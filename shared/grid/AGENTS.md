@@ -19,8 +19,8 @@ returns `IO.TrialSet`.
 ## Exports
 
 | Function | Used by | Role |
-|--------------------------------------------------------------|-----------------|---------------------------------------------------------------|
-| `generate_trials(strategy::IO.Strategy, depth_vals)` | `preprocess.jl` | Cartesian product of axes: strike × dip × rake × depth × freq |
+|--------------------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------------------------------------|
+| `generate_trials(strategy::IO.Strategy)` | `preprocess.jl` | Cartesian product of per-axis 1-based indices: strike_idx × dip_idx × rake_idx × depth_idx × freq_idx (no physical values) |
 | `refine_strategy(current::H5IO.Strategy, best::TrialResult)` | `assess.jl` | Compute next iteration's grid from best trial |
 | `prompt_operator(best_sdr, misfit, current)` | `assess.jl` | Show best result, ask continue? Returns Bool |
 | `TrialResult` | `assess.jl` | Struct for best-trial data |

@@ -28,11 +28,14 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 5. 加载格林函数 → /gf
    └─ Config.load_gf() 逐深度×通道, 存 gf_data{depth → ch_id → Float64[N×6]}
+   └─ 写库组名用物理深度数组索引 (/gf/{idx}, idx = /paraspace/depth 的 1-based
+      位置, 与 /trials/depth_idx 一致); 物理值仅存于 /paraspace/depth,
+      组名不再含浮点格式化深度字符串
 
 6. 预处理波形 (Layer 0 共享预处理 + 算子 process)
    ├─ Layer 0: 对每个 freq-dependent 模块的频带, 对 obs 逐道 + GF 逐分量
    │    Signal.preprocess_waveform! (demean/detrend/taper + butterworth bandpass)
-   ├─ 算子 process(): XcorrP/S 输出 obs/obs_norm2 + per-lag
+   ├─ 算子 process(): XcorrS 输出 obs/obs_norm2 + per-lag (XCorrS-only)
    │    synamp_lag[depth][band] + dot_obs_gf_lag[band]
    └─ 各深度独立预处理 GF
        (Polarity/Psr 分支 deferred — XCorr-only 模式: basic-clean GF /
@@ -85,7 +88,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 | 位置 | 存什么 | 示例 |
 |--------------|-----------------------------------------|---------------------------------------------------------------------------|
-| `/paraspace` | 展开的浮点值 (`Float64[N]`) | `strike[71]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
+| `/paraspace` | 展开的浮点值 (`Float64[N]`) | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
 | `/config` | 算法参数和元数据，**无索引无浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods`, `band_low/high` |
 | `/strategy` | 整数索引 (`Int32[N]`) 指向 `/paraspace` | `depth_indices[3]`, `freq_indices[2]`, `iteration` |
 

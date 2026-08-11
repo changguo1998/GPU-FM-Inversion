@@ -30,7 +30,7 @@ Filter, trim, and preprocess observed waveforms and Green's functions for each f
 ### 3. Per-Module Preprocessing
 
 | Module | Operation | Output | Status |
-|----------|--------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------------|
+|----------|--------------------------------------------------------------|----------------------------------------------------|------------------------------------------------------|
 | XCorr | Layer 0 bandpass + fixed obs window; per-lag reductions | `obs`, `obs_norm2`, `synamp_lag`, `dot_obs_gf_lag` | active |
 | Polarity | Trim GF to polarity window `[0, t_source]` | `gf_pol`, `obs_pol` | **deferred** |
 | PSR | Compute/store P/S amplitude-ratio observation and reductions | `amp_P`, `amp_S`, `obs_psr` | **deferred** (operator implemented; XCorr-only mode) |
