@@ -14,7 +14,7 @@
 /// AbsShift is derived in Julia assess: best_lag * dt.
 ///
 /// Data layout (all flat arrays, column-major):
-///   mt           [N_trials × 6]       mt[trial + comp * N_trials]
+///   mt           [N_trials × 6]       mt[trial * 6 + comp] (row-major)
 ///   cc_data      [N_phases·cc_pp × 6] column-major
 ///   synamp_data  [N_phases × 36]      synamp_data[phase + (i*6+j) * N_phases]
 ///   obs_norm2    [N_phases]           obs_norm2[phase]
@@ -30,14 +30,13 @@ namespace fm {
 
 /// Launch the XCorr kernel over (N_phases × N_trials) flat work items.
 template <Backend B>
-inline void
-launch_xcorr_misfit(const double *mt, // N_trials × 6, column-major: mt[trial + comp * N_trials]
-                    const double *cc_data,     // [N_phases·cc_pp × 6] column-major
-                    const double *synamp_data, // [N_phases × 36] column-major
-                    const double *obs_norm2,   // [N_phases]
-                    double *cc_max_out,        // [N_phases × N_trials] column-major
-                    int32_t *best_lag_out,     // [N_phases × N_trials] column-major
-                    int N_phases, int N_trials, int cc_pp, int maxlag) {
+inline void launch_xcorr_misfit(const double *mt, // N_trials × 6, row-major: mt[trial * 6 + comp]
+                                const double *cc_data,     // [N_phases·cc_pp × 6] column-major
+                                const double *synamp_data, // [N_phases × 36] column-major
+                                const double *obs_norm2,   // [N_phases]
+                                double *cc_max_out,        // [N_phases × N_trials] column-major
+                                int32_t *best_lag_out,     // [N_phases × N_trials] column-major
+                                int N_phases, int N_trials, int cc_pp, int maxlag) {
     Device<B>::parallel_for(N_phases * N_trials, [=](int idx) {
         const int phase = idx / N_trials;
         const int trial = idx % N_trials;
@@ -45,7 +44,7 @@ launch_xcorr_misfit(const double *mt, // N_trials × 6, column-major: mt[trial +
         // ── Load moment tensor (6-comp) for this trial ──
         double m[6];
         for (int c = 0; c < 6; ++c) {
-            m[c] = mt[trial + c * N_trials];
+            m[c] = mt[trial * 6 + c];
         }
 
         // ── syn_norm² = mᵀ · synamp · m  (6×6 quadratic form) ──
