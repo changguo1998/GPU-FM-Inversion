@@ -9,49 +9,15 @@ using Random
 
 using Misfit
 
-Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-# TODO(deferred): PolarityP registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-using Aggregate
-
-# AbsShift: XCorr best_lag -> time shift (Level 1, shares Xcorr kernel run)
-Config.use_misfit!(:AbsShiftP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.BEST_LAG)
-Config.use_misfit!(:AbsShiftS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.BEST_LAG)
-
-# RelShift: StdDev of P/S AbsShift per station (Level 2 composed)
-Config.use_misfit!(
-    :RelShift,
-    operator = Aggregate.StdDev,
-    bases = [:AbsShiftP, :AbsShiftS],
-    output = Aggregate.StdDev.RELATIVE_OFFSET,
-)
-
-Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.max_lag_periods() = 3.0
-Config.XcorrP.filter_order() = 4
-Config.XcorrP.band_low() = Int32[1]
-Config.XcorrP.band_high() = Int32[2]
-
-# AbsShiftP shares XcorrP params (same kernel, different output field)
-Config.AbsShiftP.trim() = [-2.0, 5.0]
-Config.AbsShiftP.max_lag_periods() = 3.0
-Config.AbsShiftP.filter_order() = 4
-Config.AbsShiftP.band_low() = Int32[1]
-Config.AbsShiftP.band_high() = Int32[2]
+# TODO(deferred): Polarity/Psr registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
+# TODO(deferred): XcorrP/AbsShiftP/S/RelShift removed — XCorrS-only mode (single-module focus).
 
 Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.max_lag_periods() = 3.0
 Config.XcorrS.filter_order() = 4
 Config.XcorrS.band_low() = Int32[1]
 Config.XcorrS.band_high() = Int32[2]
-
-
-# AbsShiftS shares XcorrS params
-Config.AbsShiftS.trim() = [-2.0, 8.0]
-Config.AbsShiftS.max_lag_periods() = 3.0
-Config.AbsShiftS.filter_order() = 4
-Config.AbsShiftS.band_low() = Int32[1]
-Config.AbsShiftS.band_high() = Int32[2]
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
