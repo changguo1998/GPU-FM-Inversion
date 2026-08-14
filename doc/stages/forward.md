@@ -82,6 +82,9 @@ Storage is C-order `[N_phases × N_trials]`; `HDF5.jl` reads it as
   reading; the result is consumed only by the (deferred) Polarity path.
 - Polarity/PSR kernels remain compiled but are **deferred** — no instances are
   registered in sample configs (XCorr-only mode).
+- Scoped limitation: maxlag config discovery currently reads
+  `/config/XcorrS/max_lag_periods` specifically. Fine for the active XCorrS-only
+  pipeline; generalize before restoring `XcorrP`-only or multi-XCorr configs.
 
 ## What It Does NOT Do
 
