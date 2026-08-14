@@ -61,7 +61,7 @@ ______________________________________________________________________
 
 ## Phase 3: 验证
 
-状态：package 单元测试已通过（io 97、mt 95、grid 34、config、signal、misfit、aggregate；从根环境 `julia --project=. -e 'include("shared/<pkg>/test/runtests.jl")'` include 运行）。下列为待补项。
+状态：package 单元测试已通过（io 97、mt 95、grid 34、config、signal、misfit、aggregate；从根环境 `julia --project=. -e 'include("shared/<pkg>/test/runtests.jl")'` include 运行）。Stage 级测试 **全部完成（2026-08-14）**，位于 `tests/stages/`。
 
 | Task | 说明 |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -70,7 +70,7 @@ ______________________________________________________________________
 | [x] forward 中间产物测试 | 验证 /intermediates/ 字段（`tests/stages/forward_test.jl`：独立 Julia 参考严格对比 cc_max/best_lag ≤1e-9 + 幂等 + 无 DIAG；含 C++ kernel 修复：maxlag 配置推导、per-lag synamp、station_idx 0-based、synthetic_data.jl MT 公式 bug（sin(2d)→sind(2d)）修复，445 断言，2026-08-14） |
 | [x] assess extract/compose 测试 | 验证 extractor 变换 + composer 聚合 + 拓扑排序（`tests/stages/assess_test.jl`：extract misfit = 1−cc_max + 收敛决策 + 不动 strategy/trials，14 断言；compose 拓扑由 `shared/aggregate` 包测试覆盖，2026-08-14） |
 | [x] output.jl 单元测试 | 验证 output.h5 五组 schema + best 选择（`tests/stages/output_test.jl`：solution == argmin mean-misfit / cross_correlation == cc_max@best / summary counts，21 断言，2026-08-14） |
-| [ ] 端到端集成测试 | 全管道贯通测试（XCorrS-only 单模块） |
+| [x] 端到端集成测试 | 全管道贯通测试（`tests/stages/e2e_test.jl`：driver.sh 全流程 16 断言，§收敛 1 迭代、best 恢复真实源 (30,60,90)@10km、misfit≈0.16，2026-08-14） |
 
 ## Phase 4: 高级模块
 
