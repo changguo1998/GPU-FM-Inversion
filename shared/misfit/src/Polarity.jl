@@ -1,8 +1,6 @@
 # Polarity misfit plugin
-#
-# Included inside Config.Polarity (dynamically created inner module).
-# Config function stubs + preprocessing logic.
-# GF preprocessed by Layer 0 (demean/detrend/taper, no bandpass - not freq-dependent).
+# Config function stubs + preprocessing.
+# GF cleaned by Layer 0 (demean/detrend/taper, no bandpass — not freq-dependent).
 
 # ── 输出字段常量（IDE 可补全，注册时校验）──
 const SYN_SIGN = :syn_sign
@@ -30,7 +28,6 @@ const _IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209e
     preprocess(gf_full, dt, arrival_sample, source_duration) -> gf_pol
 
 Trim GF to polarity window [arrival, arrival+source_duration].
-GF is already basic-cleaned (demean/detrend/taper, no bandpass) by Layer 0.
 """
 function preprocess(
     gf_full::Matrix{Float64},
@@ -45,15 +42,9 @@ end
     process(phases_pt, ptype, stations, picks, station_to_idx,
             prepro_gf, depths, pf, pol_f)
 
-Batch preprocess Polarity for one phase type.
-Consumes Layer 0 basic-cleaned GF (demean/detrend/taper, no bandpass).
-obs_pol from manual picks (±1/NaN), no preprocessing.
-
-Returns a Dict mirroring the HDF5 schema (band 1, no freq filtering):
-  "channel_id"  => String[N_entries]
-  "station_idx" => Int32[N_entries]
-  "obs" => Dict(1 => Dict("obs" => Float64[N_entries]))
-  "gf"  => Dict(depth => Dict(1 => Dict("gf" => Float64[N_entries, 6, N_pol])))
+Batch polarity preprocessing for one phase type; obs_pol from manual picks
+(±1/NaN), no preprocessing. Returns a Dict mirroring the HDF5 schema
+(band 1): "channel_id", "station_idx", "obs", "gf".
 """
 function process(
     phases_pt::Vector{Tuple{String, Int}},

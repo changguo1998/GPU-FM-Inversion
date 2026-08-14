@@ -1,13 +1,11 @@
 # forward_test.jl — Stage 3 (forward C++ kernel) tests.
 #
-# Runs the C++ `forward` binary against a small hand-built trial set (36–72
-# trials, NOT the full 151,848 grid), then verifies its `cc_max`/`best_lag`
-# output against an independent Julia reference that recomputes the XCorr
-# math directly from the stored obs/GF windows (same definitions as the C++
-# kernel: window-internal zero-padded shifts, per-lag normalization). The
-# kernel MT layout and lag handling are therefore validated exactly, not by
-# plausibility. Also asserts `/intermediates` idempotence (re-running forward
-# over the same status file must succeed and replace cleanly).
+# Runs `forward` on a small hand-built trial set (36–72, NOT the full 151,848
+# grid) and checks `cc_max`/`best_lag` against an independent Julia reference
+# recomputing the XCorr math from the stored obs/GF windows (same kernel
+# definitions: window-internal zero-padded shifts, per-lag normalization) —
+# validating MT layout and lag handling exactly. Also asserts `/intermediates`
+# idempotence (a re-run over the same status file replaces cleanly).
 #
 # Usage:
 #   julia --project=. tests/stages/forward_test.jl
@@ -20,12 +18,10 @@ using IO, Grid
 include("test_util.jl")
 
 # ── Independent Julia reference: replicate the C++ XCorr math ─────────────
-# cc_norm[lag] = (mᵀ·dot_lag) / sqrt(obs_n2 · mᵀ·synamp_lag·m), with
-#   dot_lag[c]    = Σ_t obs[t+lag]·gf[t,c]
-#   synamp_lag    = Σ_t gf[t−lag,a]·gf[t−lag,b]   (GF shifted by −lag)
-# shifts zero-padded inside the window; lag ∈ [−maxlag, +maxlag].
-
-
+# cc_norm[lag] = (mᵀ·dot_lag) / sqrt(obs_n2 · mᵀ·synamp_lag·m)
+#   dot_lag[c] = Σ_t obs[t+lag]·gf[t,c]
+#   synamp_lag = Σ_t gf[t−lag,a]·gf[t−lag,b] (GF shifted by −lag)
+# zero-padded shifts; lag ∈ [−maxlag, +maxlag].
 
 """
     reference_cc(obs, gf_mat, m, obs_n2, maxlag) -> (cc_max, best_lag)

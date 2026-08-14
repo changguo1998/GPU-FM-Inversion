@@ -1,18 +1,13 @@
 # Grid Refinement
 
 """
-    TrialResult
-
-Aggregated best-trial information needed to compute the next iteration's
-search grid.
+    TrialResult — best-trial info to build the next iteration's search grid.
 
 # Fields
-- `sdr::Vector{Float64}`: best [strike, dip, rake] in degrees
-- `depth_idx::Int32`: index of best depth into `/paraspace/depth`
-- `freq_idx::Int32`: index of best frequency band
+- `sdr::Vector{Float64}`: best [strike, dip, rake] deg
+- `depth_idx::Int32` / `freq_idx::Int32`: best indices into `/paraspace`
 - `misfit::Float64`: weighted misfit of best trial
-- `depth_misfits::Vector{Float64}`: misfit per depth index at best SDR `[N_depths]`
-- `freq_misfits::Vector{Float64}`: misfit per frequency index at best SDR `[N_frequencies]`
+- `depth_misfits` / `freq_misfits::Vector{Float64}`: per-index misfit at best SDR
 """
 struct TrialResult
     sdr::Vector{Float64}
@@ -26,31 +21,18 @@ end
 """
     refine_strategy(current::H5IO.Strategy, best_trial::TrialResult) -> H5IO.Strategy
 
-Compute the next iteration's search grid from the best trial result.
-
-# Refinement Rules
-
-- **Center**: new grid centered on best trial SDR
-- **Step sizes**: halved — `new_step = old_step / 2`
-- **Grid size**: always 3×3×3 SDR (`nstrike=3, ndip=3, nrake=3`)
-- **Depth subset**: indices where `depth_misfit ≤ 1.2 × best_depth_misfit`
-- **Frequency subset**: indices where `freq_misfit ≤ 1.2 × best_freq_misfit`
-- **Empty subset**: fall back to single value (best index only)
-
-Returns a new `H5IO.Strategy` with `converged=0` and `iteration` incremented.
-The caller (assess.jl) prompts the operator and writes the strategy to
-`status_{N+1}.h5`.
+Next-iteration search grid centered on best trial: SDR steps halved, fixed
+3×3×3 grid; depth/freq subsets keep indices with misfit ≤ 1.2 × best (single
+best index if empty). Returns a `Strategy` with `converged=0`, `iteration+1`
+(the caller assess.jl prompts the operator and writes `status_{N+1}.h5`).
 """
 function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.Strategy
-    # Halve step sizes
     new_dstrike = current.dstrike / 2.0
     new_ddip = current.ddip / 2.0
     new_drake = current.drake / 2.0
 
-    # Fixed 3×3×3 SDR grid centered on best trial. expand_axis(var0, d, 3)
-    # yields [var0, var0+d, var0+2d] — best must land at index 2, so
-    # var0 = best - d. Clamp to source-parameter domains:
-    # strike [0,360), dip [0,90], rake [-90,90].
+    # 3×3×3 grid centered on best: expand_axis(var0,d,3) = [var0,var0+d,var0+2d],
+    # so var0 = best - d, clamped to strike [0,360), dip [0,90], rake [-90,90].
     new_strike0 = mod(best_trial.sdr[1] - new_dstrike, 360.0)
     new_dip0 = clamp(best_trial.sdr[2] - new_ddip, 0.0, 90.0)
     new_rake0 = clamp(best_trial.sdr[3] - new_drake, -90.0, 90.0)
@@ -86,7 +68,6 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.
     end
 
 
-    # Build output Strategy
     return H5IO.Strategy(
         new_strike0,
         new_dstrike,
@@ -105,14 +86,10 @@ end
 
 # Operator Prompt
 
-"""
-    prompt_operator(best_sdr, misfit, current::H5IO.Strategy; io_in=stdin, io_out=stdout) -> Bool
+"""prompt_operator(best_sdr, misfit, current; io_in=stdin, io_out=stdout) -> Bool
 
-Display current best result and grid, then ask the operator whether to
-continue to the next iteration.
-
-Returns `true` for "y" / "Y", `false` for anything else.
-"""
+Print the best result and current grid, ask whether to continue;
+returns true for "y"/"Y", false otherwise."""
 function prompt_operator(
     best_sdr,
     misfit,
@@ -127,7 +104,6 @@ function prompt_operator(
         "Best SDR: (strike=$(best_sdr[1]), dip=$(best_sdr[2]), rake=$(best_sdr[3])), Misfit=$misfit",
     )
 
-    # Format current grid description
     parts = String[]
     if current.nstrike > 0
         push!(parts, "strike=$(current.strike0)±$(current.dstrike)°")

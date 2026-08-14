@@ -1,19 +1,16 @@
 module Config
 
-# Config — Pipeline configuration interface (declarations only)
+# Config — pipeline configuration interface (declarations only)
 #
-# Users write a config script that includes this module and implements
-# each function below. Any function left unimplemented throws an error
-# at runtime with a clear message describing the required return type.
+# Users write a config script that includes this module and implements each
+# function below; unimplemented ones throw a ConfigError at runtime.
 #
 # Usage (user's config script, e.g. my_event.jl):
-#   include("shared/config/src/Config.jl")
-#   using .Config
-#
+#   include("shared/config/src/Config.jl"); using .Config
 #   function Config.misfit_modules()      return ["XCorr", "Polarity"]      end
 #   # ... etc for each function
 #
-# Stage scripts then include the user's config file and call interface functions.
+# Stage scripts include the user's config file and call interface functions.
 
 export misfit_modules, minimum_stations, phase_type
 export freq_bands, depths
@@ -113,9 +110,7 @@ end
     phase_fields() -> Dict{String, Symbol}
 
 Return a dict mapping phase type string (e.g. "P", "S") to the corresponding
-PhasePick struct field symbol (e.g. `:P_time`, `:S_time`).
-
-Example: `return Dict("P" => :P_time, "S" => :S_time)`
+PhasePick struct field symbol, e.g. `Dict("P" => :P_time, "S" => :S_time)`.
 """
 function phase_fields()::Dict{String, Symbol}
     throw(
@@ -130,10 +125,8 @@ end
     polarity_fields() -> Dict{String, Symbol}
 
 Return a dict mapping phase type string (e.g. "P") to the corresponding
-PhasePick polarity field symbol (e.g. `:P_polarity`).
-Only phase types with polarity data need entries.
-
-Example: `return Dict("P" => :P_polarity)`
+PhasePick polarity field symbol (e.g. `:P_polarity`); only phase types with
+polarity data need entries. E.g. `Dict("P" => :P_polarity)`.
 """
 function polarity_fields()::Dict{String, Symbol}
     throw(
@@ -149,18 +142,9 @@ end
 """
     misfit_modules() -> Vector{String}
 
-Return the list of active misfit module names.
-
-By default returns modules registered via `use_misfit!()`, in registration
-order. Override this function in your config script to reorder or filter.
-
-Example (auto-detection, no override needed):
-  # Just call use_misfit! — modules are listed automatically
-
-Example (explicit override):
-  function Config.misfit_modules()
-      return ["XcorrP", "Polarity"]   # exclude XcorrS
-  end
+Return the list of active misfit module names: by default, modules registered
+via `use_misfit!()` in registration order. Override in the config to reorder
+or filter (e.g. `return ["XcorrP", "Polarity"]` to exclude XcorrS).
 """
 function misfit_modules()::Vector{String}
     return copy(_LOADED_MISFIT_MODULES)
@@ -178,8 +162,7 @@ end
 """
     freq_bands() -> Vector{Tuple{Float64, Float64}}
 
-Return list of (low_cut, high_cut) frequency-band pairs in Hz.
-Example: `return [(0.5, 2.0), (1.0, 4.0)]`
+Return list of (low_cut, high_cut) frequency-band pairs in Hz, e.g. `[(0.5, 2.0), (1.0, 4.0)]`.
 """
 function freq_bands()::Vector{Tuple{Float64, Float64}}
     throw(
@@ -193,8 +176,7 @@ end
 """
     depths() -> Vector{Float64}
 
-Return list of source depths (km) for Green's function lookup.
-Example: `return [5.0, 10.0, 15.0]`
+Return list of source depths (km) for Green's function lookup, e.g. `[5.0, 10.0, 15.0]`.
 """
 function depths()::Vector{Float64}
     throw(ConfigError("depths", "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
@@ -255,17 +237,10 @@ end
 """
     load_gf(src_lat, src_lon, src_depth, sta_lat, sta_lon) -> Union{Nothing, Tuple{Array{Float64,3}, Float64, Float64, Float64}}
 
-Return Green's functions for a source-station pair.
-
-Returns `nothing` if no GF is available for this combination (caller will
-skip with a warning). On success returns a tuple:
-
-  (gf_array, dt, tp, ts)
-
-  gf_array  :: Array{Float64,3}   shape (nt, 6, 3) — [N, E, D] channel order
-  dt        :: Float64             sampling interval (seconds)
-  tp        :: Float64             P arrival time from GF start (seconds)
-  ts        :: Float64             S arrival time from GF start (seconds)
+Return Green's functions for a source-station pair: `nothing` if unavailable
+(caller skips with a warning), else a tuple `(gf_array, dt, tp, ts)` with
+`gf_array` `[nt × 6 × 3]` [N, E, D], `dt` sampling interval (s), and `tp`/`ts`
+P/S arrival times from GF start (s).
 """
 function load_gf(
     src_lat,

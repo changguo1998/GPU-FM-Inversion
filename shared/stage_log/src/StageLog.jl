@@ -16,11 +16,10 @@ export StageLogger, setup_logger!
 """
     StageLogger <: AbstractLogger
 
-Logger that prefixes messages with a stage name (e.g., "[input]", "[assess]")
-and writes to both stdout/stderr and a named log file.
+Logger that prefixes messages with the stage name (e.g. "[input]") and writes
+to both stdout/stderr and a named log file.
 
 Usage:
-    using StageLog
     StageLog.setup_logger!("input", "input.log")
     @info "hello"  # → "[input] hello" to stdout + input.log
 """

@@ -1,9 +1,8 @@
 # test_util.jl — shared helpers for stage (pipeline) tests.
 #
 # Stage scripts are flat top-level scripts (no `main()` wrapper, global Config
-# state), so tests run each stage as an isolated Julia subprocess against a
-# freshly generated synthetic data directory, then assert on the output HDF5
-# files. These helpers are the common plumbing for that flow.
+# state), so each stage runs as a subprocess against a fresh synthetic data
+# directory; helpers assert on the HDF5 outputs.
 
 const PROJECT_ROOT = dirname(dirname(@__DIR__))  # tests/stages -> project root
 

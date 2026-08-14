@@ -105,8 +105,7 @@ struct TrialSet
     freq_idx::Vector{Int32}
 end
 
-# Default full-space 5°-resolution grid (matches search-space convention).
-# Strike wraps the full circle: 0:5:355 = 72 points (355+5 = 360 ≡ 0).
+# Default full-space 5° grid; strike wraps the full circle (0:5:355 = 72 pts).
 const DEFAULT_GRID = (
     strike0 = 0.0,
     dstrike = 5.0,
@@ -194,8 +193,7 @@ end
 """
     _read_group_recursive(gr::HDF5.Group)::Dict{String,Any}
 
-Recursively read an HDF5 group into a nested `Dict{String,Any}`.
-Datasets become their values; subgroups become nested Dicts.
+Recursively read an HDF5 group into a nested Dict; datasets become values.
 """
 function _read_group_recursive(gr)::Dict{String, Any}
     result = Dict{String, Any}()
@@ -364,9 +362,8 @@ function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
 end
 
 function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
-    # Schema: /gf/{idx}/{channel_id} — idx = 1-based index into /paraspace/depth
-    # (no physical-value formatting on group names)
-    # Extract channel_id from phase_id (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
+    # /gf/{idx}/{ch}: idx = 1-based /paraspace/depth index; ch from phase_id
+    # (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
     parts = split(phase_id, ".")
     ch_id = join(parts[1:3], ".")
     gf_path = "/gf/$(depth_idx)/$(ch_id)"
@@ -394,9 +391,7 @@ end
 
 # Writers
 
-# Map a GF depth key (physical value, km) -> 1-based index into /paraspace/depth.
-# GF group names are indices (matching /trials/depth_idx), so physical values
-# never leak into group names; a missing depth is a hard error, not a silent rename.
+# GF depth key -> /paraspace/depth 1-based index; missing depth = hard error
 function _gf_depth_index(paraspace_depth::Vector{Float64}, depth::Float64)::Int
     idx = findfirst(==(depth), paraspace_depth)
     idx === nothing && error("write_database: GF depth $depth not found in /paraspace/depth")
@@ -413,8 +408,6 @@ function write_database(
     module_data::Dict{String, ModuleData};
     paraspace = nothing,
 )
-    # GF group names are 1-based indices into /paraspace/depth (matching
-    # /trials/depth_idx); physical depth values live only in /paraspace.
     paraspace_depth =
         paraspace !== nothing ? Float64.(get(paraspace, "depth", Float64[])) : Float64[]
     if !isempty(gf_data) && isempty(paraspace_depth)
@@ -560,8 +553,7 @@ end
 """
     write_misfits(h5file, modname::Symbol, data::AbstractArray)
 
-Write misfit matrix for `modname` into `/misfits/{modname}`,
-replacing any existing dataset.
+Write `modname` misfit matrix into `/misfits/{modname}`, replacing any existing.
 """
 function write_misfits(h5file, modname::Symbol, data::AbstractArray)
     h5open(h5file, "r+") do f
@@ -579,8 +571,7 @@ end
 """
     write_strategy(h5file, strategy::Strategy)
 
-Write `/strategy` group, replacing any existing group.
-Each stage writes complete datasets — no append mode.
+Write `/strategy` group, replacing any existing. Stages write complete datasets — no append mode.
 """
 function write_strategy(h5file, strategy::Strategy)
     h5open(h5file, "r+") do f
@@ -640,8 +631,7 @@ end
 """
     parse_time_iso(t_str::String) -> Float64
 
-Parse an ISO 8601 datetime string and return seconds since epoch.
-Empty strings return NaN.
+Parse an ISO 8601 datetime string into seconds since epoch (NaN for empty).
 """
 function parse_time_iso(t_str::String)::Float64
     isempty(t_str) && return NaN
@@ -651,8 +641,7 @@ end
 """
     haversine_distance(lat1, lon1, lat2, lon2) -> Float64
 
-Compute great-circle distance (km) between two points on a sphere
-(Earth radius = 6371 km).
+Compute great-circle distance (km) on a sphere (Earth radius = 6371 km).
 """
 function haversine_distance(lat1, lon1, lat2, lon2)::Float64
     R = 6371.0
@@ -702,8 +691,7 @@ end
 """
     find_latest_status(status_dir::String) -> (filepath::String, iteration::Int)
 
-Find the highest-numbered `status_N.h5` file in a directory.
-Returns `(full_path, N)` or errors if none found.
+Find the highest-numbered `status_N.h5` in a dir; returns `(full_path, N)` or errors.
 """
 function find_latest_status(status_dir::String)::Tuple{String, Int}
     pattern = r"^status_(\d+)\.h5$"
@@ -731,10 +719,8 @@ end
     write_paraspace(h5file, paraspace::Dict)
 
 Write `/paraspace` group, replacing any existing group.
-Stores expanded float arrays for parameter-space dimensions:
-- strike, dip, rake   (from grid expansion)
-- depth_vals          (depth levels)
-- frequency           (flat array: [low1, high1, low2, high2, ...])
+Stores expanded float arrays for the parameter-space dimensions
+(strike/dip/rake, depth, frequency).
 """
 function write_paraspace(h5file, paraspace::Dict)
     h5open(h5file, "r+") do f

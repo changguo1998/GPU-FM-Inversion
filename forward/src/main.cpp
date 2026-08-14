@@ -15,15 +15,9 @@
 #include "kernels/xcorr_kernel.h"
 #include "mt_utils.h"
 
-// ──────────────────────────────────────────────────────────────────────────
-// main - forward stage entry point
-//
-// Usage: forward <database.h5> <status_N.h5>
-//
-// Reads preprocessed data + trials, runs misfit kernels, writes RAW
-// INTERMEDIATE PRODUCTS to status_N.h5:/intermediates/{Module}/.
-// Final misfit values (extract/compose) are produced by Julia assess.jl.
-// ──────────────────────────────────────────────────────────────────────────
+// main — forward stage entry point: forward <database.h5> <status_N.h5>
+// runs the misfit kernels and writes raw intermediates to
+// status_N.h5:/intermediates/{Module}/ (final extract/compose is Julia assess.jl).
 
 // Per-module config metadata read from database.h5:/config/{Module}/
 struct ModuleConfig {
@@ -44,9 +38,7 @@ int main(int argc, char *argv[]) {
     std::string status_path = argv[2];
 
     try {
-        // ══════════════════════════════════════════════════════════════
         // 1. Read trials from status_N.h5
-        // ══════════════════════════════════════════════════════════════
         Hdf5Handle status_file;
         status_file.open(status_path.c_str(), H5F_ACC_RDWR);
 
@@ -87,9 +79,7 @@ int main(int argc, char *argv[]) {
                                axis_val(rake_vals, ri)};
         }
 
-        // ══════════════════════════════════════════════════════════════
-        // 2. SDR -> MT conversion (host-side, degrees to radians)
-        // ══════════════════════════════════════════════════════════════
+        // 2. SDR → MT conversion (host-side, degrees to radians)
         // XCorr uses [6 × N_trials] (LayoutLeft), Polarity uses [N_trials × 6]
         std::vector<double> mt_xcorr_host(static_cast<size_t>(6 * N_trials));
         std::vector<double> mt_pol_host(static_cast<size_t>(N_trials * 6));
@@ -105,9 +95,7 @@ int main(int argc, char *argv[]) {
                 mt_pol_host[t + c * N_trials] = comps[c];
         }
 
-        // ══════════════════════════════════════════════════════════════
         // 3. Read module config from database.h5:/config (db_reader open above)
-        // ══════════════════════════════════════════════════════════════
         auto module_names = db_reader.read_string_1d("/config/misfit_modules");
         std::vector<ModuleConfig> modules;
         for (const auto &m : module_names) {
@@ -161,9 +149,7 @@ int main(int argc, char *argv[]) {
                 s_phase_of_station[s] = n_p + ph;
         }
 
-        // XCorr lag half-width derived from config (single source of truth with the
-        // Julia preprocessor): maxlag = round(max_lag_periods / band_high_freq / dt).
-        // Per-combo window clamping happens in DataCache (entry.xcorr.maxlag).
+        // maxlag = round(max_lag_periods / band_high / dt); window-clamped per combo in DataCache.
         double max_lag_periods = 3.0;
         if (db_reader.group_exists("/config/XcorrS/max_lag_periods")) {
             max_lag_periods = db_reader.read_double_scalar("/config/XcorrS/max_lag_periods");
@@ -184,9 +170,7 @@ int main(int argc, char *argv[]) {
 
         db_reader.close();
 
-        // ══════════════════════════════════════════════════════════════
         // 4. Initialize DataCache, load preprocessed data
-        // ══════════════════════════════════════════════════════════════
         DataCache cache(maxlag);
         cache.load_from_database(database_path, trials);
 
@@ -196,9 +180,7 @@ int main(int argc, char *argv[]) {
             combo_set.insert({t.freq_idx, t.depth_idx});
         std::vector<std::pair<int, int>> combos(combo_set.begin(), combo_set.end());
 
-        // ══════════════════════════════════════════════════════════════
         // 5. Allocate intermediate output arrays (accumulated across combos)
-        // ══════════════════════════════════════════════════════════════
         bool has_xcorr_p = n_p > 0;
         bool has_xcorr_s = n_s > 0;
         bool has_polarity = N_stations > 0;
@@ -211,9 +193,7 @@ int main(int argc, char *argv[]) {
         std::vector<double> dot_value(has_polarity ? (size_t)N_stations * N_trials : 0,
                                       std::numeric_limits<double>::quiet_NaN());
 
-        // ══════════════════════════════════════════════════════════════
         // 6. Launch kernels per combo, accumulate into intermediate arrays
-        // ══════════════════════════════════════════════════════════════
         for (const auto &combo : combos) {
             int f_idx = combo.first;
             int d_idx = combo.second;
@@ -309,9 +289,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // ══════════════════════════════════════════════════════════════
         // 7. Write intermediates to status_N.h5:/intermediates/
-        // ══════════════════════════════════════════════════════════════
         if (status_file.group_exists("/intermediates"))
             status_file.delete_group("/intermediates");
         status_file.create_group("/intermediates"); // idempotent (re)write

@@ -4,27 +4,9 @@ module MT
     sdr_to_mt(strike::Float64, dip::Float64, rake::Float64) -> Vector{Float64}
 
 Convert strike/dip/rake (degrees) to a 6-component moment tensor
-in NED coordinate system: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`.
+`[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`. Angle domains: strike ∈ [0,360), dip ∈ [0,90],
+rake ∈ [-90,90].
 
-# Arguments
-- `strike`: strike angle in degrees, ∈ [0, 360)
-- `dip`: dip angle in degrees, ∈ [0, 90]
-- `rake`: rake angle in degrees, ∈ [-90, 90]
-
-# Returns
-- 6-element `Vector{Float64}`: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
-
-# Example
-```julia
-julia> sdr_to_mt(0.0, 90.0, 0.0)
-6-element Vector{Float64}:
- 0.0
- 0.0
- 0.0
- 1.0
- 0.0
- 0.0
-```
 """
 function sdr_to_mt(strike::Float64, dip::Float64, rake::Float64)::Vector{Float64}
     s = deg2rad(strike)
@@ -57,14 +39,7 @@ end
     sdr_to_mt_batch(strikes::Vector{Float64}, dips::Vector{Float64}, rakes::Vector{Float64}) -> Matrix{Float64}
 
 Convert multiple strike/dip/rake combinations (degrees) to moment tensors.
-
-# Arguments
-- `strikes`: vector of strike angles in degrees, length N
-- `dips`: vector of dip angles in degrees, length N
-- `rakes`: vector of rake angles in degrees, length N
-
-# Returns
-- `Matrix{Float64}` of shape `[6, N]` where each column is `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
+Returns a `[6, N]` matrix, one `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]` column per input.
 """
 function sdr_to_mt_batch(
     strikes::Vector{Float64},

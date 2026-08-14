@@ -2,37 +2,23 @@
 #
 # synthetic_data.jl — Generate synthetic test data as plain files.
 #
-# Physics: far-field P/S waves in two-layer half-space.
-#   Upper layer (0–20 km): vp=6, vs=4 km/s
-#   Lower layer (20 km+):  vp=8, vs=6 km/s
-# GF = delta impulses at direct + reflected (interface at 20 km) arrivals,
-# amplitude scaled by A_const / r² / v³ with full moment-tensor radiation
-# pattern. Reflection coefficients from normal-incidence impedance contrast.
-# Observed = (GF * MT) ⊗ STF + noise, where STF is a Gaussian source time
-# function (configurable σ, default 0.2 s).
+# Far-field P/S waves in a two-layer half-space (upper 0–20 km vp=6/vs=4,
+# lower vp=8/vs=6). GF = delta impulses at direct + interface-reflected
+# arrivals, scaled by A_const / r² / v³ with full MT radiation pattern and
+# normal-incidence reflection coefficients. Observed = (GF * MT) ⊗ STF + noise,
+# STF a Gaussian (configurable σ, default 0.2 s). Source at origin, depth =
+# 10 km; stations placed randomly around it.
 #
-# Source at origin (lat=0, lon=0, depth=10 km).
-# Stations randomly placed around source.
+# Outputs: stations.txt (station_id lat lon), {net}.{sta}.{ch}.dat (one column
+# per waveform), phases.txt (station_id P_time S_time).
 #
-# Outputs:
-#   stations.txt  — station_id  lat  lon
-#   {net}.{sta}.{ch}.dat — waveform (one column)
-#   phases.txt    — station_id  P_time  S_time
-#
-# Usage:
-#   julia tests/synthetic_data.jl                    # writes to CWD
-#   julia tests/synthetic_data.jl /tmp/test_event
-#   julia tests/synthetic_data.jl --strike 30 --dip 60 --rake 90 --nsta 6
-#   julia tests/synthetic_data.jl --stf-sigma 0.0    (delta, no STF)
-#
-# Deterministic: Random.seed!(42). Overwrites existing files.
+# Usage: julia tests/synthetic_data.jl [outdir] [--strike 30 --dip 60 --rake 90
+# --nsta 6 --stf-sigma 0.0(delta)]. Deterministic (seed 42); overwrites files.
 
 using Random
 using Dates
 
-# ---------------------------------------------------------------------------
 # Key constants
-# ---------------------------------------------------------------------------
 
 const DEFAULT_N_STATION = 12
 const DEFAULT_NPTS = 2000
@@ -44,9 +30,7 @@ const DEFAULT_EVENT_DEPTH = 10.0  # km
 const AMPLITUDE_SCALE = 1.0e6    # A_const
 const DEFAULT_STF_SIGMA = 0.2   # Gaussian source time function σ (seconds), 0 to disable
 
-# ---------------------------------------------------------------------------
 # CLI parsing
-# ---------------------------------------------------------------------------
 
 _outdir = "."
 _n_station = DEFAULT_N_STATION
@@ -118,15 +102,11 @@ stf_sigma = _stf_sigma
 
 mkpath(outdir)
 
-# ---------------------------------------------------------------------------
 # Deterministic RNG
-# ---------------------------------------------------------------------------
 
 Random.seed!(42)
 
-# ---------------------------------------------------------------------------
 # 1. Source parameters: SDR → MT
-# ---------------------------------------------------------------------------
 
 function sdr_to_mt(s, d, r)
     sd = sind(d)
@@ -150,9 +130,7 @@ if norm_mt > 1e-12
     mt_true ./= norm_mt
 end
 
-# ---------------------------------------------------------------------------
 # 2. Two-layer velocity model
-# ---------------------------------------------------------------------------
 
 const INTERFACE_DEPTH = 20.0  # km
 const VP_UPPER = 6.0   # km/s
@@ -164,9 +142,7 @@ const VS_LOWER = 6.0   # km/s
 const R_PP = (VP_LOWER - VP_UPPER) / (VP_LOWER + VP_UPPER)  # ≈ 0.143
 const R_SS = (VS_LOWER - VS_UPPER) / (VS_LOWER + VS_UPPER)  # ≈ 0.2
 
-# ---------------------------------------------------------------------------
 # 3. Station geometry — random around origin
-# ---------------------------------------------------------------------------
 
 sta_ids = String[]
 lats = Float64[]
@@ -185,9 +161,7 @@ for i in 1:n_station
     push!(lons, round(lon, digits = 5))
 end
 
-# ---------------------------------------------------------------------------
 # 4. Travel times + ray geometry
-# ---------------------------------------------------------------------------
 
 origin_dt = DateTime(2024, 1, 1, 0, 0, 0)
 
@@ -246,12 +220,8 @@ for i in 1:n_station
     push!(tp_ref_sec, rh_ref / VP_UPPER)
     push!(ts_ref_sec, rh_ref / VS_UPPER)
 
-    # Reflected wave direction cosines (source → interface, downward leg)
-    # Approximate: direction from source to midpoint of reflected path
-    # The reflection point is at horizontal offset d_km/3 from source (by image method)
-    # For the downward leg direction, use the same horizontal component as direct
-    # but with D component = +(INTERFACE_DEPTH - event_depth) (positive down)
-    # Actually use image source γ for simplicity — same horizontal, D = +z_image
+    # Reflected wave direction cosines: same horizontal as the direct wave,
+    # D = +z_image (image-source convention, positive down)
     vr_ve = lons[i] * 111.0 * 1000.0
     vr_vn = lats[i] * 111.0 * 1000.0
     vr_vd = z_image * 1000.0  # positive down
@@ -273,12 +243,9 @@ for i in 1:n_station
     push!(S_times, Dates.format(s_time, "yyyy-mm-ddTHH:MM:SS"))
 end
 
-# ---------------------------------------------------------------------------
 # 5. Green's functions: delta at direct + reflected arrivals
-# ---------------------------------------------------------------------------
 
-# MT pair indices (j,k) in NED: 1=N, 2=E, 3=D
-# GF array channel order: [N, E, D] (index 1=N, 2=E, 3=D)
+# MT pair indices (j,k) in NED: 1=N, 2=E, 3=D; GF channels [N, E, D]
 MT_PAIRS = [(1, 1), (2, 2), (3, 3), (1, 2), (1, 3), (2, 3)]
 
 function add_phase!(gf, nt, dt, idx, r_km, γ, scale, v)
@@ -346,9 +313,7 @@ for si in 1:n_station
     gf_dict[si] = gf
 end
 
-# ---------------------------------------------------------------------------
 # 6. Synthetic observed waveforms: obs = GF * MT + noise
-# ---------------------------------------------------------------------------
 
 CH_NAMES = ["E", "N", "Z"]
 # For each output channel (E,N,Z), GF index 1=N, 2=E, 3=D
@@ -405,9 +370,7 @@ for si in 1:n_station
     end
 end
 
-# ---------------------------------------------------------------------------
 # 7. Write output files
-# ---------------------------------------------------------------------------
 
 # 7a. Station list
 open(joinpath(outdir, "stations.txt"), "w") do f
@@ -436,9 +399,7 @@ open(joinpath(outdir, "phases.txt"), "w") do f
     end
 end
 
-# ---------------------------------------------------------------------------
 # Summary
-# ---------------------------------------------------------------------------
 
 println("Synthetic test data generated in: $(realpath(outdir))")
 println("  stations.txt  — $(n_station) stations")

@@ -1,11 +1,8 @@
-# XCorr misfit plugin (template)
-#
-# Included inside Config.{name} (dynamically created inner module).
-# Template for cross-correlation misfit - instantiated per phase via
-# `Config.use_misfit!(:XcorrP, from = :Xcorr)`.
+# XCorr misfit plugin (template), included inside Config.{name}.
+# Instantiated per phase via `Config.use_misfit!(:XcorrP, from = :Xcorr)`.
 #
 # Config stubs (user must override):
-#   trim()            - time window [pre, post] period counts relative to arrival
+#   trim()            - time window [pre, post] period counts vs arrival
 #   max_lag_periods() - max cross-correlation lag in period counts
 #   filter_order()    - Butterworth filter order (Layer 0 bandpass)
 #   band_low()/band_high() - freq-band indices into /paraspace/frequency
@@ -52,15 +49,12 @@ const _IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209e
 
 """
     preprocess(gf_full, obs_win, dt, arrival_sample, pre_periods, post_periods,
-               band_high, max_lag_periods)
-               -> (obs_norm2, synamp_lag, dot_obs_gf_lag)
+               band_high, max_lag_periods) -> (obs_norm2, synamp_lag, dog_lag)
 
-Compute per-lag reductions for cross-correlation.
-- obs_win: fixed trimmed obs window [arrival-pre, arrival+post] (already preprocessed)
-- gf_full: full preprocessed GF waveform [N_full, 6]
-- synamp_lag[l] = gf_full[win-l]' * gf_full[win-l]  (6x6)
-- dot_obs_gf_lag[l] = obs_win' * gf_full[win-l]     (6-vector)
-- obs_norm2 = obs_win' * obs_win
+Per-lag reductions; obs_win fixed trimmed window, gf_full full GF [N_full, 6].
+- synamp_lag[l] = gf_full[win-l]'gf_full[win-l]   (6x6)
+- dog_lag[l] = obs_win'gf_full[win-l]              (6-vector)
+- obs_norm2 = obs_win'obs_win
 """
 function preprocess(
     gf_full::Matrix{Float64},
@@ -104,17 +98,9 @@ end
     process(phases_pt, ptype, stations, picks, station_to_idx,
             prepro_obs, prepro_gf, depths, band_high, freq_idx, pf)
 
-Batch preprocess XCorr for one phase type at one frequency band.
-Consumes Layer 0 preprocessed waveforms (prepro_obs/prepro_gf, already
-demeaned/detrended/tapered/bandpassed). Computes per-lag reductions.
-
-Returns a Dict mirroring the HDF5 schema:
-  "channel_id"      => String[N_entries]
-  "station_idx"     => Int32[N_entries]
-  "obs"             => Dict(freq_idx => Dict("obs" => Float64[N, nt_win],
-                                             "obs_norm2" => Float64[N]))
-  "synamp_lag"      => Dict(depth => Dict(freq_idx => Float64[N, 6, 6, L]))
-  "dot_obs_gf_lag"  => Dict(freq_idx => Float64[N, 6, L])
+Batch XCorr preprocessing for one phase type / frequency band from Layer 0
+waveforms. Returns a Dict mirroring the HDF5 schema: "channel_id",
+"station_idx", "obs", "synamp_lag", "dot_obs_gf_lag".
 """
 function process(
     phases_pt::Vector{Tuple{String, Int}},

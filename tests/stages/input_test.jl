@@ -1,9 +1,8 @@
 # input_test.jl — Stage 1 (input) schema tests.
 #
-# Runs `scripts/input.jl` as a subprocess against a freshly generated synthetic
-# event, then asserts the `database.h5` and `status_0.h5` schema against the
-# contract in `doc/schema.md` (three-layer separation: /paraspace holds values,
-# /config holds params without indices, /strategy holds indices).
+# Runs `scripts/input.jl` on a fresh synthetic event and asserts the
+# `database.h5`/`status_0.h5` schema (see doc/schema.md): /paraspace holds
+# values, /config params, /strategy indices.
 #
 # Usage:
 #   julia --project=. tests/stages/input_test.jl
@@ -13,9 +12,7 @@ using HDF5
 
 include("test_util.jl")
 
-# ---------------------------------------------------------------------------
-# Minimal XCorrS-only config, mirroring examples/synthetic/config.jl.
-# ---------------------------------------------------------------------------
+# ── Minimal XCorrS-only config (mirrors examples/synthetic/config.jl) ─────
 @testset "input stage" begin
     mktempdir() do dir
         nsta = 3

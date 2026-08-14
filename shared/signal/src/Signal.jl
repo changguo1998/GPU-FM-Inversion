@@ -49,8 +49,7 @@ end
     trim_time_window!(obs, gf, dt, arrival_sample, pre_periods, post_periods, band_high)
                       -> (obs_trimmed, gf_trimmed)
 
-Non-symmetric trim: [arrival - pre_periods/band_high, arrival + post_periods/band_high].
-pre_periods/post_periods are dimensionless period counts (window scales with band).
+Non-symmetric trim: arrival ± pre/post_periods/band_high (period counts dimensionless).
 """
 function trim_time_window!(
     obs::Vector{Float64},
@@ -122,13 +121,11 @@ function taper!(wf::Vector{Float64}; frac::Float64 = 0.05)
 end
 
 """
-    preprocess_waveform!(wf, dt, low_cut, high_cut;
-                         demean=true, detrend=true, taper=true, order=4, do_bandpass=true)
-                         -> wf_proc
+    preprocess_waveform!(wf, dt, low_cut, high_cut; demean=true, detrend=true,
+                         taper=true, order=4, do_bandpass=true) -> wf_proc
 
-Full-waveform preprocessing: demean -> detrend -> taper -> bandpass.
-Returns processed full waveform (no trimming). do_bandpass=false skips filter
-(for Polarity, which is not freq-dependent).
+Full-waveform preprocessing: demean → detrend → taper → bandpass (no trimming).
+`do_bandpass=false` skips filtering (Polarity is not frequency-dependent).
 """
 function preprocess_waveform!(
     wf::Vector{Float64},
@@ -150,11 +147,7 @@ end
 
 # Utility functions
 
-"""
-    envelope(x) -> Vector{Float64}
-
-Compute the Hilbert envelope (analytic signal magnitude) of `x`.
-"""
+"""envelope(x) -> Vector{Float64}; Hilbert envelope (analytic signal magnitude)."""
 function envelope(x::AbstractVector{Float64})::Vector{Float64}
     X = fft(x)
     n = length(x)
@@ -170,11 +163,7 @@ function envelope(x::AbstractVector{Float64})::Vector{Float64}
     return abs.(ifft(X .* h))
 end
 
-"""
-    rms_amplitude(x) -> Float64
-
-Compute the root-mean-square amplitude of a time series.
-"""
+"""rms_amplitude(x) -> Float64; root-mean-square amplitude of a time series."""
 function rms_amplitude(x::AbstractVector{Float64})::Float64
     return sqrt(mean(x .^ 2))
 end

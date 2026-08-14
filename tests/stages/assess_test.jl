@@ -1,11 +1,10 @@
 # assess_test.jl — Stage 4 (assess) tests.
 #
-# Chains input → forward on a small hand-built trial set, then runs assess.jl
-# and verifies:
-#   - `/misfits/XcorrS` == 1 − cc_max from the intermediates (extract correct)
+# Chains input → forward on a small trial set, then runs assess.jl and checks:
+#   - `/misfits/XcorrS` == 1 − cc_max (extract correct)
 #   - misfit matrix shape [N_entries × N_trials]
-#   - convergence decision file written (empty = converged) when DATA_DIR set
-#   - assess does not touch `/strategy` or `/trials`
+#   - empty `.decision.txt` = converged when DATA_DIR set
+#   - `/strategy` and `/trials` untouched
 #
 # Usage:
 #   julia --project=. tests/stages/assess_test.jl

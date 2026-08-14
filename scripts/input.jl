@@ -1,12 +1,8 @@
 #!/usr/bin/env julia
 #
 # input.jl - 数据接入与初始化阶段
-# 管道启动后执行一次, 完成以下工作:
-#   1. 加载用户配置 (config.jl)
-#   2. 通过 Config.load_*() 读外部数据 (事件/台站/波形/格林函数)
-#   3. 预处理波形 (带通滤波 + 裁窗)
-#   4. 写入 database.h5 (/event, /station, /channel, /gf, /paraspace, /config, /{ModuleName})
-#   5. 写入 status_0.h5 (初始策略, 无 trial)
+# 加载用户配置, 读外部数据 (事件/台站/波形/格林函数), 预处理波形
+# (带通滤波 + 裁窗), 写 database.h5 与 status_0.h5 (初始策略, 无 trial)。
 #
 # Usage:
 #   julia scripts/input.jl <config.jl>
@@ -347,8 +343,7 @@ event_dict = Dict{String, Any}(
 )
 
 g0 = Grid.default_grid()
-# strike: 全圆周闭合采样 0:5:355 (72 点)。末点 355+5=360 ≡ 0，
-# 均匀覆盖整个圆周无空洞。dip/rake 为区间采样 (0..90 / -90..90)。
+# strike: 全圆周闭合采样 0:5:355 (72 点; 355+5=360≡0 无空洞), dip/rake 为区间采样。
 strike_vals = collect(g0.strike0:g0.dstrike:(360.0 - g0.dstrike))
 @assert length(strike_vals) == Int(g0.nstrike) "paraspace strike 与 strategy.nstrike 不一致"
 dip_vals = Grid.expand_axis(g0.dip0, g0.ddip, g0.ndip)

@@ -10,10 +10,7 @@
 #include <utility>
 #include <vector>
 
-// ──────────────────────────────────────────────────────────────────────────
-// Trial struct — replicated here for self-contained header.
-// Mirrors the TrialSet layout in HDF5.
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Trial struct — self-contained header, mirrors TrialSet HDF5 layout ─
 
 struct Trial {
     // 1-based indices into /paraspace axes; physical values resolved below
@@ -28,9 +25,7 @@ struct Trial {
     double rake;
 };
 
-// ──────────────────────────────────────────────────────────────────────────
-// Per-module cache storage types (flat double* arrays — no Kokkos::View)
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Per-module cache storage (flat double* arrays, no Kokkos::View) ─
 
 struct XCorrCache {
     double *cc = nullptr;        // [n_phases × cc_rows × 6] column-major (per-lag obs·GF dots)
@@ -49,17 +44,13 @@ struct PolarityCache {
 };
 
 struct PSRCache {
-    double *amp_P = nullptr;   // [n_phases × 6 × 6]  (amp_P[phase + i*n_phases +
-                               // j*(n_phases*6)])
+    double *amp_P = nullptr;   // [n_phases × 6 × 6] (phase-major)
     double *amp_S = nullptr;   // [n_phases × 6 × 6]
     double *obs_psr = nullptr; // [n_phases]
     int n_phases = 0;
 };
 
-// ──────────────────────────────────────────────────────────────────────────
-// Single cache entry for a (freq_idx, depth_idx) key.
-// Contains host-resident reduced data for all phases/stations.
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Cache entry keyed by (freq_idx, depth_idx), host-resident reduced data ─
 
 struct CacheEntry {
     int freq_idx;
@@ -93,9 +84,7 @@ struct CacheEntry {
     }
 };
 
-// ──────────────────────────────────────────────────────────────────────────
-// DataCache — host-side data cache for forward.cpp
-// ──────────────────────────────────────────────────────────────────────────
+// ─ DataCache — host-side data cache for forward.cpp ─
 
 class DataCache {
   public:
@@ -126,8 +115,7 @@ class DataCache {
     }
 
   private:
-    // Cache: (freq_idx, depth_idx) → CacheEntry
-    // Using pair of ints as key with a simple hash.
+    // Cache: (freq_idx, depth_idx) → CacheEntry (pair-of-int hash)
     struct PairHash {
         size_t operator()(const std::pair<int, int> &p) const {
             return static_cast<size_t>(p.first) * 31 + static_cast<size_t>(p.second);

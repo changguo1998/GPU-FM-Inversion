@@ -1,14 +1,8 @@
-"""
-Grid utilities: trial generation from strategy parameters and
-grid refinement based on best-trial results.
-
-Combines TrialGen (generate trials from search grid) and
-GridRefinement (compute next iteration's grid from best trial).
-"""
+"""Grid utilities: trial generation from strategy parameters and grid
+refinement based on best-trial results (TrialGen + GridRefinement)."""
 module Grid
 
-# Cannot `import IO` — name clashes with Base.IO.
-# Load via PkgId to disambiguate, then alias for use in sub-files.
+# Can't `import IO` (clashes with Base.IO); load via PkgId + alias for sub-files.
 const H5IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209ee1d"), "IO"))
 
 include("trial_gen.jl")

@@ -1,9 +1,8 @@
 # preprocess_test.jl — Stage 2 (preprocess) tests.
 #
 # Runs `scripts/preprocess.jl` against a prepared `status_0.h5` (strategy
-# written via IO.write_strategy — the same file shape input.jl produces),
-# then asserts the `/trials` group: index-only Cartesian product of
-# strike × dip × rake × depth × freq, all 1-based into /paraspace axes.
+# written like input.jl) and asserts `/trials`: index-only Cartesian product
+# of strike × dip × rake × depth × freq, 1-based into /paraspace axes.
 #
 # Usage:
 #   julia --project=. tests/stages/preprocess_test.jl

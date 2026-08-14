@@ -1,12 +1,9 @@
 # output_test.jl — Stage 5 (output) tests.
 #
 # Chains input → forward → assess on a small trial set, then runs output.jl
-# and verifies `output.h5` groups against independently recomputed values:
-#   - `/solution` best trial == argmin of per-trial mean misfit (physical SDR
-#     resolved from /paraspace, tripled-checked against /misfits)
-#   - `/uncertainty` std/range from the best neighborhood
-#   - `/per_phase` cross_correlation column == intermediates cc_max at best trial
-#   - `/summary` total_trials consistent
+# and checks `output.h5` against independent recomputation: `/solution` best
+# trial == argmin mean misfit, `/per_phase` cross_correlation == cc_max at
+# best, `/uncertainty` fields, `/summary` counts.
 #
 # Usage:
 #   julia --project=. tests/stages/output_test.jl
@@ -97,7 +94,6 @@ include("test_util.jl")
                     @test read(s["misfit"]) ≈ mean_m[best_idx] atol = 1e-12
                     mt = read(s["moment_tensor"])
                     @test length(mt) == 6
-                    # MT is Python-free here: just check it is non-degenerate
                     @test all(isfinite, mt)
                 end
 

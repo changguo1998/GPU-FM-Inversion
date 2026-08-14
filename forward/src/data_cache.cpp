@@ -7,16 +7,12 @@
 #include <iostream>
 #include <set>
 
-// ──────────────────────────────────────────────────────────────────────────
-// DataCache construction
-// ──────────────────────────────────────────────────────────────────────────
+// ─ DataCache construction ─
 
 DataCache::DataCache(int maxlag) : maxlag_(maxlag) {
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Helper: extract unique (freq, depth) combos
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Helper: extract unique (freq, depth) combos ─
 
 std::vector<std::pair<int, int>> DataCache::unique_combos(const std::vector<Trial> &trials) {
     std::set<std::pair<int, int>> seen;
@@ -26,9 +22,7 @@ std::vector<std::pair<int, int>> DataCache::unique_combos(const std::vector<Tria
     return std::vector<std::pair<int, int>>(seen.begin(), seen.end());
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Helper: read phase_ids from HDF5 index (string array)
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Read phase_ids from HDF5 index ─
 
 std::vector<std::string> DataCache::read_phase_ids(hid_t file_id, const char *path) {
     hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
@@ -63,9 +57,7 @@ std::vector<std::string> DataCache::read_phase_ids(hid_t file_id, const char *pa
     return result;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Helper: read int 1D from HDF5
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Read int 1D dataset from HDF5 ─
 
 std::vector<int> DataCache::read_int_1d_direct(hid_t file_id, const char *path) {
     hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
@@ -84,9 +76,7 @@ std::vector<int> DataCache::read_int_1d_direct(hid_t file_id, const char *path) 
     return result;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// load_from_database
-// ──────────────────────────────────────────────────────────────────────────
+// ─ load_from_database ─
 
 void DataCache::load_from_database(const std::string &database_path,
                                    const std::vector<Trial> &trials) {
@@ -158,9 +148,7 @@ void DataCache::load_from_database(const std::string &database_path,
     H5Fclose(file_id);
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// load_combo — read data for one (freq, depth) combo and reduce
-// ──────────────────────────────────────────────────────────────────────────
+// ─ load_combo: read + reduce one (freq, depth) combo ─
 
 CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx, int depth_idx,
                                  const std::vector<std::string> &phase_ids, int n_stations, int n_p,
@@ -198,9 +186,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     bool has_polarity = false;
     bool has_psr = false;
 
-    // ── GF group names = 1-based depth index (matches /paraspace/depth) ──
-    // Physical values live only in /paraspace/depth; path construction uses
-    // the index directly so no float formatting can skew group names.
+    // GF group names use the 1-based depth index directly (no float formatting).
     depth_str = std::to_string(depth_idx);
 
     // ── Read station_idx for phase->channel mapping (polarity) ─────────────
@@ -350,8 +336,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // ── Allocate flat arrays ──────────────────────────────────────────────
 
     if (has_xcorr) {
-        // Effective maxlag is window-clamped (first non-empty phase's length
-        // decides, identical for all phases since XCorr windows are fixed-size).
+        // Clamp to first non-empty phase's window half-width (windows are fixed-size).
         int eff_maxlag = maxlag_;
         for (int i = 0; i < n_ph; ++i) {
             if (host_data[i].n_xcorr > 0) {
@@ -389,9 +374,8 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         double *cc_total = entry.xcorr.cc;
         double *synamp_tot = entry.xcorr.synamp;
         double *obs_norm2 = entry.xcorr.obs_norm2;
-        // Must use the window-clamped stride set during allocation; the raw
-        // maxlag_ could exceed (window_len-1)/2 (then the reduction loop below
-        // clamps it and would index past the smaller allocation otherwise).
+        // Use the window-clamped stride from allocation; the raw maxlag_ may exceed
+        // half the window and would index past the smaller array.
         const int cc_rows = entry.xcorr.cc_rows;
 
         for (int i = 0; i < n_ph; ++i) {
@@ -504,9 +488,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     return entry;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// get_or_compute
-// ──────────────────────────────────────────────────────────────────────────
+// ─ get_or_compute ─
 
 const CacheEntry *DataCache::get_or_compute(int freq_idx, int depth_idx) {
     auto key = std::make_pair(freq_idx, depth_idx);
@@ -518,9 +500,7 @@ const CacheEntry *DataCache::get_or_compute(int freq_idx, int depth_idx) {
                              std::to_string(depth_idx) + ") not loaded");
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// release_all
-// ──────────────────────────────────────────────────────────────────────────
+// ─ release_all ─
 
 void DataCache::release_all() {
     for (auto &kv : cache_) {
@@ -529,9 +509,7 @@ void DataCache::release_all() {
     cache_.clear();
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Static reduction helpers (stubs — actual reductions are inline above)
-// ──────────────────────────────────────────────────────────────────────────
+// ─ Static reduction helpers (stubs — reductions inline in load_combo) ─
 
 void DataCache::compute_xcorr_reduction(CacheEntry & /*entry*/, const std::vector<double> & /*obs*/,
                                         const std::vector<double> & /*gf*/, int /*n_samples*/) {

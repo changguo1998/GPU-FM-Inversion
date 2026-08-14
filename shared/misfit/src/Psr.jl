@@ -1,8 +1,5 @@
-# PSR misfit plugin (template)
-#
-# Included inside Config.{name} (dynamically created inner module).
-# Template for P/S amplitude ratio - instantiated per phase pair via
-# Config.use_misfit!(:Psr, operator = Misfit.Psr, ...).
+# PSR misfit plugin (template), included inside Config.{name}.
+# Instantiated per phase pair via `Config.use_misfit!(:Psr, ...)`.
 #
 # Config stubs (user must override):
 #   pre_P()/post_P() - P window period counts
@@ -46,11 +43,10 @@ const _IO = Base.require(Base.PkgId(Base.UUID("4a4c5d4c-b010-4bf7-8ff7-4f9ab209e
                arrival_P, arrival_S, pre_P, post_P, pre_S, post_S, band_high)
                -> (amp_P, amp_S, obs_psr)
 
-P/S amplitude ratio reductions.
-- amp_P = GF_P[win]' * GF_P[win]  (6x6)
-- amp_S = GF_S[win]' * GF_S[win]  (6x6)
+P/S amplitude ratio reductions; windows scale with band (period counts).
+- amp_P = GF_P[win]'GF_P[win]  (6x6)
+- amp_S = GF_S[win]'GF_S[win]  (6x6)
 - obs_psr = log10(rms(obs_P_win) / rms(obs_S_win))
-Window lengths scale with band: pre_P/band_high etc. (period counts).
 """
 function preprocess(
     gf_P_full::Matrix{Float64},
@@ -86,13 +82,9 @@ end
     process(phases_P, phases_S, stations, picks, station_to_idx,
             prepro_obs, prepro_gf, depths, band_high, freq_idx, pf)
 
-Batch preprocess PSR. Pair P/S per station (same channel).
-Returns a Dict mirroring the HDF5 schema:
-  "channel_id"  => String[N_entries]
-  "station_idx" => Int32[N_entries]
-  "obs"    => Dict(freq_idx => Dict("obs_psr" => Float64[N]))
-  "amp_P"  => Dict(depth => Dict(freq_idx => Float64[N, 6, 6]))
-  "amp_S"  => Dict(depth => Dict(freq_idx => Float64[N, 6, 6]))
+Batch PSR preprocessing; pairs P/S per station (same channel). Returns a
+Dict mirroring the HDF5 schema: "channel_id", "station_idx", "obs"
+(obs_psr), "amp_P", "amp_S".
 """
 function process(
     phases_P::Vector{Tuple{String, Int}},

@@ -1,16 +1,10 @@
 # e2e_test.jl — End-to-end pipeline test (input → preprocess → forward → assess → output).
 #
-# Drives the real `driver.sh` against a freshly generated synthetic event and
-# asserts the full single-iteration loop:
-#   - driver exits 0
-#   - converged after iteration 1 (empty decision file, output produced)
-#   - `output.h5` best solution recovers the true source (30, 60, 90) deg
-#     (and its |cc_max| complement (30, 60, −90) is equally valid — azimuthal
-#     CC has no polarity, so both rake sign nodes share the same misfit)
-#   - the XCorrS misfit for the true source is far below random (~0.16 vs ~0.5)
-#
-# This is the acceptance gate named in AGENTS.md: the XCorr-only pipeline must
-# run end-to-end on a synthetic example and reproduce the baseline.
+# Drives the real `driver.sh` on a fresh synthetic event and asserts the single
+# iteration loop: driver exits 0, converges after one iteration, and `output.h5`
+# recovers the true source (30, 60, 90) @ 10 km. Rake ±90 are equal |cc_max|
+# complements (azimuthal CC has no polarity). Acceptance gate in AGENTS.md /
+# doc/roadmap.md: the XCorr-only pipeline must reproduce the ~0.16 baseline.
 #
 # Usage:
 #   julia --project=. tests/stages/e2e_test.jl
