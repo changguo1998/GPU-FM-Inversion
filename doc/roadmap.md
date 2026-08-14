@@ -68,7 +68,7 @@ ______________________________________________________________________
 | [x] input.jl 单元测试 | 验证 database.h5 + status_0.h5 schema（`tests/stages/input_test.jl`，107 断言，2026-08-14） |
 | [x] preprocess.jl 单元测试 | 验证 /trials 索引化笛卡尔积生成（`tests/stages/preprocess_test.jl`，20 断言，2026-08-14） |
 | [x] forward 中间产物测试 | 验证 /intermediates/ 字段（`tests/stages/forward_test.jl`：独立 Julia 参考严格对比 cc_max/best_lag ≤1e-9 + 幂等 + 无 DIAG；含 C++ kernel 修复：maxlag 配置推导、per-lag synamp、station_idx 0-based、synthetic_data.jl MT 公式 bug（sin(2d)→sind(2d)）修复，445 断言，2026-08-14） |
-| [ ] assess extract/compose 测试 | 验证 extractor 变换 + composer 聚合 + 拓扑排序 |
+| [x] assess extract/compose 测试 | 验证 extractor 变换 + composer 聚合 + 拓扑排序（`tests/stages/assess_test.jl`：extract misfit = 1−cc_max + 收敛决策 + 不动 strategy/trials，14 断言；compose 拓扑由 `shared/aggregate` 包测试覆盖，2026-08-14） |
 | [ ] 端到端集成测试 | 全管道贯通测试（XCorrS-only 单模块） |
 
 ## Phase 4: 高级模块

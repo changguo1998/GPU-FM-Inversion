@@ -30,7 +30,7 @@ config_sample.jl   Template pipeline configuration
 （input → preprocess → forward → assess → output），最后再扩展其他算子（Polarity/Psr）。
 
 - 当前所有开发决策以 `examples/synthetic` 为准：改动必须保持 XCorr 全流程在该事例上端到端可跑，best 结果可复现。
-  - **验收基线（修复 mt 布局 bug 后，2026-08-10）**：72 网格全链 best = **(30,65,-90) @ 10 km, misfit ≈ 0.1593**（XCorrS-only，9 通道）。合成数据真实源为 (30,60,90,10 km)（`tests/synthetic_data.jl` DEFAULT\_\*）；rake ±90 为 |cc_max| 无极性下的互补节点，misfit 相同；dip 60 vs 65 因数据噪声/台站几何仅差 ~0.009。
+  - **验收基线（修复 synthetic_data.jl MT 公式 bug 后，2026-08-14）**：72 网格全链 best = **(30,60,90) @ 10 km, misfit ≈ 0.1602**（XCorrS-only，9 通道）——best 即合成数据真实源 (30,60,90,10 km)（`tests/synthetic_data.jl` DEFAULT\_\*）。历史基线 (30,65,-90)/0.1593 由 `sdr_to_mt` 的 `sin(2d)`→`sind(2d)` 笔误（生成数据 MT 错误）所致，已随 2026-08-14 修复作废。rake ±90 仍为 |cc_max| 无极性下互补节点（misfit 相同）。
   - **历史警告**：2026-08-10 前所有 e2e 的 best #29522 (65,90,85, 0.15518) 均由 XCorr kernel 的 **MT 布局 bug**（kernel 列主读 `mt[trial + c*N]`、main 行主写 `mt[trial*6+c]`）产生，已作废。该 bug 与 trial 规模耦合（n_sub=1 时行列主等价掩盖），在 strike 72 网格（n_sub=50616）暴露为"misfit 错乱"；修复后 71/72 网格结果完全一致。
 - XCorr 一族（XcorrP/S、AbsShiftP/S、RelShift）为活跃目标函数/派生诊断；Polarity/Psr 属"算子扩展"阶段，恢复时按 `git HEAD 367dfd1` 前的注册与预处理接线为准。
 
