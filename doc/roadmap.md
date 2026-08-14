@@ -65,7 +65,7 @@ ______________________________________________________________________
 
 | Task | 说明 |
 |---------------------------------|------------------------------------------------|
-| [ ] input.jl 单元测试 | 验证 database.h5 + status_0.h5 schema |
+| [x] input.jl 单元测试 | 验证 database.h5 + status_0.h5 schema（`tests/stages/input_test.jl`，107 断言，2026-08-14） |
 | [ ] forward 中间产物测试 | 验证 /intermediates/ 字段（cc_max, best_lag 等） |
 | [ ] assess extract/compose 测试 | 验证 extractor 变换 + composer 聚合 + 拓扑排序 |
 | [ ] 端到端集成测试 | 全管道贯通测试（XCorrS-only 单模块） |
