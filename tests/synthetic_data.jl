@@ -135,10 +135,10 @@ function sdr_to_mt(s, d, r)
     cs = cosd(s)
     sr = sind(r)
     cr = cosd(r)
-    Mxx = -(sd * cr * sind(2s) + sin(2d) * sr * ss^2)
-    Myy = sd * cr * sind(2s) - sin(2d) * sr * cs^2
-    Mzz = sin(2d) * sr
-    Mxy = sd * cr * cosd(2s) + 0.5 * sin(2d) * sr * sind(2s)
+    Mxx = -(sd * cr * sind(2s) + sind(2d) * sr * ss^2)
+    Myy = sd * cr * sind(2s) - sind(2d) * sr * cs^2
+    Mzz = sind(2d) * sr
+    Mxy = sd * cr * cosd(2s) + 0.5 * sind(2d) * sr * sind(2s)
     Mxz = -(cd * cr * cs + cosd(2d) * sr * ss)
     Myz = -(cd * cr * ss - cosd(2d) * sr * cs)
     return [Mxx, Myy, Mzz, Mxy, Mxz, Myz]

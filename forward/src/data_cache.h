@@ -33,12 +33,13 @@ struct Trial {
 // ──────────────────────────────────────────────────────────────────────────
 
 struct XCorrCache {
-    double *cc = nullptr;        // [cc_rows × 6]  (flattened across phases)
-    double *synamp = nullptr;    // [n_syn_phases × 6 × 6]  (same layout as Kokkos LayoutLeft)
+    double *cc = nullptr;        // [n_phases × cc_rows × 6] column-major (per-lag obs·GF dots)
+    double *synamp = nullptr;    // [n_phases × 36 × cc_rows] column-major (per-lag Gram)
     double *obs_norm2 = nullptr; // [n_phases]
-    int cc_rows = 0;             // total rows in cc = n_phases * (2*maxlag+1)
-    int n_syn_phases = 0;        // rows in synamp = n_phases * 6
+    int cc_rows = 0;             // rows per phase = 2*maxlag+1
+    int n_syn_phases = 0;        // phases * 6 (synamp row stride within one lag)
     int n_phases = 0;            // length of obs_norm2
+    int maxlag = 0;              // half-width of the lag scan
 };
 
 struct PolarityCache {

@@ -177,11 +177,28 @@ std::vector<double> Hdf5Handle::read_double_3d(const char *path, int &dim1, int 
 
 // --- Group ops ---
 
+bool Hdf5Handle::link_exists(hid_t file, const char *path) {
+    hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
+    if (lapl < 0)
+        return false;
+    htri_t status;
+    H5E_BEGIN_TRY {
+        status = H5Lexists(file, path, lapl);
+    }
+    H5E_END_TRY;
+    H5Pclose(lapl);
+    return status > 0;
+}
 bool Hdf5Handle::group_exists(const char *path) {
     hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
     if (lapl < 0)
         return false;
-    htri_t status = H5Lexists(file_id, path, lapl);
+    // Silence HDF5-DIAG noise when the path legitimately does not exist.
+    htri_t status;
+    H5E_BEGIN_TRY {
+        status = H5Lexists(file_id, path, lapl);
+    }
+    H5E_END_TRY;
     H5Pclose(lapl);
     return status > 0;
 }
@@ -190,6 +207,25 @@ void Hdf5Handle::create_group(const char *path) {
     hid_t grp = H5Gcreate(file_id, path, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     check_null("H5Gcreate", grp);
     check_herr("H5Gclose", H5Gclose(grp));
+}
+
+void Hdf5Handle::delete_group(const char *path) {
+    // Remove the group link; its contents are freed with it.
+    hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
+    if (lapl < 0)
+        return;
+    htri_t status;
+    H5E_BEGIN_TRY {
+        status = H5Lexists(file_id, path, lapl);
+    }
+    H5E_END_TRY;
+    if (status > 0) {
+        H5E_BEGIN_TRY {
+            H5Ldelete(file_id, path, lapl);
+        }
+        H5E_END_TRY;
+    }
+    H5Pclose(lapl);
 }
 
 // --- Writer ---

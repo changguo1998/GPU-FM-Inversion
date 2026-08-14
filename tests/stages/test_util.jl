@@ -58,6 +58,21 @@ function make_synthetic(
     return r
 end
 
+"""
+    write_test_config(dir) -> config_path
+
+Copy the canonical `examples/synthetic/config.jl` into the test data dir.
+Its `@__DIR__` then points at the freshly generated data, so all stage tests
+share the same authoritative configuration as the synthetic example.
+"""
+function write_test_config(dir::AbstractString)
+    src = joinpath(PROJECT_ROOT, "examples", "synthetic", "config.jl")
+    @assert isfile(src) "missing canonical config: $src"
+    dst = joinpath(dir, "config.jl")
+    cp(src, dst; force = true)
+    return dst
+end
+
 # Physical SDR -> MT conversion, matching tests/synthetic_data.jl (NED).
 function sdr_to_mt(s::Float64, d::Float64, r::Float64)::Vector{Float64}
     sd = sind(d);
@@ -66,10 +81,10 @@ function sdr_to_mt(s::Float64, d::Float64, r::Float64)::Vector{Float64}
     cs = cosd(s);
     sr = sind(r);
     cr = cosd(r)
-    Mxx = -(sd * cr * sind(2s) + sin(2d) * sr * ss^2)
-    Myy = sd * cr * sind(2s) - sin(2d) * sr * cs^2
-    Mzz = sin(2d) * sr
-    Mxy = sd * cr * cosd(2s) + 0.5 * sin(2d) * sr * sind(2s)
+    Mxx = -(sd * cr * sind(2s) + sind(2d) * sr * ss^2)
+    Myy = sd * cr * sind(2s) - sind(2d) * sr * cs^2
+    Mzz = sind(2d) * sr
+    Mxy = sd * cr * cosd(2s) + 0.5 * sind(2d) * sr * sind(2s)
     Mxz = -(cd * cr * cs + cosd(2d) * sr * ss)
     Myz = -(cd * cr * ss - cosd(2d) * sr * cs)
     return [Mxx, Myy, Mzz, Mxy, Mxz, Myz]

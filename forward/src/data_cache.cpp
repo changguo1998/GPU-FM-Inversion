@@ -110,9 +110,9 @@ void DataCache::load_from_database(const std::string &database_path,
     int n_stations = 0;
     try {
         // Read channel_id from each group (P then S) -- each group optional
-        if (H5Lexists(file_id, "/XcorrP/channel_id", H5P_DEFAULT) > 0)
+        if (Hdf5Handle::link_exists(file_id, "/XcorrP/channel_id"))
             p_ids = read_phase_ids(file_id, "/XcorrP/channel_id");
-        if (H5Lexists(file_id, "/XcorrS/channel_id", H5P_DEFAULT) > 0)
+        if (Hdf5Handle::link_exists(file_id, "/XcorrS/channel_id"))
             s_ids = read_phase_ids(file_id, "/XcorrS/channel_id");
         // Combine: P first, S after (matches xcorr array convention)
         phase_ids.reserve(p_ids.size() + s_ids.size());
@@ -209,9 +209,9 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // Combined from XcorrP (P phases first) then xcorrS (S phases)
     std::vector<int> station_idx;
     std::vector<int> p_si, s_si;
-    if (H5Lexists(h5.file_id, "/XcorrP/station_idx", H5P_DEFAULT) > 0)
+    if (Hdf5Handle::link_exists(h5.file_id, "/XcorrP/station_idx"))
         p_si = h5.read_int_1d("/XcorrP/station_idx");
-    if (H5Lexists(h5.file_id, "/XcorrS/station_idx", H5P_DEFAULT) > 0)
+    if (Hdf5Handle::link_exists(h5.file_id, "/XcorrS/station_idx"))
         s_si = h5.read_int_1d("/XcorrS/station_idx");
     station_idx.reserve(p_si.size() + s_si.size());
     station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
@@ -352,10 +352,21 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // ── Allocate flat arrays ──────────────────────────────────────────────
 
     if (has_xcorr) {
-        entry.xcorr.cc_rows = n_ph * (2 * maxlag_ + 1); // cc: [cc_rows × 6]
-        entry.xcorr.cc = new double[static_cast<size_t>(entry.xcorr.cc_rows * 6)];
-        entry.xcorr.n_syn_phases = n_ph * 6; // synamp: [n_ph*6 × 6]
-        entry.xcorr.synamp = new double[static_cast<size_t>(entry.xcorr.n_syn_phases * 6)];
+        // Effective maxlag is window-clamped (first non-empty phase's length
+        // decides, identical for all phases since XCorr windows are fixed-size).
+        int eff_maxlag = maxlag_;
+        for (int i = 0; i < n_ph; ++i) {
+            if (host_data[i].n_xcorr > 0) {
+                eff_maxlag = std::min(maxlag_, (host_data[i].n_xcorr - 1) / 2);
+                break;
+            }
+        }
+        const int cc_rows = 2 * eff_maxlag + 1;
+        entry.xcorr.maxlag = eff_maxlag;
+        entry.xcorr.cc_rows = cc_rows;
+        entry.xcorr.cc = new double[static_cast<size_t>(n_ph * cc_rows * 6)];
+        entry.xcorr.n_syn_phases = n_ph * 6; // synamp: [n_ph*36 × cc_rows]
+        entry.xcorr.synamp = new double[static_cast<size_t>(n_ph * 36 * cc_rows)];
         entry.xcorr.n_phases = n_ph;
         entry.xcorr.obs_norm2 = new double[n_ph];
     }
@@ -397,23 +408,33 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
             }
             obs_norm2[i] = norm2;
 
-            // synamp[6][6] = gf^T * gf
-            // stored as [n_ph*6 × 6] column-major: synamp_tot[i*6 + a + b * (n_ph*6)]
+            // per-lag synamp[6][6] = gf^T * gf (window shifted by `lag`)
+            // stored column-major [n_ph × 36 × cc_rows]:
+            //   synamp_tot[i + (a*6+b)*n_ph + lag_idx*(n_ph*36)]
             int N = hd.n_xcorr;
-            for (int a = 0; a < 6; ++a) {
-                for (int b = a; b < 6; ++b) {
-                    double sum = 0.0;
-                    for (int t = 0; t < N; ++t) {
-                        sum += hd.gf[t * 6 + a] * hd.gf[t * 6 + b];
+            // Half-width clamped to the window so a full window fits at lag 0.
+            const int maxlag = std::min(maxlag_, (N - 1) / 2);
+            entry.xcorr.maxlag = maxlag;
+            for (int lag = -maxlag; lag <= maxlag; ++lag) {
+                int lag_idx = lag + maxlag;
+                for (int a = 0; a < 6; ++a) {
+                    for (int b = a; b < 6; ++b) {
+                        double sum = 0.0;
+                        for (int t = 0; t < N; ++t) {
+                            int t_shift = t - lag; // GF shifted by -lag (same as CC below)
+                            if (t_shift >= 0 && t_shift < N) {
+                                sum += hd.gf[t_shift * 6 + a] * hd.gf[t_shift * 6 + b];
+                            }
+                        }
+                        synamp_tot[i + (a * 6 + b) * n_ph + lag_idx * (n_ph * 36)] = sum;
+                        synamp_tot[i + (b * 6 + a) * n_ph + lag_idx * (n_ph * 36)] =
+                            sum; // symmetric
                     }
-                    synamp_tot[i * 6 + a + b * (n_ph * 6)] = sum;
-                    synamp_tot[i * 6 + b + a * (n_ph * 6)] = sum; // symmetric
                 }
             }
 
             // CC[2*maxlag+1][6] — time-domain cross-correlation
-            // stored as [n_ph*(2*maxlag+1) × 6] column-major
-            int maxlag = maxlag_;
+            // stored as [n_ph*cc_rows × 6] column-major
             for (int lag = -maxlag; lag <= maxlag; ++lag) {
                 int lag_idx = lag + maxlag;
                 for (int comp = 0; comp < 6; ++comp) {

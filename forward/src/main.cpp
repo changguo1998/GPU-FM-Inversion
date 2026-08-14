@@ -128,11 +128,15 @@ int main(int argc, char *argv[]) {
         std::vector<int> st_idx_vec;
         if (db_reader.group_exists("/XcorrP/station_idx")) {
             auto p_si = db_reader.read_int_1d("/XcorrP/station_idx");
+            for (auto &v : p_si)
+                --v; // 1-based in HDF5 -> 0-based vector index
             n_p = static_cast<int>(p_si.size());
             st_idx_vec.insert(st_idx_vec.end(), p_si.begin(), p_si.end());
         }
         if (db_reader.group_exists("/XcorrS/station_idx")) {
             auto s_si = db_reader.read_int_1d("/XcorrS/station_idx");
+            for (auto &v : s_si)
+                --v; // 1-based in HDF5 -> 0-based vector index
             n_s = static_cast<int>(s_si.size());
             st_idx_vec.insert(st_idx_vec.end(), s_si.begin(), s_si.end());
         }
@@ -157,14 +161,32 @@ int main(int argc, char *argv[]) {
                 s_phase_of_station[s] = n_p + ph;
         }
 
+        // XCorr lag half-width derived from config (single source of truth with the
+        // Julia preprocessor): maxlag = round(max_lag_periods / band_high_freq / dt).
+        // Per-combo window clamping happens in DataCache (entry.xcorr.maxlag).
+        double max_lag_periods = 3.0;
+        if (db_reader.group_exists("/config/XcorrS/max_lag_periods")) {
+            max_lag_periods = db_reader.read_double_scalar("/config/XcorrS/max_lag_periods");
+        }
+        double band_high_freq = 1.0;
+        auto band_high = db_reader.read_int_1d("/config/XcorrS/band_high");
+        auto freq_vals_cfg = db_reader.read_double_1d("/paraspace/frequency");
+        if (!band_high.empty() && !freq_vals_cfg.empty() && band_high[0] >= 1 &&
+            band_high[0] <= static_cast<int>(freq_vals_cfg.size())) {
+            band_high_freq = freq_vals_cfg[band_high[0] - 1];
+        }
+        double dt = 0.01;
+        auto dt_arr = db_reader.read_double_1d("/station/dt");
+        if (!dt_arr.empty())
+            dt = dt_arr[0];
+        const int maxlag =
+            std::max(1, static_cast<int>(std::llround(max_lag_periods / band_high_freq / dt)));
+
         db_reader.close();
 
         // ══════════════════════════════════════════════════════════════
         // 4. Initialize DataCache, load preprocessed data
         // ══════════════════════════════════════════════════════════════
-        const int maxlag = 50;
-        const int cc_pp = 2 * maxlag + 1;
-
         DataCache cache(maxlag);
         cache.load_from_database(database_path, trials);
 
@@ -226,21 +248,17 @@ int main(int argc, char *argv[]) {
 
             // ── XCorr: cc_max + best_lag per (phase, trial) ──
             if (entry->xcorr.cc != nullptr && N_phases > 0) {
-                std::vector<double> synamp_r(static_cast<size_t>(N_phases * 36));
-                const double *synamp_src = entry->xcorr.synamp;
-                int n_syn_phases = entry->xcorr.n_syn_phases;
-                for (int p = 0; p < N_phases; ++p)
-                    for (int i = 0; i < 6; ++i)
-                        for (int j = 0; j < 6; ++j)
-                            synamp_r[p + (i * 6 + j) * N_phases] =
-                                synamp_src[(p * 6 + i) + j * n_syn_phases];
+                // Per-lag synamp lives in the cache entry already (see data_cache.h).
+                const int cc_pp = entry->xcorr.cc_rows;   // 2*maxlag+1
+                const int maxlag_e = entry->xcorr.maxlag; // window-clamped half-width
 
                 std::vector<double> cc_max_sub(static_cast<size_t>(N_phases * n_sub));
                 std::vector<int32_t> best_lag_sub(static_cast<size_t>(N_phases * n_sub));
 
                 fm::launch_xcorr_misfit<Backend::OpenMP>(
-                    mt_xcorr_sub.data(), entry->xcorr.cc, synamp_r.data(), entry->xcorr.obs_norm2,
-                    cc_max_sub.data(), best_lag_sub.data(), N_phases, n_sub, cc_pp, maxlag);
+                    mt_xcorr_sub.data(), entry->xcorr.cc, entry->xcorr.synamp,
+                    entry->xcorr.obs_norm2, cc_max_sub.data(), best_lag_sub.data(), N_phases, n_sub,
+                    cc_pp, maxlag_e);
 
                 // Write back: split P (rows 0..n_p) and S (rows n_p..N_phases)
                 for (int ph = 0; ph < N_phases; ++ph)
@@ -294,8 +312,9 @@ int main(int argc, char *argv[]) {
         // ══════════════════════════════════════════════════════════════
         // 7. Write intermediates to status_N.h5:/intermediates/
         // ══════════════════════════════════════════════════════════════
-        if (!status_file.group_exists("/intermediates"))
-            status_file.create_group("/intermediates");
+        if (status_file.group_exists("/intermediates"))
+            status_file.delete_group("/intermediates");
+        status_file.create_group("/intermediates"); // idempotent (re)write
 
         auto write_xcorr_inter = [&](const char *key, const std::vector<double> &cc,
                                      const std::vector<int32_t> &lag, int n_ph) {

@@ -8,6 +8,8 @@
 
 struct Hdf5Handle {
     hid_t file_id = -1;
+    /// Silent link-exists check (no HDF5-DIAG noise for missing paths).
+    static bool link_exists(hid_t file, const char *path);
 
     // Open/close
     void open(const char *path, unsigned flags);
@@ -34,6 +36,7 @@ struct Hdf5Handle {
     // Group ops
     bool group_exists(const char *path);
     void create_group(const char *path);
+    void delete_group(const char *path);
 
     // Writer
     void write_double_2d(const char *path, const double *data, hsize_t dim1, hsize_t dim2);
