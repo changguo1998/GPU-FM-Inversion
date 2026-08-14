@@ -25,12 +25,14 @@ function run_cmd(cmd::Cmd)
 end
 
 """
-    run_stage_script(script, args) -> (ok, code, output)
+    run_stage_script(script, args; env) -> (ok, code, output)
 
 Run a Julia stage script as a subprocess in the project environment.
+Optional `env` pairs (e.g. "DATA_DIR" => dir) are added to the child env.
 """
-function run_stage_script(script::AbstractString, args::Vector{String})
+function run_stage_script(script::AbstractString, args::Vector{String}; env = nothing)
     cmd = `$(Base.julia_cmd()) --project=$PROJECT_ROOT $(joinpath(PROJECT_ROOT, script)) $(args)`
+    env === nothing || (cmd = addenv(cmd, env))
     return run_cmd(cmd)
 end
 
