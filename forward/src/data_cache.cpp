@@ -4,10 +4,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <iomanip>
 #include <iostream>
 #include <set>
-#include <sstream>
 
 // ──────────────────────────────────────────────────────────────────────────
 // DataCache construction
@@ -391,8 +389,10 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         double *cc_total = entry.xcorr.cc;
         double *synamp_tot = entry.xcorr.synamp;
         double *obs_norm2 = entry.xcorr.obs_norm2;
-        int cc_rows = 2 * maxlag_ + 1;
-        int n_ph_big = n_ph; // column stride for synamp: [n_ph × 36]
+        // Must use the window-clamped stride set during allocation; the raw
+        // maxlag_ could exceed (window_len-1)/2 (then the reduction loop below
+        // clamps it and would index past the smaller allocation otherwise).
+        const int cc_rows = entry.xcorr.cc_rows;
 
         for (int i = 0; i < n_ph; ++i) {
             auto &hd = host_data[i];
