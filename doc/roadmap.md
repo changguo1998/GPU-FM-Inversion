@@ -57,7 +57,8 @@ ______________________________________________________________________
 | [x] `preprocess.jl` - 从 strategy 生成 trials | P0 | 写 status_N.h5 /trials group（已实现，2026-08-07） |
 | [ ] `assess.jl` - 加权/聚合/网格细化 | P0 | 读 misfits，写 refined strategy（extract+compose + 收敛决策已实现；**权重聚合/网格细化待补**） |
 | [x] `output.jl` - 输出编译 | P0 | 读所有 status 文件，写 output.h5（已实现最小版，2026-08-07：Xcorr 主 misfit 选 best；加权聚合落地后完善） |
-| [x] `driver.sh` - 管道编排 | P0 | input →（preprocess→forward→assess 循环）→ output 全链已打通（2026-08-07，单迭代收敛，exit code 检测）；多迭代细化待 assess 落地 |
+| [x] `report.jl` - Markdown 报告 | P1 | 读取 `result.toml`，生成独立人工可读 `report.md` |
+| [x] `driver.sh` - 管道编排 | P0 | input →（preprocess→forward→assess 循环）→ output → report 全链已打通；多迭代细化待 assess 落地 |
 
 ## Phase 3: 验证
 

@@ -17,6 +17,7 @@
 
 using HDF5
 using Statistics
+using TOML
 
 using StageLog
 
@@ -37,6 +38,7 @@ status_path, iter_n = IO.find_latest_status(status_dir)
 trials = IO.read_trials(status_path)
 misfits = IO.read_misfits(status_path)  # Dict{Symbol, Matrix{Float64}} [entries × trials]
 modules = sort(collect(keys(misfits)))
+cfg = IO.read_config(db_path)
 # Physical axis values live only in /paraspace; trials carry indices.
 _ps = IO.read_paraspace(db_path)
 paraspace_strike = Float64.(_ps["strike"])
@@ -125,7 +127,7 @@ phase_types = String[]
 for (mod_name, ptype) in ((:XcorrP, "P"), (:XcorrS, "S"))
     if haskey(misfits, mod_name)
         chs = read_module_field(string(mod_name), "channel_id")
-        append!(phase_ids, chs)
+        append!(phase_ids, [string(c, ".", ptype) for c in chs])
         append!(phase_types, fill(ptype, length(chs)))
         append!(stations_phase, [join(split(c, ".")[1:2], ".") for c in chs])
     end
@@ -140,9 +142,11 @@ for (ri, m) in enumerate(modules)
         module_has(string(m), "channel_id") || continue
         mids = read_module_field(string(m), "channel_id")
         if length(mids) == size(misfits[m], 1)
-            # 行 = channel: 按 channel 对齐 phase_ids
+            # Channel rows align to phase keys (channel plus P/S suffix).
+            ptype = haskey(cfg[string(m)], "phase") ? String(cfg[string(m)]["phase"]) : ""
+            mids_phase = [isempty(ptype) ? c : string(c, ".", ptype) for c in mids]
             for (pi, pid) in enumerate(phase_ids)
-                ei = findfirst(==(pid), mids)
+                ei = findfirst(==(pid), mids_phase)
                 ei !== nothing && (misfit_per_module[ri, pi] = misfits[m][ei, best_idx])
             end
         else
@@ -175,7 +179,7 @@ for (mod_name, ptype) in ((:XcorrP, "P"), (:XcorrS, "S"))
         # cc_max 每列对应 channel rows; 当行列数与 channel_id 一致时按通道对齐
         if length(col) == length(chs)
             for (i, c) in enumerate(chs)
-                pi = findfirst(==(c), phase_ids)
+                pi = findfirst(==(string(c, ".", ptype)), phase_ids)
                 pi !== nothing && (cross_corr[pi] = col[i])
             end
         end
@@ -221,3 +225,31 @@ summary = Dict{String, Any}(
 # === 8. 写 output.h5 ===
 IO.write_output(out_path, solution, uncertainty, per_phase, per_station_summary, summary)
 @info "wrote $out_path"
+
+# === 9. 写机器可读文本结果 (TOML) ===
+function toml_rows(a::AbstractMatrix)
+    return [collect(a[i, :]) for i in axes(a, 1)]
+end
+
+text_result = Dict{String, Any}(
+    "format_version" => 1,
+    "solution" => solution,
+    "uncertainty" => merge(
+        uncertainty,
+        Dict("freq_test_misfit_curve" => toml_rows(uncertainty["freq_test_misfit_curve"])),
+    ),
+    "summary" => summary,
+    "per_phase" => merge(
+        per_phase,
+        Dict(
+            "misfit_modules" => String.(modules),
+            "misfit_per_module" => toml_rows(per_phase["misfit_per_module"]),
+        ),
+    ),
+    "per_station_summary" => per_station_summary,
+)
+text_path = joinpath(data_dir, "result.toml")
+open(text_path, "w") do io
+    TOML.print(io, text_result)
+end
+@info "wrote $text_path"

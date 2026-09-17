@@ -1,4 +1,4 @@
-# e2e_test.jl — End-to-end pipeline test (input → preprocess → forward → assess → output).
+# e2e_test.jl — End-to-end pipeline test (input → preprocess → forward → assess → output → report).
 #
 # Drives the real `driver.sh` on a fresh synthetic event and asserts the single
 # iteration loop: driver exits 0, converges after one iteration, and `output.h5`
@@ -25,6 +25,8 @@ include("test_util.jl")
         @testset "driver run" begin
             @test drv.ok
             @test isfile(out_path)
+            @test isfile(joinpath(dir, "result.toml"))
+            @test isfile(joinpath(dir, "report.md"))
             @test isfile(joinpath(dir, "status", "status_0.h5"))
             @test isfile(joinpath(dir, ".decision.txt"))
             @test isempty(read(joinpath(dir, ".decision.txt"), String))  # converged

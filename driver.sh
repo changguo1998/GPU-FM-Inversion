@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Pipeline Orchestration for Focal Mechanism Inversion
 #
-# Stages: input (once) → loop: [preprocess → forward → assess] → output
+# Stages: input (once) → loop: [preprocess → forward → assess] → output → report
 #
 # assess.jl exit codes: 0 = continue, 10 = converged → output.jl
 # Usage: bash driver.sh --data-dir <dir>
@@ -20,6 +20,7 @@ CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
 CALL_FORWARD="$SCRIPT_DIR/forward/build/forward"
 CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
 CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
+CALL_REPORT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/report.jl"
 
 # Parse CLI
 while [[ $# -gt 0 ]]; do
@@ -150,5 +151,9 @@ done
 # Stage 5: output
 info "output"
 $CALL_OUTPUT
+
+# Stage 6: human-readable report
+info "report"
+$CALL_REPORT
 
 info "complete"

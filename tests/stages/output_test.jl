@@ -11,6 +11,7 @@
 using Test
 using HDF5
 using Statistics
+using TOML
 
 using IO, Grid
 
@@ -73,7 +74,7 @@ include("test_util.jl")
             global _DURATION = read(f["/paraspace/duration"])
             global _CH_P = String.(read(f["/XcorrP/channel_id"]))
             global _CH_S = String.(read(f["/XcorrS/channel_id"]))
-            global _CH = vcat(_CH_P, _CH_S)
+            global _CH = vcat([string(c, ".P") for c in _CH_P], [string(c, ".S") for c in _CH_S])
         end
         h5open(status0, "r") do f
             global _MISFIT_P = read(f["/misfits/XcorrP"])  # [entries × trials]
@@ -135,6 +136,18 @@ include("test_util.jl")
                     @test read(s["total_iterations"]) >= 1
                 end
             end
+        end
+
+        @testset "result.toml" begin
+            txt = joinpath(dir, "result.toml")
+            @test isfile(txt)
+            parsed = TOML.parsefile(txt)
+            @test parsed["format_version"] == 1
+            @test parsed["solution"]["duration"] ≈ _DURATION[_TDURATION[best_idx]]
+            @test parsed["per_phase"]["phase_id"] == _CH
+            @test parsed["per_phase"]["misfit_modules"] == ["XcorrP", "XcorrS"]
+            @test length(parsed["per_phase"]["cross_correlation"]) == length(_CH)
+            @test parsed["summary"]["total_trials"] == N_trials
         end
     end
 end

@@ -7,7 +7,7 @@ Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions）�
 ## Project Layout
 
 ```
-scripts/        Flat stage scripts (input/preprocess/assess/output — 全部实现)
+scripts/        Flat stage scripts (input/preprocess/assess/output/report — 全部实现)
 shared/         Julia packages by function (not stage)
   io/           (IO)       HDF5 I/O abstractions
   mt/           (MT)       SDR ↔ MT conversion
@@ -24,7 +24,7 @@ config_sample.jl   Template pipeline configuration
 ## Pipeline
 
 ```
-input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → output
+input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → output → report
 ```
 
 | Stage | Role | Status |
@@ -34,6 +34,7 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 | forward (C++/OpenMP CPU) | kernel 重计算，产出**中间产物** → `status_{N}.h5:/intermediates/` | 已实现 |
 | `assess.jl` | extractor + composer → `/misfits/`；收敛决策 | 已完成（权重聚合/网格细化待做） |
 | `output.jl` | 编译最终结果 → `output.h5` | 已完成（加权聚合后完善） |
+| `report.jl` | 读取 `result.toml` → 人工可读 `report.md` | 已完成 |
 | 编排层 (`driver.sh`) | 状态检测、阶段调用、循环控制 | 已实现（单迭代闭环） |
 
 ## Data Files
@@ -43,6 +44,8 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 | `database.h5` | Static | 预处理波形、格林函数各深度变体、模块预处理结果、**`/paraspace`**（展开的参数空间浮点数组）、`/config`（算法参数，无索引） |
 | `status_{N}.h5` | Per-iteration | `/strategy`（整数索引指向 `/paraspace`）、trials、`/intermediates`（kernel 中间产物）、`/misfits`（最终 misfit 值） |
 | `output.h5` | Final | 最佳拟合参数、不确定性、逐阶段/台站分解 |
+| `result.toml` | Final | 供程序消费的紧凑文本结果 |
+| `report.md` | Final | 由 `result.toml` 生成的人工可读报告 |
 | `config.jl` | Bootstrap | 失配模块列表、频带、深度、初始网格参数、数据接口实现 |
 
 ## HDF5 三层分离：值 / 索引 / 参数

@@ -6,7 +6,7 @@ Runs once after the assess loop converges. Reads `status_N.h5:/misfits` and
 `/trials` plus `database.h5` metadata, selects the best trial from the XCorr
 misfits, resolves it to physical values via `/paraspace`, and writes the final
 `solution` / `uncertainty` / `per_phase` / `per_station_summary` / `summary`
-groups to `output.h5`.
+groups to `output.h5` and a compact machine-readable `result.toml` report.
 
 ## Usage
 
@@ -15,7 +15,7 @@ DATA_DIR=<dir> julia scripts/output.jl
 ```
 
 Files located via `ENV["DATA_DIR"]` (exported by driver.sh): `database.h5`,
-`status/status_N.h5` (latest), writes `output.h5`.
+`status/status_N.h5` (latest), writes `output.h5` and `result.toml`.
 
 ## Best-trial selection
 
@@ -36,6 +36,17 @@ Files located via `ENV["DATA_DIR"]` (exported by driver.sh): `database.h5`,
 | `/per_phase` | phase_id, station_id, phase_type, misfit_per_module [N_modules × N_phases], selected, cross_correlation (== intermediates cc_max at best trial) |
 | `/per_station_summary` | station_id, n_phases, mean_cross_correlation, misfit_total (zeros, pending) |
 | `/summary` | total_iterations, total_trials, convergence_reason |
+
+## Text output (`result.toml`)
+
+The same compact result is written as standard TOML text at
+`DATA_DIR/result.toml`. It contains `solution`, `uncertainty`, `summary`,
+`per_phase`, and `per_station_summary`. The phase misfit matrix is serialized
+as an array of row arrays, with its module names in `misfit_modules`.
+Waveforms, Green's functions, and other large intermediate arrays are omitted.
+
+`scripts/report.jl` consumes this file and writes the human-readable
+`DATA_DIR/report.md`; see `doc/stages/report.md`.
 
 ## Simplifications / TODO (see `doc/roadmap.md` Phase 2)
 
