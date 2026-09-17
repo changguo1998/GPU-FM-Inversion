@@ -8,10 +8,10 @@ using Test
 end
 
 @testset "XCorr extractors" begin
-    inter = Dict("cc_max" => [0.8 0.6; 0.9 0.5], "best_lag" => Int32[2 -1; 0 3])
+    inter = Dict("cc_max" => [0.8 -0.6; -0.9 0.5], "best_lag" => Int32[2 -1; 0 3])
     ctx = (dt = 0.5,)
     cc = Aggregate.EXTRACTORS[(:Xcorr, :cc_max)](inter, ctx)
-    @test cc ≈ [0.2 0.4; 0.1 0.5]
+    @test cc ≈ [0.2 1.6; 1.9 0.5]
     sh = Aggregate.EXTRACTORS[(:Xcorr, :best_lag)](inter, ctx)
     @test sh ≈ [1.0 -0.5; 0.0 1.5]
 end

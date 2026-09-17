@@ -66,7 +66,7 @@ Julia assess：
 | `PolarityP` | `syn_sign` | Int8 | `[N_stations × N_trials]` | 合成极性符号 (-1/0/1) |
 | `PolarityP` | `dot_value` | Float64 | `[N_stations × N_trials]` | 原始点积值（置信度） |
 
-kernel 改动即：在更新 `max_abs_cc` 处同时记录 `best_k`，输出 `cc_max_out` 与
+kernel 同时记录 signed CC 最大值的 `best_k`，输出 `cc_max_out` 与
 `best_lag_out = best_k - maxlag`（不再写 `1.0 - cc_max`）。性能开销可忽略。
 
 ## 6. /config 元数据（database.h5）

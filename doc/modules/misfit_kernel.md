@@ -37,8 +37,8 @@ inline void launch_xcorr_misfit(const double *mt,            // N_trials × 6, R
 cc_syn[k]   = Σᵢ m[i] · CC[phase][k][i]        // weighted CC sum
 syn_norm²   = mᵀ · synamp · m                   // 6×6 quadratic form
 cc_norm[k]  = cc_syn[k] / √(obs_norm² · syn_norm²)
-cc_max      = maxₖ(|cc_norm[k]|)                // → cc_max_out
-best_lag    = argmaxₖ(|cc_norm[k]|) − maxlag    // → best_lag_out (Int32, samples)
+best_lag    = argmaxₖ(cc_norm[k]) − maxlag     // → best_lag_out (Int32, samples)
+cc_max      = maxₖ(cc_norm[k])                  // signed → cc_max_out
 ```
 
 The final misfit is derived in Julia assess: `misfit = 1.0 − cc_max`; AbsShift

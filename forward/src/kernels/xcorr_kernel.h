@@ -7,8 +7,8 @@
 /// One parallel work-item per (phase × trial) combination.
 ///
 /// Outputs (intermediate products, NOT final misfit):
-///   cc_max[phase,trial]   = max_k |cc_norm[k]|        (Float64)
-///   best_lag[phase,trial] = argmax_k - maxlag          (Int32, relative shift in samples)
+///   cc_max[phase,trial]   = max_k cc_norm[k]               (Float64)
+///   best_lag[phase,trial] = argmax_k cc_norm[k] - maxlag   (Int32, samples)
 ///
 /// Misfit (cc_misfit) is derived in Julia assess: 1.0 - cc_max.
 /// AbsShift is derived in Julia assess: best_lag * dt.
@@ -62,7 +62,8 @@ inline void launch_xcorr_misfit(
         // Per-lag normalization: syn_norm²[k] = mᵀ · synamp[:,:,k] · m
         const int cc_start = phase * cc_pp;
         const int syn_stride = N_phases * 36;
-        double max_abs_cc = 0.0;
+        double best_cc = 0.0;
+        bool found_cc = false;
         int best_k = maxlag; // default zero-shift
         for (int k = 0; k < cc_pp; ++k) {
             double syn_norm2 = 0.0;
@@ -81,14 +82,14 @@ inline void launch_xcorr_misfit(
                 cc_syn += m[i] * cc_data[(cc_start + k) + i * (N_phases * cc_pp)];
             }
             double cc_norm = cc_syn / denom;
-            double abs_cc = std::fabs(cc_norm);
-            if (abs_cc > max_abs_cc) {
-                max_abs_cc = abs_cc;
+            if (!found_cc || cc_norm > best_cc) {
+                best_cc = cc_norm;
                 best_k = k;
+                found_cc = true;
             }
         }
 
-        cc_max_out[phase + trial * N_phases] = max_abs_cc;
+        cc_max_out[phase + trial * N_phases] = best_cc;
         best_lag_out[phase + trial * N_phases] = static_cast<int32_t>(best_k - maxlag);
     });
 }
