@@ -11,6 +11,7 @@
 | `N_phases` | Total phase entries = N_phases_P + N_phases_S | 20–180 |
 | `N_depths` | Depth levels for Green's functions | 10–40 |
 | `N_bands` | Frequency band combinations | configurable |
+| `N_durations` | Gaussian STF duration candidates (σ) | configurable |
 | `N_modules` | Active misfit modules (counted by instance) | 2–3 |
 | `N_samples_raw` | Raw waveform samples per channel before trimming | input-dependent |
 | `N_samples` | Trimmed waveform samples per phase | 200–20000 |
@@ -27,14 +28,16 @@ All array/vector indices throughout the schema are **1-based** (Julia convention
 Values correspond directly to Julia array indexing. Zero is not a valid index.
 
 | Field | Group | Description |
-|-----------------|-------------|-----------------------------------------------|
+|--------------------|------------------------|---------------------------------------------------------|
 | `depth_indices` | `/strategy` | Depth indices to search (1..N_depths) |
 | `freq_indices` | `/strategy` | Frequency band indices to search (1..N_bands) |
-|| `band_low` | `/config/{ModuleName}` | Low-cut index into `/paraspace/frequency` (per-module) |
-|| `band_high` | `/config/{ModuleName}` | High-cut index into `/paraspace/frequency` (per-module) |
+| `duration_indices` | `/strategy` | STF duration indices to search (1..N_durations) |
+| `band_low` | `/config/{ModuleName}` | Low-cut index into `/paraspace/frequency` (per-module) |
+| `band_high` | `/config/{ModuleName}` | High-cut index into `/paraspace/frequency` (per-module) |
 | `station_idx` | `/{ModuleName}` | Station table index (1..N_stations) |
 | `depth_idx` | `/trials` | GF depth index per trial (1..N_depths) |
 | `freq_idx` | `/trials` | Frequency band index per trial (1..N_bands) |
+| `duration_idx` | `/trials` | STF duration index per trial (1..N_durations) |
 | `depth_idx` | `Grid.TrialResult` | Best depth index (1..N_depths) |
 | `freq_idx` | `Grid.TrialResult` | Best frequency index (1..N_bands) |
 
@@ -51,12 +54,13 @@ parameter values (not indices). Downstream stages reference these via integer
 indices stored in `/strategy` and `/trials` in `status_{N}.h5`.
 
 | Dataset | Type | Shape | Description |
-|-------------|---------|--------------|-----------------------------------------------------------------------------------|
+|-------------|---------|-----------------|-----------------------------------------------------------------------------------|
 | `strike` | Float64 | `[N_strike]` | All strike values from grid expansion (deg) |
 | `dip` | Float64 | `[N_dip]` | All dip values from grid expansion (deg) |
 | `rake` | Float64 | `[N_rake]` | All rake values from grid expansion (deg) |
 | `depth` | Float64 | `[N_depths]` | All depth levels (km) |
 | `frequency` | Float64 | `[N_freq]` | Discrete frequency values (Hz). Low/high cuts of each band index into this array. |
+| `duration` | Float64 | `[N_durations]` | Gaussian STF σ candidates (s) |
 
 Dimension sizes are determined by the initial grid configuration. `/strategy`
 in `status_{N}.h5` provides integer indices into these arrays.
@@ -166,15 +170,13 @@ Observation data per frequency band. `band` is the 1-indexed band number.
 | `obs_norm2` | Float64 | `[N_entries]` | Energy of each trace (XCorr modules only) |
 | `obs_psr` | Float64 | `[N_entries]` | `log10(rms_P / rms_S)` amplitude ratio (PSR modules only) |
 
-**`/{ModuleName}/gf/{idx}/{band}/`**
+**`/{ModuleName}/gf/{idx}/{band}/{duration_idx}/`**
 
-Green's function data per depth (index) and frequency band.
+Green's function data per depth, frequency band, and STF duration index.
 
 | Dataset | Type | Shape | Description |
-|------------------|---------|-----------------------------|--------------------------------------------------------------------------------------|
+|----------|---------|-----------------------------|--------------------------------------------------------------------------------------|
 | `gf` | Float64 | `[N_entries, 6, N_samples]` | Preprocessed Green's functions |
-| `synamp_lag` | Float64 | `[N_entries, 6, 6, L]` | Per-lag GF auto-correlation (XCorr only); `L = 2*max_lag_n + 1` |
-| `dot_obs_gf_lag` | Float64 | `[N_entries, 6, L]` | Per-lag obs·GF dot products (XCorr only) |
 | `amp_P` | Float64 | `[N_entries, 6, 6]` | GFᵀ·GF within P window (PSR only) |
 | `amp_S` | Float64 | `[N_entries, 6, 6]` | GFᵀ·GF within S window (PSR only) |
 | `synamp` | Float64 | `[N_entries, 6, 6]` | Single-window GF auto-correlation — legacy (pre per-lag refactor), no longer written |
@@ -188,8 +190,14 @@ The exact shape dimensions depend on the module type:
 Depth group names follow `/gf/{idx}` (1-based index into `/paraspace/depth`),
 consistent with `/trials/depth_idx`.
 
-Note: `/{ModuleName}/gf/...` above reflects per-lag reductions (XCorr) and
-amplitude ratios (PSR). The Layer 0 `/preprocess` and `/gf_preprocessed` debug
+XCorr reductions also carry the duration level:
+
+```
+/{ModuleName}/synamp_lag/{depth_idx}/{band}/{duration_idx}
+/{ModuleName}/dot_obs_gf_lag/{band}/{duration_idx}
+```
+
+The Layer 0 `/preprocess` and `/gf_preprocessed` debug
 persistence was removed in the XCorr-only cleanup (2026-08-09).
 
 > Operator status (2026-08-09): pipeline runs **XCorr-only**. Polarity and PSR
@@ -206,12 +214,13 @@ One file per iteration, built incrementally by pipeline stages.
 ### `/strategy`
 
 Current-iteration search grid definition. SDR axes are expanded inline
-(start + k·step, `n` values) to build the trial space; `depth_indices` and
-`freq_indices` select subsets of `/paraspace/depth` and `/paraspace/frequency`.
+(start + k·step, `n` values) to build the trial space; `depth_indices`,
+`freq_indices`, and `duration_indices` select subsets of `/paraspace/depth`,
+`/paraspace/frequency`, and `/paraspace/duration`.
 Plus the iteration counter.
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|--------------------------------------------------------|
+|--------------------|---------|--------|--------------------------------------------------------|
 | `strike0` | Float64 | scalar | Strike grid start (deg) |
 | `dstrike` | Float64 | scalar | Strike step (deg) |
 | `nstrike` | Int32 | scalar | Strike count (72 = full space 5°, wraps 0..355) |
@@ -223,6 +232,7 @@ Plus the iteration counter.
 | `nrake` | Int32 | scalar | Rake count (37 = full space 5°) |
 | `depth_indices` | Int32 | `[n]` | Indices into `/paraspace/depth` |
 | `freq_indices` | Int32 | `[n]` | Indices into `/paraspace/frequency` bands (1..N_bands) |
+| `duration_indices` | Int32 | `[n]` | Indices into `/paraspace/duration` (1..N_durations) |
 | `iteration` | Int32 | scalar | Iteration number |
 
 The full-space 5° grid (initial iteration) is the single source of truth
@@ -232,16 +242,17 @@ The full-space 5° grid (initial iteration) is the single source of truth
 ### `/trials`
 
 | Dataset | Type | Shape | Description |
-|--------------|-------|--------------|------------------------------------------------------|
+|----------------|-------|--------------|------------------------------------------------------|
 | `strike_idx` | Int32 | `[N_trials]` | Strike axis index into `/paraspace/strike` (1-based) |
 | `dip_idx` | Int32 | `[N_trials]` | Dip axis index into `/paraspace/dip` (1-based) |
 | `rake_idx` | Int32 | `[N_trials]` | Rake axis index into `/paraspace/rake` (1-based) |
 | `depth_idx` | Int32 | `[N_trials]` | Depth index into `/paraspace/depth` (1-based) |
 | `freq_idx` | Int32 | `[N_trials]` | Frequency band index |
+| `duration_idx` | Int32 | `[N_trials]` | STF duration index into `/paraspace/duration` |
 | `N_trials` | Int32 | scalar | Trial count |
 
-Trials carry **indices only** — physical values (strike/dip/rake/depth angles
-and km) are not stored per trial. They live exclusively in the `/paraspace`
+Trials carry **indices only** — physical values (strike/dip/rake/depth/duration)
+are not stored per trial. They live exclusively in the `/paraspace`
 axis arrays and are resolved on demand (forward MT conversion, `output.jl`
 best-trial/uncertainty).
 
@@ -255,7 +266,7 @@ Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
 
 | Group | Dataset | Type | Shape | Description |
 |---------------|-------------|---------|---------------------------|-----------------------------------------------|
-| `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | max normalized CC value |
+| `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | signed max normalized CC value |
 | `Xcorr{P,S}` | `best_lag` | Int32 | `[N_phases × N_trials]` | best-lag offset (samples, relative to maxlag) |
 | `Polarity{P}` | `syn_sign` | Int8 | `[N_stations × N_trials]` | synthetic polarity sign (-1/0/1) |
 | `Polarity{P}` | `dot_value` | Float64 | `[N_stations × N_trials]` | raw dot product (confidence) |
@@ -280,11 +291,13 @@ ______________________________________________________________________
 ### `/solution`
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|--------------------------------|
+|-----------------|---------|--------|-------------------------------------------|
 | `strike` | Float64 | scalar | Best-fit strike (deg) |
 | `dip` | Float64 | scalar | Best-fit dip (deg) |
 | `rake` | Float64 | scalar | Best-fit rake (deg) |
 | `depth` | Float64 | scalar | Best-fit depth (km) |
+| `duration` | Float64 | scalar | Best-fit Gaussian STF σ (s) |
+| `duration_idx` | Float64 | scalar | Best-fit index into `/paraspace/duration` |
 | `moment_tensor` | Float64 | `[6]` | [Mxx, Myy, Mzz, Mxy, Mxz, Myz] |
 | `misfit` | Float64 | scalar | Final weighted misfit |
 

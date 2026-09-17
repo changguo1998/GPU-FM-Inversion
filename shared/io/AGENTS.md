@@ -3,17 +3,17 @@
 ## Types
 
 | Struct | Export | Fields | Notes |
-|---------------|-------------|----------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+|---------------|-------------|------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
 | `EventInfo` | Yes | `longitude`, `latitude`, `depth`, `magnitude`, `origintime` | Event location and magnitude |
 | `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `lat`, `lon`, `elev`, `dt`, `begin_time` | Station metadata |
 | `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `synamp_lag`, `dot_obs_gf_lag`, `amp_P`, `amp_S`, `obs_psr`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
 | `PhasePick` | Yes | `station_id`, `P_time`, `S_time`, `P_polarity` | Phase arrival picks |
-| `TrialSet` | Yes | `strike_idx`, `dip_idx`, `rake_idx`, `depth_idx`, `freq_idx` | Grid trial generation output (indices only; physical values live in `/paraspace`) |
-| `Strategy` | No | `strike0`, `dstrike`, `nstrike`, `dip0`, `ddip`, `ndip`, `rake0`, `drake`, `nrake`, `depth_indices`, `freq_indices`, `iteration` | Full search-grid definition + indices into `/paraspace` |
+| `TrialSet` | Yes | `strike_idx`, `dip_idx`, `rake_idx`, `depth_idx`, `freq_idx`, `duration_idx` | Grid trial generation output (indices only; physical values live in `/paraspace`) |
+| `Strategy` | No | SDR grid fields, `depth_indices`, `freq_indices`, `duration_indices`, `iteration` | Full search-grid definition + indices into `/paraspace` |
 | `ConfigError` | No (Config) | `func`, `msg` | Config interface error |
 
 `ModuleData` replaced the earlier `XCorrObs`, `XCorrGF`, `PolarityGF` structs.
-It stores per-band observation data and per-depth per-band GF data, with
+It stores per-band observation data and per-depth/per-band/per-duration GF data, with
 per-operator reduction fields populated depending on module type:
 
 - `obs_norm2`, `synamp_lag`, `dot_obs_gf_lag` — XCorr (per-lag reductions)
@@ -62,5 +62,5 @@ Key points:
 
 - Per-module data is written to `/{ModuleName}/` — group name matches the module instance name from `misfit_modules`
 - `/{ModuleName}/obs/{band}/` contains preprocessed observation data
-- `/{ModuleName}/gf/{depth}/{band}/` contains preprocessed Green's functions
+- `/{ModuleName}/gf/{depth}/{band}/{duration}/` contains preprocessed Green's functions
 - Metadata (`channel_id`, `station_idx`) is written at the module group root

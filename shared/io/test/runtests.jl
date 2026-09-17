@@ -66,6 +66,7 @@ function make_synthetic_status()
         5.0,
         Int32[1, 2, 3],           # depth_indices
         Int32[1],                 # freq_indices
+        Int32[1, 2, 3],           # duration_indices
         Int32(3),                 # iteration
     )
 
@@ -76,6 +77,7 @@ function make_synthetic_status()
         Int32.(1:11),               # rake_idx
         Int32.(1:11),               # depth_idx
         fill(Int32(1), 11),         # freq_idx
+        Int32[mod1(i, 3) for i in 1:11],  # duration_idx
     )
 
     # ---- Misfits ----
@@ -164,6 +166,7 @@ function make_synthetic_database()
         "rake" => collect(-90.0:5.0:90.0),
         "depth" => [5.0, 10.0, 15.0],
         "frequency" => [0.05, 0.1, 0.5, 1.0],
+        "duration" => [0.1, 0.2, 0.3],
     )
 
     # Build module_data from individual module data
@@ -172,36 +175,31 @@ function make_synthetic_database()
         obs = Dict("1" => rand(1, 80)),
         obs_norm2 = Dict("1" => [1.0]),
         gf = Dict(
-            5.0 => Dict("1" => rand(1, 6, 80)),
-            10.0 => Dict("1" => rand(1, 6, 80)),
-            15.0 => Dict("1" => rand(1, 6, 80)),
+            d => Dict("1" => Dict(string(du) => rand(1, 6, 80) for du in 1:3)) for
+            d in (5.0, 10.0, 15.0)
         ),
         synamp = Dict(
-            5.0 => Dict("1" => rand(6, 6, 1)),
-            10.0 => Dict("1" => rand(6, 6, 1)),
-            15.0 => Dict("1" => rand(6, 6, 1)),
+            d => Dict("1" => Dict(string(du) => rand(6, 6, 1) for du in 1:3)) for
+            d in (5.0, 10.0, 15.0)
         ),
     )
     module_data["XcorrS"] = IO.ModuleData(
         obs = Dict("1" => rand(1, 60)),
         obs_norm2 = Dict("1" => [1.0]),
         gf = Dict(
-            5.0 => Dict("1" => rand(1, 6, 60)),
-            10.0 => Dict("1" => rand(1, 6, 60)),
-            15.0 => Dict("1" => rand(1, 6, 60)),
+            d => Dict("1" => Dict(string(du) => rand(1, 6, 60) for du in 1:3)) for
+            d in (5.0, 10.0, 15.0)
         ),
         synamp = Dict(
-            5.0 => Dict("1" => rand(6, 6, 1)),
-            10.0 => Dict("1" => rand(6, 6, 1)),
-            15.0 => Dict("1" => rand(6, 6, 1)),
+            d => Dict("1" => Dict(string(du) => rand(6, 6, 1) for du in 1:3)) for
+            d in (5.0, 10.0, 15.0)
         ),
     )
     module_data["Polarity"] = IO.ModuleData(
         obs = Dict("1" => reshape(Float64[1.0, -1.0], 2, 1)),
         gf = Dict(
-            5.0 => Dict("1" => rand(2, 6, 50)),
-            10.0 => Dict("1" => rand(2, 6, 50)),
-            15.0 => Dict("1" => rand(2, 6, 50)),
+            d => Dict("1" => Dict(string(du) => rand(2, 6, 50) for du in 1:3)) for
+            d in (5.0, 10.0, 15.0)
         ),
     )
     IO.write_database(
@@ -225,6 +223,8 @@ function make_synthetic_output()
         "dip" => 50.0,
         "rake" => -80.0,
         "depth" => 12.3,
+        "duration" => 0.2,
+        "duration_idx" => 2.0,
         "moment_tensor" => [1.0, 2.0, 3.0, 0.5, -0.3, 1.2],
         "misfit" => 0.023,
     )
@@ -320,6 +320,7 @@ end
         # Read strategy
         strat = IO.read_strategy(fn)
         @test strat.depth_indices == Int32[1, 2, 3]
+        @test strat.duration_indices == Int32[1, 2, 3]
         @test strat.iteration == 3
     end
 
@@ -332,6 +333,7 @@ end
         @test trials.dip_idx == fill(Int32(2), 11)
         @test trials.depth_idx isa Vector{Int32}
         @test all(trials.freq_idx .== 1)
+        @test trials.duration_idx == Int32[mod1(i, 3) for i in 1:11]
     end
 
     @testset "misfits round-trip" begin
@@ -385,6 +387,11 @@ end
         @test ps["rake"][end] ≈ 90.0
         @test ps["depth"] ≈ [5.0, 10.0, 15.0]
         @test ps["frequency"] ≈ [0.05, 0.1, 0.5, 1.0]
+        @test ps["duration"] ≈ [0.1, 0.2, 0.3]
+        HDF5.h5open(fn, "r") do f
+            @test size(read(f["/XcorrP/gf/1/1/2/gf"])) == (1, 6, 80)
+            @test size(read(f["/XcorrS/gf/3/1/3/gf"])) == (1, 6, 60)
+        end
     end
 
     @testset "paraspace round-trip" begin
@@ -398,6 +405,7 @@ end
             "rake" => [-90.0, 0.0, 90.0],
             "depth" => [2.0, 8.0],
             "frequency" => [0.1, 0.5, 0.5, 2.0],
+            "duration" => [0.1, 0.2, 0.3],
         )
         IO.write_paraspace(fn, ps_data)
 
@@ -407,6 +415,7 @@ end
         @test ps_read["rake"] ≈ [-90.0, 0.0, 90.0]
         @test ps_read["depth"] ≈ [2.0, 8.0]
         @test ps_read["frequency"] ≈ [0.1, 0.5, 0.5, 2.0]
+        @test ps_read["duration"] ≈ [0.1, 0.2, 0.3]
 
         rm(fn; force = true)
     end
@@ -418,6 +427,7 @@ end
         h5o = HDF5.h5open(fn, "r") do f
             sol = f["solution"]
             @test read(sol, "strike") ≈ 130.0
+            @test read(sol, "duration") ≈ 0.2
             @test read(sol, "moment_tensor") ≈ [1.0, 2.0, 3.0, 0.5, -0.3, 1.2]
 
             unc = f["uncertainty"]

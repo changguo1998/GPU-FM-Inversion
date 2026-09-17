@@ -1,7 +1,7 @@
 # assess_test.jl — Stage 4 (assess) tests.
 #
 # Chains input → forward on a small trial set, then runs assess.jl and checks:
-#   - `/misfits/XcorrS` == 1 − cc_max (extract correct)
+#   - `/misfits/XcorrP|S` == 1 − cc_max (extract correct)
 #   - misfit matrix shape [N_entries × N_trials]
 #   - empty `.decision.txt` = converged when DATA_DIR set
 #   - `/strategy` and `/trials` untouched
@@ -30,7 +30,7 @@ include("test_util.jl")
         status0 = joinpath(status_dir, "status_0.h5")
         mv(joinpath(dir, "status_0.h5"), status0)
 
-        # Small trial set (36 trials) so the whole chain stays fast.
+        # Small trial set (108 trials) covering all three STF durations.
         strat = IO.Strategy(
             0.0,
             5.0,
@@ -43,6 +43,7 @@ include("test_util.jl")
             Int32(2),
             Int32[1, 2, 3],
             Int32[1],
+            Int32[1, 2, 3],
             Int32(0),
         )
         trials = Grid.generate_trials(strat)
@@ -68,19 +69,21 @@ include("test_util.jl")
         @testset "misfits written" begin
             h5open(status0, "r") do f
                 @test haskey(f, "/misfits")
-                @test haskey(f["/misfits"], "XcorrS")
-                m = read(f["/misfits/XcorrS"])
-                n_ent = size(m, 1)  # entries; channel_id may be absent when 0 entries
-                @test size(m) == (n_ent, N_trials)
-                @test all(0.0 .<= m .<= 1.0)
+                for name in ("XcorrP", "XcorrS")
+                    @test haskey(f["/misfits"], name)
+                    m = read(f["/misfits/$name"])
+                    n_ent = size(m, 1)  # entries; channel_id may be absent when 0 entries
+                    @test size(m) == (n_ent, N_trials)
+                    @test all(0.0 .<= m .<= 2.0)
 
-                # extract: misfit = 1 − cc_max
-                cc = read(f["/intermediates/XcorrS/cc_max"])  # (N_trials, N_entries)
-                expect = 1.0 .- permutedims(cc)
-                @test m ≈ expect atol = 1e-12
+                    # extract: misfit = 1 − cc_max
+                    cc = read(f["/intermediates/$name/cc_max"])  # (N_trials, N_entries)
+                    expect = 1.0 .- permutedims(cc)
+                    @test m ≈ expect atol = 1e-12
+                end
             end
             h5open(db, "r") do f
-                @test string.(read(f["/config/misfit_modules"])) == ["XcorrS"]
+                @test string.(read(f["/config/misfit_modules"])) == ["XcorrP", "XcorrS"]
             end
         end
 

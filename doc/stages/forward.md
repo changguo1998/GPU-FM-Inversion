@@ -4,7 +4,7 @@
 
 Runs once per iteration (preprocess → **forward** → assess). Reads the trial
 set from `status_N.h5` and the preprocessed reductions from `database.h5`,
-runs the misfit kernels per (freq, depth) combo, and writes RAW INTERMEDIATE
+runs the misfit kernels per (freq, depth, duration) combo, and writes RAW INTERMEDIATE
 PRODUCTS to `status_N.h5:/intermediates/`. Final misfit values (extract /
 compose) are produced by `assess.jl` — this stage never writes `/misfits`.
 
@@ -43,20 +43,24 @@ For phase `p` and trial `t` (MT `m = sdr_to_mt(strike, dip, rake)`):
 dot_lag[c]   = Σ_t obs[t+lag]·gf[t,c]                 (obs shifted +lag, zero-padded in window)
 synamp_lag   = Σ_t gf[t−lag,a]·gf[t−lag,b]            (GF shifted −lag, same-shift normalization)
 cc_norm[lag] = (mᵀ·dot_lag) / sqrt(obs_n2 · mᵀ·synamp_lag·m)
-cc_max       = max_lag |cc_norm[lag]|                 (Float64)
-best_lag     = argmax_lag |cc_norm[lag]| − maxlag     (Int32, samples, relative shift)
+best_lag     = argmax_lag cc_norm[lag] − maxlag       (Int32, samples, relative shift)
+cc_max       = max_lag cc_norm[lag]                     (signed Float64)
 ```
 
 The per-lag `synamp` uses the **same shift direction as the dot products**
 (GF shifted by −lag), so the normalization obeys Cauchy–Schwarz and `cc ≤ 1`.
 Both quantities are recomputed by the C++ from the windowed obs/GF (`/XcorrS/obs`
-and `/XcorrS/gf/{depth}/{freq}/gf`) per (freq, depth) combo — the stored
+and `/XcorrS/gf/{depth}/{freq}/{duration}/gf`) per combo — the stored
 `dot_obs_gf_lag` reduction covers only depth index 1, so per-depth evaluation
 cannot consume it.
 
 Verified (2026-08-14): an independent Julia reference recomputing the same
 math from the stored windows matches C++ `cc_max`/`best_lag` to ≤1e-9 on every
 checked (trial, phase) pair (`tests/stages/forward_test.jl`).
+
+`duration_idx` selects a Gaussian STF σ from `/paraspace/duration`. `input.jl`
+precomputes each duration variant; forward includes it in the cache key and
+does no runtime convolution.
 
 ## Outputs
 

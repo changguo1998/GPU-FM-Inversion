@@ -13,7 +13,7 @@ module Config
 # Stage scripts include the user's config file and call interface functions.
 
 export misfit_modules, minimum_stations, phase_type
-export freq_bands, depths
+export freq_bands, depths, durations
 export use_misfit!, phase_fields, polarity_fields
 export operator_module, output_field, bases_of, is_composed, channel_of
 export load_event, load_stations, load_phase_picks, load_waveform, load_gf
@@ -180,6 +180,15 @@ Return list of source depths (km) for Green's function lookup, e.g. `[5.0, 10.0,
 """
 function depths()::Vector{Float64}
     throw(ConfigError("depths", "-> Vector{Float64}  (e.g. return [5.0, 10.0, 15.0])"))
+end
+
+"""
+    durations() -> Vector{Float64}
+
+Return Gaussian STF duration candidates as σ in seconds, e.g. `[0.1, 0.2, 0.3]`.
+"""
+function durations()::Vector{Float64}
+    throw(ConfigError("durations", "-> Vector{Float64}  (e.g. return [0.1, 0.2, 0.3])"))
 end
 
 """

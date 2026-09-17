@@ -12,14 +12,14 @@
 DataCache::DataCache(int maxlag) : maxlag_(maxlag) {
 }
 
-// ─ Helper: extract unique (freq, depth) combos ─
+// ─ Helper: extract unique (freq, depth, duration) combos ─
 
-std::vector<std::pair<int, int>> DataCache::unique_combos(const std::vector<Trial> &trials) {
-    std::set<std::pair<int, int>> seen;
+std::vector<CacheKey> DataCache::unique_combos(const std::vector<Trial> &trials) {
+    std::set<CacheKey> seen;
     for (const auto &t : trials) {
-        seen.insert({t.freq_idx, t.depth_idx});
+        seen.insert({t.freq_idx, t.depth_idx, t.duration_idx});
     }
-    return std::vector<std::pair<int, int>>(seen.begin(), seen.end());
+    return std::vector<CacheKey>(seen.begin(), seen.end());
 }
 
 // ─ Read phase_ids from HDF5 index ─
@@ -83,7 +83,7 @@ void DataCache::load_from_database(const std::string &database_path,
     // 1. Find unique combos
     auto combos = unique_combos(trials);
     if (combos.empty()) {
-        std::cerr << "DataCache: no (freq, depth) combos in trials" << std::endl;
+        std::cerr << "DataCache: no (freq, depth, duration) combos in trials" << std::endl;
         return;
     }
 
@@ -128,15 +128,14 @@ void DataCache::load_from_database(const std::string &database_path,
     // 3. Load each combo
     try {
         for (const auto &combo : combos) {
-            int freq_idx = combo.first;
-            int depth_idx = combo.second;
+            const auto [freq_idx, depth_idx, duration_idx] = combo;
 
             // Skip if already cached
             if (cache_.find(combo) != cache_.end())
                 continue;
 
             CacheEntry entry =
-                load_combo(database_path, freq_idx, depth_idx, phase_ids, n_stations,
+                load_combo(database_path, freq_idx, depth_idx, duration_idx, phase_ids, n_stations,
                            static_cast<int>(p_ids.size()), static_cast<int>(s_ids.size()));
             cache_[combo] = std::move(entry);
         }
@@ -151,11 +150,12 @@ void DataCache::load_from_database(const std::string &database_path,
 // ─ load_combo: read + reduce one (freq, depth) combo ─
 
 CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx, int depth_idx,
-                                 const std::vector<std::string> &phase_ids, int n_stations, int n_p,
-                                 int n_s) {
+                                 int duration_idx, const std::vector<std::string> &phase_ids,
+                                 int n_stations, int n_p, int n_s) {
     CacheEntry entry;
     entry.freq_idx = freq_idx;
     entry.depth_idx = depth_idx;
+    entry.duration_idx = duration_idx;
     entry.maxlag = maxlag_;
     entry.n_phases = static_cast<int>(phase_ids.size());
     entry.n_stations = n_stations;
@@ -164,6 +164,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     h5.open(database_path.c_str(), H5F_ACC_RDONLY);
 
     std::string freq_str = std::to_string(freq_idx);
+    std::string duration_str = std::to_string(duration_idx);
     std::string depth_str; // 1-based GF depth index (matches /paraspace/depth, /trials/depth_idx)
 
     int n_ph = entry.n_phases;
@@ -220,7 +221,8 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
             (std::string("/XcorrP/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_p);
         if (n_ph_p == n_p) {
             // Read GF: [N_samples, 6, N_phases_P]
-            std::string gf_path = "/XcorrP/gf/" + depth_str + "/" + freq_str + "/gf";
+            std::string gf_path =
+                "/XcorrP/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
             int n_gf, n_comp, n_ph_gf;
             std::vector<double> gf_p;
             if (h5.group_exists(gf_path.c_str())) {
@@ -258,7 +260,8 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         std::vector<double> obs_s = h5.read_double_2d(
             (std::string("/XcorrS/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_s);
         if (n_ph_s == n_s) {
-            std::string gf_path = "/XcorrS/gf/" + depth_str + "/" + freq_str + "/gf";
+            std::string gf_path =
+                "/XcorrS/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
             int n_gf, n_comp, n_ph_gf;
             std::vector<double> gf_s;
             if (h5.group_exists(gf_path.c_str())) {
@@ -490,14 +493,15 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
 // ─ get_or_compute ─
 
-const CacheEntry *DataCache::get_or_compute(int freq_idx, int depth_idx) {
-    auto key = std::make_pair(freq_idx, depth_idx);
+const CacheEntry *DataCache::get_or_compute(int freq_idx, int depth_idx, int duration_idx) {
+    CacheKey key {freq_idx, depth_idx, duration_idx};
     auto it = cache_.find(key);
     if (it != cache_.end()) {
         return &it->second;
     }
     throw std::runtime_error("DataCache: combo (" + std::to_string(freq_idx) + ", " +
-                             std::to_string(depth_idx) + ") not loaded");
+                             std::to_string(depth_idx) + ", " + std::to_string(duration_idx) +
+                             ") not loaded");
 }
 
 // ─ release_all ─

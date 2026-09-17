@@ -7,7 +7,7 @@ using Statistics
 
 export bandpass_filter!, trim_time_window!, trim_to_polarity_window!
 export demean!, detrend!, taper!, preprocess_waveform!
-export envelope, rms_amplitude
+export convolve_gaussian_stf, envelope, rms_amplitude
 
 # 1. Bandpass Filtering
 
@@ -41,6 +41,35 @@ function bandpass_filter!(
     n = length(x)
     x[:] = filtfilt(filt, x)
     return x
+end
+
+"""
+    convolve_gaussian_stf(x, sigma, dt) -> Vector{Float64}
+
+Convolve a waveform with a unit-area Gaussian STF truncated at ±3σ.
+`sigma <= 0` returns a copy of the input.
+"""
+function convolve_gaussian_stf(
+    x::AbstractVector{Float64},
+    sigma::Float64,
+    dt::Float64,
+)::Vector{Float64}
+    sigma <= 0.0 && return collect(x)
+    halfwidth = 3.0 * sigma
+    nh = round(Int, halfwidth / dt)
+    t = ((-nh):nh) .* dt
+    kernel = exp.(-(t .^ 2) ./ (2.0 * sigma^2))
+    kernel ./= sum(kernel)
+
+    result = zeros(Float64, length(x))
+    for i in eachindex(x)
+        for j in (-nh):nh
+            idx = i + j
+            checkbounds(Bool, x, idx) || continue
+            result[i] += x[idx] * kernel[j + nh + 1]
+        end
+    end
+    return result
 end
 
 # 2. Time-Window Trimming

@@ -9,7 +9,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ```
 1. 引导配置
    └─ include(config.jl) → Config.use_misfit!() 注册插件,
-                           Config.misfit_modules() (auto), freq_bands(), depths()
+                           Config.misfit_modules() (auto), freq_bands(), depths(), durations()
    └─ Config.phase_fields()/polarity_fields() 定义震相→字段映射
    └─ 插件可声明 phase_type="P"/"S", 通过 Config.phase_type() 查询
 
@@ -33,17 +33,17 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
       组名不再含浮点格式化深度字符串
 
 6. 预处理波形 (Layer 0 共享预处理 + 算子 process)
-   ├─ Layer 0: 对每个 freq-dependent 模块的频带, 对 obs 逐道 + GF 逐分量
-   │    Signal.preprocess_waveform! (demean/detrend/taper + butterworth bandpass)
+   ├─ Layer 0: 对每个频带和 duration 候选, GF 逐分量卷积 Gaussian STF，
+   │    再与 obs 一起执行 Signal.preprocess_waveform!（duration 为 σ，单位秒）
    ├─ 算子 process(): XcorrS 输出 obs/obs_norm2 + per-lag (XCorrS-only)
-   │    synamp_lag[depth][band] + dot_obs_gf_lag[band]
+   │    synamp_lag[depth][band][duration] + dot_obs_gf_lag[band][duration]
    └─ 各深度独立预处理 GF
        (Polarity/Psr 分支 deferred — XCorr-only 模式: basic-clean GF /
         极性窗口 / obs_psr 路径均已移除)
 
 
 7. 组装字典
-   ├─ paraspace: strike/dip/rake 展开 (0:5:355 / 0:5:90 / -90:5:90), depth, frequency(unique排序)
+   ├─ paraspace: strike/dip/rake 展开, depth, frequency, duration
    ├─ 频带选择由各模块 band_low()/band_high() (/config 内索引) 完成
    ├─ event_dict: 坐标/震级/发震时刻
    └─ db_config: misfit_modules, n_bands,
@@ -58,7 +58,8 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 9. 写入 status_0.h5
    └─ IO.Strategy(Grid.default_grid() 全空间 5° SDR 网格,
-                   depth_indices=[1..n_depths], freq_indices=[1..n_bands], iteration=0)
+                   depth_indices=[1..n_depths], freq_indices=[1..n_bands],
+                   duration_indices=[1..n_durations], iteration=0)
    └─ IO.write_strategy(status0_path, strategy)
 ```
 
@@ -87,10 +88,10 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ## 三层分离设计
 
 | 位置 | 存什么 | 示例 |
-|--------------|-----------------------------------------|---------------------------------------------------------------------------|
-| `/paraspace` | 展开的浮点值 (`Float64[N]`) | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
+|--------------|-----------------------------------------|--------------------------------------------------------------------------------|
+| `/paraspace` | 展开的浮点值 (`Float64[N]`) | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]`, `duration[3]` |
 | `/config` | 算法参数和元数据，**无索引无浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods`, `band_low/high` |
-| `/strategy` | 整数索引 (`Int32[N]`) 指向 `/paraspace` | `depth_indices[3]`, `freq_indices[2]`, `iteration` |
+| `/strategy` | 整数索引 (`Int32[N]`) 指向 `/paraspace` | `depth_indices`, `freq_indices`, `duration_indices`, `iteration` |
 
 关于频率：`Config.freq_bands()` 返回 `[(low, high), ...]`，input.jl 提取所有唯一边界、排序后写入 `/paraspace/frequency`。Freq-dependent 模块（XCorr/Psr）通过 `band_low()`/`band_high()` 指向该数组；`/strategy` 保存 `freq_indices`（1..N_bands）作为迭代搜索范围。
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Generates data with Gaussian source time function (σ=0.2s, configurable via --stf-sigma).
+# Generates data with Gaussian STF (σ=0.2s by default) and noise σ at 1% of direct-P RMS.
 
 # gen_synthetic.sh — Generate synthetic test data for pipeline testing.
 #
@@ -19,10 +19,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # First non-flag arg = output dir; remaining --flags passed to Julia
 if [[ $# -gt 0 && ! "$1" =~ ^-- ]]; then
-	OUTDIR="$1"
-	shift
+    OUTDIR="$1"
+    shift
 else
-	OUTDIR="${SCRIPT_DIR}"
+    OUTDIR="${SCRIPT_DIR}"
 fi
 
 mkdir -p "${OUTDIR}"

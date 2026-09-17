@@ -6,6 +6,7 @@
 #include <hdf5.h>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -19,11 +20,14 @@ struct Trial {
     int32_t rake_idx;
     int32_t depth_idx;
     int32_t freq_idx;
+    int32_t duration_idx;
     // Resolved physical values from /paraspace (angles in degrees, for MT)
     double strike;
     double dip;
     double rake;
 };
+
+using CacheKey = std::tuple<int, int, int>; // freq_idx, depth_idx, duration_idx
 
 // ─ Per-module cache storage (flat double* arrays, no Kokkos::View) ─
 
@@ -50,11 +54,12 @@ struct PSRCache {
     int n_phases = 0;
 };
 
-// ─ Cache entry keyed by (freq_idx, depth_idx), host-resident reduced data ─
+// ─ Cache entry keyed by (freq_idx, depth_idx, duration_idx) ─
 
 struct CacheEntry {
     int freq_idx;
     int depth_idx;
+    int duration_idx;
     int maxlag;
     int n_phases;
     int n_stations;
@@ -63,7 +68,8 @@ struct CacheEntry {
     PolarityCache polarity;
     PSRCache psr;
 
-    CacheEntry() : freq_idx(-1), depth_idx(-1), maxlag(0), n_phases(0), n_stations(0) {
+    CacheEntry()
+        : freq_idx(-1), depth_idx(-1), duration_idx(-1), maxlag(0), n_phases(0), n_stations(0) {
     }
 
     bool valid() const {
@@ -91,7 +97,7 @@ class DataCache {
     /// Construct with a maxlag value for XCorr precomputation.
     explicit DataCache(int maxlag);
 
-    /// Load all (freq_idx, depth_idx) combos referenced by trials from
+    /// Load all (freq_idx, depth_idx, duration_idx) combos referenced by trials from
     /// database.h5.
     /// @param database_path  Path to database.h5 (HDF5)
     /// @param trials         Trial parameters extracted from status_{N}.h5
@@ -99,7 +105,7 @@ class DataCache {
 
     /// Retrieve or compute cached entry.
     /// Returns a const pointer — caller must not modify cached data.
-    const CacheEntry *get_or_compute(int freq_idx, int depth_idx);
+    const CacheEntry *get_or_compute(int freq_idx, int depth_idx, int duration_idx);
 
     /// Free all memory held by the cache.
     void release_all();
@@ -115,26 +121,27 @@ class DataCache {
     }
 
   private:
-    // Cache: (freq_idx, depth_idx) → CacheEntry (pair-of-int hash)
-    struct PairHash {
-        size_t operator()(const std::pair<int, int> &p) const {
-            return static_cast<size_t>(p.first) * 31 + static_cast<size_t>(p.second);
+    struct CacheKeyHash {
+        size_t operator()(const CacheKey &key) const {
+            const auto [freq_idx, depth_idx, duration_idx] = key;
+            return (static_cast<size_t>(freq_idx) * 31 + static_cast<size_t>(depth_idx)) * 31 +
+                   static_cast<size_t>(duration_idx);
         }
     };
-    std::unordered_map<std::pair<int, int>, CacheEntry, PairHash> cache_;
+    std::unordered_map<CacheKey, CacheEntry, CacheKeyHash> cache_;
 
     int maxlag_;
 
     // ── Internal helpers ──────────────────────────────────────────────────
 
-    /// Extract unique (freq_idx, depth_idx) combos from trial set.
-    static std::vector<std::pair<int, int>> unique_combos(const std::vector<Trial> &trials);
+    /// Extract unique (freq_idx, depth_idx, duration_idx) combos from trial set.
+    static std::vector<CacheKey> unique_combos(const std::vector<Trial> &trials);
 
-    /// Read all preprocessed data for one (freq_idx, depth_idx) combo
+    /// Read all preprocessed data for one (freq_idx, depth_idx, duration_idx) combo
     /// from database.h5 and compute reductions.
     CacheEntry load_combo(const std::string &database_path, int freq_idx, int depth_idx,
-                          const std::vector<std::string> &phase_ids, int n_stations, int n_p,
-                          int n_s);
+                          int duration_idx, const std::vector<std::string> &phase_ids,
+                          int n_stations, int n_p, int n_s);
 
     /// XCorr reduction: compute CC, synamp, obs_norm2.
     static void compute_xcorr_reduction(CacheEntry &entry, const std::vector<double> &obs,

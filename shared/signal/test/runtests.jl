@@ -25,6 +25,16 @@ end
     @test length(out2) == length(wf)
 end
 
+@testset "Gaussian STF convolution" begin
+    impulse = zeros(201)
+    impulse[101] = 1.0
+    out = Signal.convolve_gaussian_stf(impulse, 0.2, 0.01)
+    @test sum(out) ≈ 1.0 atol = 1.0e-12
+    @test out[(101 - 60):(101 + 60)] ≈ reverse(out[(101 - 60):(101 + 60)])
+    @test count(!iszero, out) == 121
+    @test Signal.convolve_gaussian_stf(impulse, 0.0, 0.01) == impulse
+end
+
 @testset "trim_time_window! non-symmetric" begin
     dt = 0.1
     obs = collect(1.0:200.0)                          # long enough, no clamp

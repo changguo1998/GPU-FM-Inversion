@@ -9,10 +9,11 @@
 
 using Test
 using HDF5
+using IO
 
 include("test_util.jl")
 
-# ── Minimal XCorrS-only config (mirrors examples/synthetic/config.jl) ─────
+# ── XCorr P+S config (mirrors examples/synthetic/config.jl) ──────────────
 @testset "input stage" begin
     mktempdir() do dir
         nsta = 3
@@ -48,6 +49,7 @@ include("test_util.jl")
                     @test read(ps["rake"]) == collect(-90.0:5.0:90.0)
                     @test read(ps["depth"]) == [5.0, 10.0, 15.0]
                     @test read(ps["frequency"]) == [0.5, 2.0]
+                    @test read(ps["duration"]) == [0.1, 0.2, 0.3]
                 end
 
                 @testset "/station" begin
@@ -100,56 +102,97 @@ include("test_util.jl")
                             end
                         end
                     end
+
+                    # Direct-wave GF must contract the six unique MT components
+                    # exactly like the full symmetric tensor.
+                    lat = read(f["/station/latitude"])[1]
+                    lon = read(f["/station/longitude"])[1]
+                    d_km = IO.haversine_distance(0.0, 0.0, lat, lon)
+                    ve = lon * 111.0 * 1000.0 * cosd(lat / 2)
+                    vn = lat * 111.0 * 1000.0
+                    vd = -10.0 * 1000.0
+                    γ = [vn, ve, vd] ./ sqrt(vn^2 + ve^2 + vd^2)
+                    pairs = [(1, 1), (2, 2), (3, 3), (1, 2), (1, 3), (2, 3)]
+                    tp_idx = round(Int, sqrt(d_km^2 + 10.0^2) / 6.0 / 0.01)
+                    ts_idx = round(Int, sqrt(d_km^2 + 10.0^2) / 4.0 / 0.01)
+
+                    for (ch, i, sign) in (("N", 1, 1.0), ("E", 2, 1.0), ("Z", 3, -1.0))
+                        m = read(gf["2"]["NET.ST1.$ch"])
+                        p_expected = Float64[]
+                        s_expected = Float64[]
+                        for (j, k) in pairs
+                            pair_weight = j == k ? 1.0 : 2.0
+                            push!(p_expected, pair_weight * γ[i] * γ[j] * γ[k])
+                            s_coeff = ((i == j ? 1.0 : 0.0) - γ[i] * γ[j]) * γ[k]
+                            if j != k
+                                s_coeff += ((i == k ? 1.0 : 0.0) - γ[i] * γ[k]) * γ[j]
+                            end
+                            push!(s_expected, s_coeff)
+                        end
+                        p_expected .*= sign * 1.0e6 / d_km / 6.0^3
+                        s_expected .*= sign * 1.0e6 / d_km / 4.0^3
+                        @test m[tp_idx, :] ≈ p_expected rtol = 1.0e-12
+                        @test m[ts_idx, :] ≈ s_expected rtol = 1.0e-12
+                    end
                 end
 
                 @testset "/config" begin
                     cf = f["/config"]
-                    @test String.(read(cf["misfit_modules"])) == ["XcorrS"]
-                    x = cf["XcorrS"]
-                    @test read(x["trim"]) == [-2.0, 8.0]
-                    @test read(x["max_lag_periods"]) ≈ 3.0
-                    @test read(x["filter_order"]) == 4
-                    @test read(x["band_low"]) == [1]
-                    @test read(x["band_high"]) == [2]
-                    @test String(read(x["operator"])) == "Xcorr"
-                    @test String(read(x["output"])) == "cc_max"
-                    @test read(x["is_composed"]) == 0
-                    @test String(read(x["phase"])) == "S"
-                    @test String(read(x["channel"])) == ""
+                    @test String.(read(cf["misfit_modules"])) == ["XcorrP", "XcorrS"]
+                    for (name, phase) in (("XcorrP", "P"), ("XcorrS", "S"))
+                        x = cf[name]
+                        @test read(x["trim"]) == [-2.0, 8.0]
+                        @test read(x["max_lag_periods"]) ≈ 3.0
+                        @test read(x["filter_order"]) == 4
+                        @test read(x["band_low"]) == [1]
+                        @test read(x["band_high"]) == [2]
+                        @test String(read(x["operator"])) == "Xcorr"
+                        @test String(read(x["output"])) == "cc_max"
+                        @test read(x["is_composed"]) == 0
+                        @test String(read(x["phase"])) == phase
+                        @test String(read(x["channel"])) == ""
+                    end
                 end
 
-                @testset "/XcorrS" begin
-                    x = f["/XcorrS"]
-                    ch_entries = String.(read(x["channel_id"]))
-                    sta_idx = read(x["station_idx"])
-                    n_entries = length(ch_entries)
+                for name in ("XcorrP", "XcorrS")
+                    @testset "/$name" begin
+                        x = f["/$name"]
+                        ch_entries = String.(read(x["channel_id"]))
+                        sta_idx = read(x["station_idx"])
+                        n_entries = length(ch_entries)
 
-                    @test n_entries >= 1
-                    @test length(sta_idx) == n_entries
-                    # station_idx points into /station (1-based), all valid
-                    n_phys = length(read(f["/station"]["id"]))
-                    @test all(1 .<= sta_idx .<= Int32(n_phys))
-                    @test all([
-                        startswith(ch_entries[i], "NET.ST$(Int(sta_idx[i])).") for i in 1:n_entries
-                    ],)
+                        @test n_entries >= 1
+                        @test length(sta_idx) == n_entries
+                        # station_idx points into /station (1-based), all valid
+                        n_phys = length(read(f["/station"]["id"]))
+                        @test all(1 .<= sta_idx .<= Int32(n_phys))
+                        @test all([
+                            startswith(ch_entries[i], "NET.ST$(Int(sta_idx[i])).") for
+                            i in 1:n_entries
+                        ],)
 
-                    # obs: [N_entries, nt_win=501], obs_norm2: [N_entries]
-                    obs = read(x["obs"]["1"]["obs"])
-                    obs_norm2 = read(x["obs"]["1"]["obs_norm2"])
-                    @test size(obs) == (n_entries, 501)
-                    @test length(obs_norm2) == n_entries
-                    @test all(obs_norm2 .> 0.0)
-                    @test all(obs_norm2 .≈ vec(sum(abs2, obs; dims = 2)))
+                        # obs: [N_entries, nt_win=501], obs_norm2: [N_entries]
+                        obs = read(x["obs"]["1"]["obs"])
+                        obs_norm2 = read(x["obs"]["1"]["obs_norm2"])
+                        @test size(obs) == (n_entries, 501)
+                        @test length(obs_norm2) == n_entries
+                        @test all(obs_norm2 .> 0.0)
+                        @test all(obs_norm2 .≈ vec(sum(abs2, obs; dims = 2)))
 
-                    # per-lag shapes: L = 2*150 + 1 = 301
-                    for d in ("1", "2", "3")
-                        sl = read(x["synamp_lag"][d]["1"])
-                        @test size(sl) == (n_entries, 6, 6, 301)
-                        gf_arr = read(x["gf"][d]["1"]["gf"])
-                        @test size(gf_arr) == (n_entries, 6, 501)
+                        # per-lag shapes: L = 2*150 + 1 = 301
+                        for d in ("1", "2", "3")
+                            for duration_idx in ("1", "2", "3")
+                                sl = read(x["synamp_lag"][d]["1"][duration_idx])
+                                @test size(sl) == (n_entries, 6, 6, 301)
+                                gf_arr = read(x["gf"][d]["1"][duration_idx]["gf"])
+                                @test size(gf_arr) == (n_entries, 6, 501)
+                            end
+                        end
+                        for duration_idx in ("1", "2", "3")
+                            dog = read(x["dot_obs_gf_lag"]["1"][duration_idx])
+                            @test size(dog) == (n_entries, 6, 301)
+                        end
                     end
-                    dog = read(x["dot_obs_gf_lag"]["1"])
-                    @test size(dog) == (n_entries, 6, 301)
                 end
             end
         end
@@ -168,6 +211,7 @@ include("test_util.jl")
                 @test read(st["nrake"]) == 37
                 @test read(st["depth_indices"]) == [1, 2, 3]
                 @test read(st["freq_indices"]) == [1]
+                @test read(st["duration_indices"]) == [1, 2, 3]
                 @test read(st["iteration"]) == 0
             end
         end

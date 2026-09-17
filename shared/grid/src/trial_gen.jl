@@ -24,12 +24,12 @@ end
 
 """generate_trials(strategy) -> H5IO.TrialSet
 
-Cartesian product of varying axes — strike → dip → rake → depth → freq.
-Depth/freq use the strategy's index subsets. Trials carry index-only fields
+Cartesian product of varying axes — strike → dip → rake → depth → freq → duration.
+Depth/freq/duration use the strategy's index subsets. Trials carry index-only fields
 (1-based into `/paraspace`); physical values resolved on forward/output.
 """
 function generate_trials(strategy::H5IO.Strategy)::H5IO.TrialSet
-    # Axis lengths: SDR from grid dims (n<=0 => single point); depth/freq from indices
+    # Axis lengths: SDR from grid dims; discrete parameters from strategy indices
     strike_idxs = Int32.(1:max(Int(strategy.nstrike), 1))
     dip_idxs = Int32.(1:max(Int(strategy.ndip), 1))
     rake_idxs = Int32.(1:max(Int(strategy.nrake), 1))
@@ -46,19 +46,27 @@ function generate_trials(strategy::H5IO.Strategy)::H5IO.TrialSet
         freq_idxs = strategy.freq_indices
     end
 
+    if isempty(strategy.duration_indices)
+        duration_idxs = Int32[1]
+    else
+        duration_idxs = strategy.duration_indices
+    end
+
     n_strikes = length(strike_idxs)
     n_dips = length(dip_idxs)
     n_rakes = length(rake_idxs)
     n_depths = length(depth_idxs)
     n_freqs = length(freq_idxs)
+    n_durations = length(duration_idxs)
 
-    n_trials = n_strikes * n_dips * n_rakes * n_depths * n_freqs
+    n_trials = n_strikes * n_dips * n_rakes * n_depths * n_freqs * n_durations
 
     strikes_out = Vector{Int32}(undef, n_trials)
     dips_out = Vector{Int32}(undef, n_trials)
     rakes_out = Vector{Int32}(undef, n_trials)
     depth_idx_out = Vector{Int32}(undef, n_trials)
     freq_idx_out = Vector{Int32}(undef, n_trials)
+    duration_idx_out = Vector{Int32}(undef, n_trials)
 
     idx = 1
     for s in strike_idxs
@@ -66,17 +74,27 @@ function generate_trials(strategy::H5IO.Strategy)::H5IO.TrialSet
             for r in rake_idxs
                 for didx in depth_idxs
                     for fidx in freq_idxs
-                        strikes_out[idx] = s
-                        dips_out[idx] = d
-                        rakes_out[idx] = r
-                        depth_idx_out[idx] = didx
-                        freq_idx_out[idx] = fidx
-                        idx += 1
+                        for duidx in duration_idxs
+                            strikes_out[idx] = s
+                            dips_out[idx] = d
+                            rakes_out[idx] = r
+                            depth_idx_out[idx] = didx
+                            freq_idx_out[idx] = fidx
+                            duration_idx_out[idx] = duidx
+                            idx += 1
+                        end
                     end
                 end
             end
         end
     end
 
-    return H5IO.TrialSet(strikes_out, dips_out, rakes_out, depth_idx_out, freq_idx_out)
+    return H5IO.TrialSet(
+        strikes_out,
+        dips_out,
+        rakes_out,
+        depth_idx_out,
+        freq_idx_out,
+        duration_idx_out,
+    )
 end

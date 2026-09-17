@@ -43,6 +43,7 @@ paraspace_strike = Float64.(_ps["strike"])
 paraspace_dip = Float64.(_ps["dip"])
 paraspace_rake = Float64.(_ps["rake"])
 paraspace_depth = Float64.(_ps["depth"])
+paraspace_duration = Float64.(_ps["duration"])
 
 n_trials = length(trials.strike_idx)
 xcorr_mods = [Symbol(m) for m in (:XcorrP, :XcorrS) if haskey(misfits, Symbol(m))]
@@ -74,9 +75,11 @@ best = (
     depth = paraspace_depth[trials.depth_idx[best_idx]],
     depth_idx = trials.depth_idx[best_idx],
     freq_idx = trials.freq_idx[best_idx],
+    duration = paraspace_duration[trials.duration_idx[best_idx]],
+    duration_idx = trials.duration_idx[best_idx],
     misfit = total[best_idx],
 )
-@info "best trial #$best_idx: SDR=$(best.strike),$(best.dip),$(best.rake) depth=$(best.depth) km, misfit=$(best.misfit)"
+@info "best trial #$best_idx: SDR=$(best.strike),$(best.dip),$(best.rake) depth=$(best.depth) km, duration=$(best.duration) s, misfit=$(best.misfit)"
 
 # === 3. solution ===
 mt = MT.sdr_to_mt(best.strike, best.dip, best.rake)
@@ -86,6 +89,8 @@ solution = Dict{String, Any}(
     "rake" => best.rake,
     "depth" => best.depth,
     "freq_idx" => Float64(best.freq_idx),
+    "duration" => best.duration,
+    "duration_idx" => Float64(best.duration_idx),
     "moment_tensor" => mt,
     "misfit" => best.misfit,
 )

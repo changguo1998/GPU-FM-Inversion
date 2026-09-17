@@ -31,17 +31,18 @@ Strategy from `status_{N}.h5`:
 - `rake0`, `drake`, `nrake` (SDR grid)
 - `depth_indices` (indices into `database.h5/config/depth_vals`)
 - `freq_indices` (frequency band indices)
+- `duration_indices` (indices into `/paraspace/duration`)
 
 **Output**:
 
 `/trials` group in `status_{N}.h5`:
 
-- `strike[N]`, `dip[N]`, `rake[N]` (degrees)
-- `depth[N]` (km, actual depth values)
+- `strike_idx[N]`, `dip_idx[N]`, `rake_idx[N]`
 - `depth_idx[N]` (indices into database)
 - `freq_idx[N]` (frequency band indices)
+- `duration_idx[N]` (Gaussian STF duration indices)
 
-Where `N = max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1)`.
+Where `N = max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1) × max(len(duration_indices),1)`.
 
 ### Grid Refinement
 
@@ -50,21 +51,23 @@ Computes next iteration's grid parameters from current best trial.
 **Input**: strategy + per-trial aggregated misfits from `assess.jl`
 
 | Parameter | Source | Rule |
-|----------------------------|------------------------|--------------------------------------------|
+|----------------------------|------------------------|-------------------------------------------------------|
 | `strike0`, `dip0`, `rake0` | Current best trial SDR | New grid **start** values (not center) |
 | `dstrike`, `ddip`, `drake` | Current step sizes | Halved: `new_step = current_step / 2` |
 | `nstrike`, `ndip`, `nrake` | Fixed | Always `[3, 3, 3]` (3 values per SDR axis) |
-|| `depth_indices` | Trial depth misfits | Indices of depths within 20% of best depth misfit |
-|| `freq_indices` | Trial freq misfits | Indices of frequencies within 20% of best freq misfit |
+| `depth_indices` | Trial depth misfits | Indices of depths within 20% of best depth misfit |
+| `freq_indices` | Trial freq misfits | Indices of frequencies within 20% of best freq misfit |
+| `duration_indices` | Current strategy | Preserved unchanged (duration refinement pending) |
 
 **Refinement factor**: fixed at 0.5 (half step sizes each iteration).
 
-**Grid size**: fixed at 3 per SDR axis. Total trials = `3 × 3 × 3 × N_depths × N_freqs`.
+**Grid size**: fixed at 3 per SDR axis. Total trials = `3 × 3 × 3 × N_depths × N_freqs × N_durations`.
 
 #### Edge Cases
 
 - Depth subset empty → use best depth index only (`N_depths = 1`)
 - Frequency subset empty → use best freq index only (`N_freqs = 1`)
+- Duration indices are preserved unchanged during refinement
 - First iteration (`status_0.h5`) → initial strategy set by config, no refinement
 
 ### Operator Prompt
@@ -85,6 +88,7 @@ Updated strategy for `status_{N+1}.h5` (on continue):
 | `rake0`, `drake`, `nrake` | Center on best SDR, halved step |
 | `depth_indices` | Within 20% of best depth misfit |
 | `freq_indices` | Within 20% of best freq misfit |
+| `duration_indices` | Preserved from current strategy |
 | `iteration` | Previous + 1 |
 
 ## Rules
@@ -92,6 +96,7 @@ Updated strategy for `status_{N+1}.h5` (on continue):
 - Axis with `n=0` → not varying, contributes 1 value (uses `var0` only)
 - Empty `depth_indices` → no depth variation, single depth (index 1)
 - Empty `freq_indices` → no frequency variation, single frequency band
+- Empty `duration_indices` → single duration (index 1)
 - Trial order: deterministic (same Cartesian product order every time)
 
 ## Testing Strategy

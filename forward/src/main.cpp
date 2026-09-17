@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
         auto r_idx_host = status_file.read_int_1d("/trials/rake_idx");
         auto dep_idx_host = status_file.read_int_1d("/trials/depth_idx");
         auto f_idx_host = status_file.read_int_1d("/trials/freq_idx");
+        auto duration_idx_host = status_file.read_int_1d("/trials/duration_idx");
 
         auto strike_vals = db_reader.read_double_1d("/paraspace/strike");
         auto dip_vals = db_reader.read_double_1d("/paraspace/dip");
@@ -69,11 +70,13 @@ int main(int argc, char *argv[]) {
             int32_t ri = static_cast<int32_t>(r_idx_host[i]);
             int32_t depi = static_cast<int32_t>(dep_idx_host[i]);
             int32_t fi = static_cast<int32_t>(f_idx_host[i]);
+            int32_t dui = static_cast<int32_t>(duration_idx_host[i]);
             trials[i] = Trial {si,
                                di,
                                ri,
                                depi,
                                fi,
+                               dui,
                                axis_val(strike_vals, si),
                                axis_val(dip_vals, di),
                                axis_val(rake_vals, ri)};
@@ -174,11 +177,11 @@ int main(int argc, char *argv[]) {
         DataCache cache(maxlag);
         cache.load_from_database(database_path, trials);
 
-        // Collect unique (freq_idx, depth_idx) combos from trials
-        std::set<std::pair<int, int>> combo_set;
+        // Collect unique (freq_idx, depth_idx, duration_idx) combos from trials
+        std::set<CacheKey> combo_set;
         for (const auto &t : trials)
-            combo_set.insert({t.freq_idx, t.depth_idx});
-        std::vector<std::pair<int, int>> combos(combo_set.begin(), combo_set.end());
+            combo_set.insert({t.freq_idx, t.depth_idx, t.duration_idx});
+        std::vector<CacheKey> combos(combo_set.begin(), combo_set.end());
 
         // 5. Allocate intermediate output arrays (accumulated across combos)
         bool has_xcorr_p = n_p > 0;
@@ -195,12 +198,12 @@ int main(int argc, char *argv[]) {
 
         // 6. Launch kernels per combo, accumulate into intermediate arrays
         for (const auto &combo : combos) {
-            int f_idx = combo.first;
-            int d_idx = combo.second;
+            const auto [f_idx, d_idx, duration_idx] = combo;
 
             std::vector<int> trial_indices;
             for (int t = 0; t < N_trials; ++t)
-                if (trials[t].freq_idx == f_idx && trials[t].depth_idx == d_idx)
+                if (trials[t].freq_idx == f_idx && trials[t].depth_idx == d_idx &&
+                    trials[t].duration_idx == duration_idx)
                     trial_indices.push_back(t);
             if (trial_indices.empty())
                 continue;
@@ -208,7 +211,7 @@ int main(int argc, char *argv[]) {
             int n_sub = static_cast<int>(trial_indices.size());
             const CacheEntry *entry = nullptr;
             try {
-                entry = cache.get_or_compute(f_idx, d_idx);
+                entry = cache.get_or_compute(f_idx, d_idx, duration_idx);
             } catch (const std::runtime_error &) {
                 continue;
             }

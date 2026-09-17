@@ -17,8 +17,9 @@ Used by: `input.jl`.
 ### Filtering
 
 | Function | Role |
-|-------------------------------------------------------|-------------------------------------------------|
+|-------------------------------------------------------|------------------------------------------------------|
 | `bandpass_filter!(x, dt, low_cut, high_cut; order=4)` | Zero-phase Butterworth bandpass filter in-place |
+| `convolve_gaussian_stf(x, sigma, dt)` | Unit-area Gaussian STF convolution, truncated at ±3σ |
 
 Butterworth `order=4`. Zero-phase via forward-backward `filtfilt`. Clamps high cut to 0.999×Nyquist, low cut to ≥1e-6. No-op if low ≥ high.
 

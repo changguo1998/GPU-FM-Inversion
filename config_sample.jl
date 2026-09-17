@@ -28,6 +28,7 @@ Config.XcorrS.band_low() = Int32[1]
 Config.XcorrS.band_high() = Int32[2]
 
 Config.freq_bands() = [(0.5, 2.0)]
+Config.durations() = [0.1, 0.2, 0.3]  # Gaussian STF σ (s)
 
 # Depth range
 Config.depths() = [5.0, 10.0, 15.0]

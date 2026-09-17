@@ -38,9 +38,13 @@ if "Psr" in misfit_modules
 end
 freq_bands = Config.freq_bands()
 depths = Config.depths()
+durations = Config.durations()
 
 n_bands = length(freq_bands)
 n_depths = length(depths)
+n_durations = length(durations)
+isempty(durations) && error("Config.durations() must contain at least one STF duration")
+all(durations .>= 0.0) || error("Config.durations() values must be non-negative")
 
 # 从频带边界构造频率数组
 freq_vals = sort(unique(Float64[v for (low, high) in freq_bands for v in (low, high)]))
@@ -49,6 +53,7 @@ freq_vals = sort(unique(Float64[v for (low, high) in freq_bands for v in (low, h
 @info "  misfit_modules = $misfit_modules"
 @info "  freq_bands     = $freq_bands"
 @info "  depths         = $depths"
+@info "  durations      = $durations s (Gaussian σ)"
 
 # === 4. 读取外部数据 (via Config.load_*()) ===
 @info "Reading external data via Config.load_*() ..."
@@ -224,30 +229,33 @@ for (_, mod) in module_instances
 end
 
 prepro_obs = Dict{Tuple{Float64, Float64}, Dict{String, Vector{Float64}}}()       # (lo,hi) -> ch_id -> wf
-prepro_gf = Dict{Tuple{Float64, Float64}, Dict{Float64, Dict{String, Matrix{Float64}}}}()  # (lo,hi) -> depth -> ch_id -> gf
+prepro_gf = Dict{Tuple{Float64, Float64, Int}, Dict{Float64, Dict{String, Matrix{Float64}}}}()  # (lo,hi,duration_idx) -> depth -> ch_id -> gf
 for (lo, hi) in all_bands
     po = Dict{String, Vector{Float64}}()
     for (ch_id, wf_raw) in channel_data
         po[ch_id] = Signal.preprocess_waveform!(copy(wf_raw), ch_dt[ch_id], lo, hi)
     end
     prepro_obs[(lo, hi)] = po
-    pg = Dict{Float64, Dict{String, Matrix{Float64}}}()
-    for d in depths
-        pd = Dict{String, Matrix{Float64}}()
-        for (ch_id, gf_raw) in gf_data[d]
-            g = copy(gf_raw)
-            for c in 1:size(g, 2)
-                g[:, c] = Signal.preprocess_waveform!(g[:, c], ch_dt[ch_id], lo, hi)
+    for (duration_idx, duration) in enumerate(durations)
+        pg = Dict{Float64, Dict{String, Matrix{Float64}}}()
+        for d in depths
+            pd = Dict{String, Matrix{Float64}}()
+            for (ch_id, gf_raw) in gf_data[d]
+                g = copy(gf_raw)
+                for c in 1:size(g, 2)
+                    g[:, c] = Signal.convolve_gaussian_stf(g[:, c], duration, ch_dt[ch_id])
+                    g[:, c] = Signal.preprocess_waveform!(g[:, c], ch_dt[ch_id], lo, hi)
+                end
+                pd[ch_id] = g
             end
-            pd[ch_id] = g
+            pg[d] = pd
         end
-        pg[d] = pd
+        prepro_gf[(lo, hi, duration_idx)] = pg
     end
-    prepro_gf[(lo, hi)] = pg
 end
 
 # TODO(deferred): prepro_gf_basic (Polarity input) removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-@info "  Layer 0 complete: $(length(prepro_obs)) bands x $(length(channel_data)) channels"
+@info "  Layer 0 complete: $(length(prepro_obs)) bands x $n_durations durations x $(length(channel_data)) channels"
 
 # 预处理共享上下文 (NamedTuple 避免长参数列表)
 ctx = (
@@ -259,23 +267,44 @@ ctx = (
     pf = pf,
     prepro_obs = prepro_obs,
     prepro_gf = prepro_gf,
+    durations = durations,
 )
 
-"""合并多频带 result r 到已累积的 prev (prev 为 nothing 时返回 r 本身)。"""
-function merge_band_result(prev, r)
+"""Merge one frequency/duration result into the accumulated module result."""
+function merge_duration_result(prev, r, duration_idx)
     if prev === nothing
-        return r
+        prev = Dict{String, Any}(
+            "channel_id" => r["channel_id"],
+            "station_idx" => r["station_idx"],
+            "obs" => Dict{Int, Any}(),
+            "gf" => Dict{Float64, Any}(),
+            "synamp_lag" => Dict{Float64, Any}(),
+            "dot_obs_gf_lag" => Dict{Int, Any}(),
+        )
+    else
+        @assert prev["channel_id"] == r["channel_id"]
+        @assert prev["station_idx"] == r["station_idx"]
     end
     for (band_key, band_data) in r["obs"]
-        prev["obs"][band_key] = band_data
+        get!(prev["obs"], band_key, band_data)
     end
     for (d, bands) in r["gf"]
-        if !haskey(prev["gf"], d)
-            prev["gf"][d] = Dict{Int, Any}()
-        end
+        depth_out = get!(prev["gf"], d, Dict{Int, Any}())
         for (band_key, band_data) in bands
-            prev["gf"][d][band_key] = band_data
+            band_out = get!(depth_out, band_key, Dict{Int, Any}())
+            band_out[duration_idx] = band_data
         end
+    end
+    for (d, bands) in r["synamp_lag"]
+        depth_out = get!(prev["synamp_lag"], d, Dict{Int, Any}())
+        for (band_key, band_data) in bands
+            band_out = get!(depth_out, band_key, Dict{Int, Any}())
+            band_out[duration_idx] = band_data
+        end
+    end
+    for (band_key, band_data) in r["dot_obs_gf_lag"]
+        band_out = get!(prev["dot_obs_gf_lag"], band_key, Dict{Int, Any}())
+        band_out[duration_idx] = band_data
     end
     return prev
 end
@@ -291,21 +320,23 @@ function preprocess_module(mod, phases_pt, ptype, ctx, prev)
         for local_idx in 1:length(band_low)
             lo = ctx.freq_vals[band_low[local_idx]]
             hi = ctx.freq_vals[band_high[local_idx]]
-            r = mod.process(
-                phases_pt,
-                ptype,
-                ctx.stations,
-                ctx.picks,
-                ctx.station_to_idx,
-                ctx.prepro_obs[(lo, hi)],
-                ctx.prepro_gf[(lo, hi)],
-                ctx.depths,
-                hi,
-                local_idx,
-                ctx.pf,
-            )
-            isempty(r["channel_id"]) && continue
-            result = merge_band_result(result, r)
+            for duration_idx in eachindex(ctx.durations)
+                r = mod.process(
+                    phases_pt,
+                    ptype,
+                    ctx.stations,
+                    ctx.picks,
+                    ctx.station_to_idx,
+                    ctx.prepro_obs[(lo, hi)],
+                    ctx.prepro_gf[(lo, hi, duration_idx)],
+                    ctx.depths,
+                    hi,
+                    local_idx,
+                    ctx.pf,
+                )
+                isempty(r["channel_id"]) && continue
+                result = merge_duration_result(result, r, duration_idx)
+            end
         end
         return result
     else
@@ -355,6 +386,7 @@ paraspace = Dict{String, Any}(
     "rake" => rake_vals,
     "depth" => Float64.(depths),
     "frequency" => freq_vals,
+    "duration" => Float64.(durations),
 )
 
 db_config = Dict{String, Any}("misfit_modules" => misfit_modules)
@@ -421,36 +453,49 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         end
     end
 
-    gf_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
-    syn_str = Dict{Float64, Dict{String, Array{Float64, 3}}}()
+    gf_str = Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}}()
+    syn_str = Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}}()
     if haskey(result, "gf")
         for (d, bands) in result["gf"]
-            gf_str[d] = Dict{String, Array{Float64, 3}}()
-            syn_str[d] = Dict{String, Array{Float64, 3}}()
-            for (bk, bv) in bands
+            gf_str[d] = Dict{String, Dict{String, Array{Float64, 3}}}()
+            syn_str[d] = Dict{String, Dict{String, Array{Float64, 3}}}()
+            for (bk, duration_data) in bands
                 k = string(bk)
-                gf_str[d][k] = bv["gf"]
-                if haskey(bv, "synamp")
-                    syn_str[d][k] = bv["synamp"]
+                gf_str[d][k] = Dict{String, Array{Float64, 3}}()
+                syn_str[d][k] = Dict{String, Array{Float64, 3}}()
+                for (duration_idx, bv) in duration_data
+                    duration_key = string(duration_idx)
+                    gf_str[d][k][duration_key] = bv["gf"]
+                    if haskey(bv, "synamp")
+                        syn_str[d][k][duration_key] = bv["synamp"]
+                    end
                 end
             end
         end
     end
 
     # Xcorr per-lag reductions
-    synamp_lag_str = Dict{Float64, Dict{String, Array{Float64, 4}}}()
+    synamp_lag_str = Dict{Float64, Dict{String, Dict{String, Array{Float64, 4}}}}()
     if haskey(result, "synamp_lag")
         for (d, bands) in result["synamp_lag"]
-            synamp_lag_str[d] = Dict{String, Array{Float64, 4}}()
-            for (bk, bv) in bands
-                synamp_lag_str[d][string(bk)] = bv
+            synamp_lag_str[d] = Dict{String, Dict{String, Array{Float64, 4}}}()
+            for (bk, duration_data) in bands
+                band_key = string(bk)
+                synamp_lag_str[d][band_key] = Dict{String, Array{Float64, 4}}()
+                for (duration_idx, bv) in duration_data
+                    synamp_lag_str[d][band_key][string(duration_idx)] = bv
+                end
             end
         end
     end
-    dog_lag_str = Dict{String, Array{Float64, 3}}()
+    dog_lag_str = Dict{String, Dict{String, Array{Float64, 3}}}()
     if haskey(result, "dot_obs_gf_lag")
-        for (bk, bv) in result["dot_obs_gf_lag"]
-            dog_lag_str[string(bk)] = bv
+        for (bk, duration_data) in result["dot_obs_gf_lag"]
+            band_key = string(bk)
+            dog_lag_str[band_key] = Dict{String, Array{Float64, 3}}()
+            for (duration_idx, bv) in duration_data
+                dog_lag_str[band_key][string(duration_idx)] = bv
+            end
         end
     end
 
@@ -500,7 +545,7 @@ mod_summary = join(
 @info "  phase metadata written ($mod_summary)"
 
 # === 12. 写入 status_0.h5 (初始策略) ===
-# /strategy: 全空间 5° 默认网格 (SDR) + 全 depth/freq 索引, iteration 0
+# /strategy: 全空间 5° 默认网格 (SDR) + 全 depth/freq/duration 索引, iteration 0
 @info "Writing status_0.h5 ..."
 
 strategy = IO.Strategy(
@@ -515,6 +560,7 @@ strategy = IO.Strategy(
     g0.nrake,
     Int32.(1:n_depths),
     Int32.(1:n_bands),
+    Int32.(1:n_durations),
     Int32(0),
 )
 
@@ -534,6 +580,6 @@ mod_names_str = join(sort(collect(keys(module_data))), ", ")
 @info "  $(basename(db_path)) : /$mod_names_str (modules)"
 @info "  $(basename(db_path)) : /config, /event"
 @info "  $(basename(status0_path)) : /strategy (initial grid, no trials)"
-@info "  Phys stations: $n_phys_stations | Channels: $n_stations | Phases: $n_phases | Depths: $n_depths | Freq vals: $(length(freq_vals))"
+@info "  Phys stations: $n_phys_stations | Channels: $n_stations | Phases: $n_phases | Depths: $n_depths | Freq vals: $(length(freq_vals)) | Durations: $n_durations"
 @info ""
 @info "="^70

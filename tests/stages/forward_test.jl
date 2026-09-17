@@ -1,6 +1,6 @@
 # forward_test.jl — Stage 3 (forward C++ kernel) tests.
 #
-# Runs `forward` on a small hand-built trial set (36–72, NOT the full 151,848
+# Runs `forward` on a small hand-built trial set (108–216, NOT the full 455,544
 # grid) and checks `cc_max`/`best_lag` against an independent Julia reference
 # recomputing the XCorr math from the stored obs/GF windows (same kernel
 # definitions: window-internal zero-padded shifts, per-lag normalization) —
@@ -38,6 +38,7 @@ function reference_cc(
 )
     N = length(obs)
     best = 0.0
+    found = false
     bestl = 0
     for lag in (-maxlag):maxlag
         # per-lag synamp (GF shifted by -lag) quadratic form
@@ -64,9 +65,10 @@ function reference_cc(
             cc += m[comp] * s
         end
         cn = cc / sqrt(obs_n2 * syn)
-        if abs(cn) > best
-            best = abs(cn)
+        if !found || cn > best
+            best = cn
             bestl = lag
+            found = true
         end
     end
     return best, bestl
@@ -86,7 +88,7 @@ end
         status0 = joinpath(status_dir, "status_0.h5")
         mv(joinpath(dir, "status_0.h5"), status0)
 
-        # ── Small trial set: 3×2×2 SDR grid × 3 depths × 1 freq = 36 trials ──
+        # ── Small trial set: 3×2×2 SDR × 3 depths × 1 freq × 3 durations = 108 ──
         strat = IO.Strategy(
             0.0,
             5.0,
@@ -99,12 +101,13 @@ end
             Int32(2),
             Int32[1, 2, 3],
             Int32[1],
+            Int32[1, 2, 3],
             Int32(0),
         )
         trials = Grid.generate_trials(strat)
         IO.write_trials(status0, trials)
         N_trials = length(trials.strike_idx)
-        @test N_trials == 36
+        @test N_trials == 108
 
         # ── Run forward (twice: schema + idempotence) ──
         exe = joinpath(PROJECT_ROOT, "forward", "build", "forward")
@@ -122,9 +125,8 @@ end
         h5open(db, "r") do f
             global _OBS = read(f["/XcorrS/obs/1/obs"])
             global _GFS = Dict(
-                1 => read(f["/XcorrS/gf/1/1/gf"]),  # Julia layout [N, 6, samples]
-                2 => read(f["/XcorrS/gf/2/1/gf"]),
-                3 => read(f["/XcorrS/gf/3/1/gf"]),
+                (dep, duration) => read(f["/XcorrS/gf/$dep/1/$duration/gf"]) for dep in 1:3 for
+                duration in 1:3
             )
             global _OBSN2 = read(f["/XcorrS/obs/1/obs_norm2"])
             global _STRIKE = read(f["/paraspace/strike"])
@@ -140,12 +142,13 @@ end
             global _TD = read(f["/trials/dip_idx"])
             global _TR = read(f["/trials/rake_idx"])
             global _TDEP = read(f["/trials/depth_idx"])
+            global _TDURATION = read(f["/trials/duration_idx"])
         end
 
         @testset "output shapes" begin
             @test size(_CC) == (N_trials, _NENT)  # HDF5.jl reads C-order [N,phases]
             @test size(_LAG) == (N_trials, _NENT)
-            @test all(0.0 .<= _CC .<= 1.0)
+            @test all(-1.0 .<= _CC .<= 1.0)
             @test all(-150 .<= _LAG .<= 150)
         end
 
@@ -154,7 +157,7 @@ end
             max_dlag = 0
             for t in 1:N_trials
                 dep = Int(_TDEP[t])
-                gf3 = _GFS[dep]
+                gf3 = _GFS[(dep, Int(_TDURATION[t]))]
                 m = sdr_to_mt(_STRIKE[_TS[t]], _DIP[_TD[t]], _RAKE[_TR[t]])
                 for ph in 1:_NENT
                     rb, rl = reference_cc(vec(_OBS[ph, :]), gf3[ph, :, :], m, _OBSN2[ph], 150)
@@ -206,6 +209,7 @@ end
             Int32(2),
             Int32[1, 2, 3],
             Int32[1],
+            Int32[1, 2, 3],
             Int32(0),
         )
         trials = Grid.generate_trials(strat)
@@ -218,9 +222,8 @@ end
 
         h5open(db, "r") do f
             global _GFS_CL = Dict(
-                1 => read(f["/XcorrS/gf/1/1/gf"]),
-                2 => read(f["/XcorrS/gf/2/1/gf"]),
-                3 => read(f["/XcorrS/gf/3/1/gf"]),
+                (dep, duration) => read(f["/XcorrS/gf/$dep/1/$duration/gf"]) for dep in 1:3 for
+                duration in 1:3
             )
             global _OBS_CL = read(f["/XcorrS/obs/1/obs"])
             global _OBSN2_CL = read(f["/XcorrS/obs/1/obs_norm2"])
@@ -235,18 +238,19 @@ end
             global _TD_CL = read(f["/trials/dip_idx"])
             global _TR_CL = read(f["/trials/rake_idx"])
             global _DEP_CL = read(f["/trials/depth_idx"])
+            global _DURATION_CL = read(f["/trials/duration_idx"])
         end
 
         n_ent = size(_CC_CL, 2)
         @test n_ent >= 1
         # lag range clamped to ±(501-1)/2 = ±250, not the requested 300
         @test extrema(_LAG_CL) ⊆ (-250:250)
-        @test all(0.0 .<= _CC_CL .<= 1.0)
+        @test all(-1.0 .<= _CC_CL .<= 1.0)
 
         max_dcc = 0.0
         for t in 1:N_trials
             dep = Int(_DEP_CL[t])
-            gf3 = _GFS_CL[dep]
+            gf3 = _GFS_CL[(dep, Int(_DURATION_CL[t]))]
             m = sdr_to_mt(_STRIKE_CL[_TS_CL[t]], _DIP_CL[_TD_CL[t]], _RAKE_CL[_TR_CL[t]])
             for ph in 1:n_ent
                 rb, rl = reference_cc(vec(_OBS_CL[ph, :]), gf3[ph, :, :], m, _OBSN2_CL[ph], 250)

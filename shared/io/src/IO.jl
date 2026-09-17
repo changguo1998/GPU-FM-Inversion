@@ -31,12 +31,12 @@ struct ModuleData
     # Per-band observation data
     obs::Dict{String, Matrix{Float64}}               # band_key -> obs matrix
     obs_norm2::Dict{String, Vector{Float64}}         # band_key -> norm2 vector
-    # Per-depth, per-band GF data (Polarity, legacy)
-    gf::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band_key -> gf
-    synamp::Dict{Float64, Dict{String, Array{Float64, 3}}}  # depth -> band_key -> synamp
-    # Xcorr per-lag reductions (freq-dependent)
-    synamp_lag::Dict{Float64, Dict{String, Array{Float64, 4}}}   # depth -> band -> [N,6,6,L]
-    dot_obs_gf_lag::Dict{String, Array{Float64, 3}}              # band -> [N,6,L]
+    # Per-depth, per-band, per-duration GF data
+    gf::Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}}
+    synamp::Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}}
+    # Xcorr per-lag reductions (frequency- and duration-dependent)
+    synamp_lag::Dict{Float64, Dict{String, Dict{String, Array{Float64, 4}}}}
+    dot_obs_gf_lag::Dict{String, Dict{String, Array{Float64, 3}}}
     # PSR reductions (freq-dependent)
     amp_P::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band -> [N,6,6]
     amp_S::Dict{Float64, Dict{String, Array{Float64, 3}}}   # depth -> band -> [N,6,6]
@@ -50,19 +50,22 @@ end
 function ModuleData(;
     obs::Dict{String, Matrix{Float64}},
     obs_norm2::Dict{String, Vector{Float64}} = Dict{String, Vector{Float64}}(),
-    gf::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
+    gf::Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}} = Dict{
         Float64,
+        Dict{String, Dict{String, Array{Float64, 3}}},
+    }(),
+    synamp::Dict{Float64, Dict{String, Dict{String, Array{Float64, 3}}}} = Dict{
+        Float64,
+        Dict{String, Dict{String, Array{Float64, 3}}},
+    }(),
+    synamp_lag::Dict{Float64, Dict{String, Dict{String, Array{Float64, 4}}}} = Dict{
+        Float64,
+        Dict{String, Dict{String, Array{Float64, 4}}},
+    }(),
+    dot_obs_gf_lag::Dict{String, Dict{String, Array{Float64, 3}}} = Dict{
+        String,
         Dict{String, Array{Float64, 3}},
     }(),
-    synamp::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
-        Float64,
-        Dict{String, Array{Float64, 3}},
-    }(),
-    synamp_lag::Dict{Float64, Dict{String, Array{Float64, 4}}} = Dict{
-        Float64,
-        Dict{String, Array{Float64, 4}},
-    }(),
-    dot_obs_gf_lag::Dict{String, Array{Float64, 3}} = Dict{String, Array{Float64, 3}}(),
     amp_P::Dict{Float64, Dict{String, Array{Float64, 3}}} = Dict{
         Float64,
         Dict{String, Array{Float64, 3}},
@@ -103,7 +106,11 @@ struct TrialSet
     rake_idx::Vector{Int32}
     depth_idx::Vector{Int32}
     freq_idx::Vector{Int32}
+    duration_idx::Vector{Int32}
 end
+
+TrialSet(strike_idx, dip_idx, rake_idx, depth_idx, freq_idx) =
+    TrialSet(strike_idx, dip_idx, rake_idx, depth_idx, freq_idx, fill(Int32(1), length(strike_idx)))
 
 # Default full-space 5° grid; strike wraps the full circle (0:5:355 = 72 pts).
 const DEFAULT_GRID = (
@@ -130,8 +137,38 @@ struct Strategy
     nrake::Int32
     depth_indices::Vector{Int32}
     freq_indices::Vector{Int32}
+    duration_indices::Vector{Int32}
     iteration::Int32
 end
+
+Strategy(
+    strike0,
+    dstrike,
+    nstrike,
+    dip0,
+    ddip,
+    ndip,
+    rake0,
+    drake,
+    nrake,
+    depth_indices,
+    freq_indices,
+    iteration,
+) = Strategy(
+    strike0,
+    dstrike,
+    nstrike,
+    dip0,
+    ddip,
+    ndip,
+    rake0,
+    drake,
+    nrake,
+    depth_indices,
+    freq_indices,
+    Int32[1],
+    iteration,
+)
 
 
 # Exports
@@ -289,12 +326,15 @@ function read_trials(h5file)::TrialSet
     h5open(
         f -> begin
             gr = f["trials"]
+            strike_idx = read(gr["strike_idx"])
             TrialSet(
-                read(gr["strike_idx"]),
+                strike_idx,
                 read(gr["dip_idx"]),
                 read(gr["rake_idx"]),
                 read(gr["depth_idx"]),
                 read(gr["freq_idx"]),
+                haskey(gr, "duration_idx") ? read(gr["duration_idx"]) :
+                fill(Int32(1), length(strike_idx)),
             )
         end,
         h5file,
@@ -312,6 +352,11 @@ function read_strategy(h5file)::Strategy
             else
                 Int32[]
             end
+            dui = if haskey(gr, "duration_indices")
+                read(gr["duration_indices"])
+            else
+                Int32[1]
+            end
             it = read(gr["iteration"])
             if haskey(gr, "strike0")
                 return Strategy(
@@ -326,6 +371,7 @@ function read_strategy(h5file)::Strategy
                     read(gr["nrake"]),
                     di,
                     fi,
+                    dui,
                     it,
                 )
             end
@@ -342,6 +388,7 @@ function read_strategy(h5file)::Strategy
                 DEFAULT_GRID.nrake,
                 di,
                 fi,
+                dui,
                 it,
             )
         end,
@@ -473,17 +520,21 @@ function write_database(
                     write(b_gr, "obs_norm2", md.obs_norm2[band_key])
                 end
             end
-            # Write per-depth, per-band GF data
+            # Write per-depth, per-band, per-duration GF data
             gf_gr = HDF5.create_group(m_gr, "gf")
             for depth in sort(collect(keys(md.gf)))
                 bands = md.gf[depth]
                 d_gr = HDF5.create_group(gf_gr, string(_gf_depth_index(paraspace_depth, depth)))
                 for band_key in sort(collect(keys(bands)))
-                    gf_arr = bands[band_key]
                     b_gr = HDF5.create_group(d_gr, band_key)
-                    write(b_gr, "gf", gf_arr)
-                    if haskey(md.synamp, depth) && haskey(md.synamp[depth], band_key)
-                        write(b_gr, "synamp", md.synamp[depth][band_key])
+                    for duration_key in sort(collect(keys(bands[band_key])))
+                        du_gr = HDF5.create_group(b_gr, duration_key)
+                        write(du_gr, "gf", bands[band_key][duration_key])
+                        if haskey(md.synamp, depth) &&
+                           haskey(md.synamp[depth], band_key) &&
+                           haskey(md.synamp[depth][band_key], duration_key)
+                            write(du_gr, "synamp", md.synamp[depth][band_key][duration_key])
+                        end
                     end
                 end
             end
@@ -494,14 +545,20 @@ function write_database(
                     bands = md.synamp_lag[depth]
                     d_gr = HDF5.create_group(sl_gr, string(_gf_depth_index(paraspace_depth, depth)))
                     for band_key in sort(collect(keys(bands)))
-                        d_gr[band_key] = bands[band_key]
+                        b_gr = HDF5.create_group(d_gr, band_key)
+                        for duration_key in sort(collect(keys(bands[band_key])))
+                            b_gr[duration_key] = bands[band_key][duration_key]
+                        end
                     end
                 end
             end
             if !isempty(md.dot_obs_gf_lag)
                 dog_gr = HDF5.create_group(m_gr, "dot_obs_gf_lag")
                 for band_key in sort(collect(keys(md.dot_obs_gf_lag)))
-                    dog_gr[band_key] = md.dot_obs_gf_lag[band_key]
+                    b_gr = HDF5.create_group(dog_gr, band_key)
+                    for duration_key in sort(collect(keys(md.dot_obs_gf_lag[band_key])))
+                        b_gr[duration_key] = md.dot_obs_gf_lag[band_key][duration_key]
+                    end
                 end
             end
             # PSR reductions
@@ -546,6 +603,7 @@ function write_trials(h5file, trials::TrialSet)
         write(gr, "rake_idx", trials.rake_idx)
         write(gr, "depth_idx", trials.depth_idx)
         write(gr, "freq_idx", trials.freq_idx)
+        write(gr, "duration_idx", trials.duration_idx)
         write(gr, "N_trials", Int32(length(trials.strike_idx)))
     end
 end
@@ -590,6 +648,7 @@ function write_strategy(h5file, strategy::Strategy)
         write(gr, "nrake", strategy.nrake)
         write(gr, "depth_indices", strategy.depth_indices)
         write(gr, "freq_indices", strategy.freq_indices)
+        write(gr, "duration_indices", strategy.duration_indices)
         write(gr, "iteration", strategy.iteration)
     end
 end

@@ -2,6 +2,11 @@ using Config
 using Misfit
 using Test
 
+@testset "duration interface" begin
+    @test isdefined(Config, :durations)
+    @test_throws Config.ConfigError Config.durations()
+end
+
 @testset "use_misfit! base registration" begin
     Config.use_misfit!(
         :T2_XcorrP,

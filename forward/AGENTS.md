@@ -2,7 +2,7 @@
 
 ## Role
 
-Consumes `database.h5` (preprocessed obs + per-depth Green's functions +
+Consumes `database.h5` (preprocessed obs + per-depth/per-duration Green's functions +
 `/paraspace`) and `status_{N}.h5:/trials`; recomputes each misfit kernel per
 trial and writes **intermediate products** to `status_{N}.h5:/intermediates/`
 (never final misfits — Julia `assess.jl` owns semantics). Stateless per run.
@@ -30,6 +30,7 @@ forward/
   currently — scoped, see `doc/stages/forward.md`), clamped to
   `(window_len-1)/2` in DataCache; reduction loop uses the clamped stride.
 - station indices 0-based internally, 1-based in HDF5.
+- cache key is `(freq_idx, depth_idx, duration_idx)`; duration selects precomputed Gaussian STF σ.
 - `/intermediates` rewritten idempotently each run (delete + recreate).
 
 ## Build / verify

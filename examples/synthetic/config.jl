@@ -9,9 +9,16 @@ using Random
 
 using Misfit
 
+Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
 # TODO(deferred): Polarity/Psr registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-# TODO(deferred): XcorrP/AbsShiftP/S/RelShift removed — XCorrS-only mode (single-module focus).
+# TODO(deferred): AbsShiftP/S/RelShift remain disabled for the XCorr P+S baseline.
+
+Config.XcorrP.trim() = [-2.0, 8.0]
+Config.XcorrP.max_lag_periods() = 3.0
+Config.XcorrP.filter_order() = 4
+Config.XcorrP.band_low() = Int32[1]
+Config.XcorrP.band_high() = Int32[2]
 
 Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.max_lag_periods() = 3.0
@@ -21,6 +28,7 @@ Config.XcorrS.band_high() = Int32[2]
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
+Config.durations() = [0.1, 0.2, 0.3]  # Gaussian STF σ (s); synthetic truth is 0.2 s
 
 Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
 Config.polarity_fields() = Dict("P" => :P_polarity)
@@ -123,7 +131,8 @@ _add_p(gf, idx, r_km, γ, scale, v, nt) = begin
     amp = scale / r_km / v^3
     for (m, (j, k)) in enumerate(_MT_PAIRS)
         for i in 1:3
-            gf[idx, m, i] += amp * γ[i] * γ[j] * γ[k]
+            pair_weight = j == k ? 1.0 : 2.0
+            gf[idx, m, i] += amp * pair_weight * γ[i] * γ[j] * γ[k]
         end
     end
 end
@@ -136,7 +145,12 @@ _add_s(gf, idx, r_km, γ, scale, v, nt) = begin
     for (m, (j, k)) in enumerate(_MT_PAIRS)
         for i in 1:3
             δ_ij = i == j ? 1.0 : 0.0
-            gf[idx, m, i] += amp * (δ_ij - γ[i] * γ[j]) * γ[k]
+            coeff = (δ_ij - γ[i] * γ[j]) * γ[k]
+            if j != k
+                δ_ik = i == k ? 1.0 : 0.0
+                coeff += (δ_ik - γ[i] * γ[k]) * γ[j]
+            end
+            gf[idx, m, i] += amp * coeff
         end
     end
 end

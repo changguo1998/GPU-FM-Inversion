@@ -13,10 +13,11 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Configuration functions
 
 | Function | Return type | Example return value |
-|---------------------|-----------------------------------|------------------------------------------|
+|---------------------|-----------------------------------|--------------------------------------------------------------|
 | `misfit_modules()` | `Vector{String}` | Auto-detected from `use_misfit!()` calls |
 | `freq_bands()` | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]` |
 | `depths()` | `Vector{Float64}` | `[5.0, 10.0, 15.0]` |
+| `durations()` | `Vector{Float64}` | Gaussian STF σ candidates in seconds, e.g. `[0.1, 0.2, 0.3]` |
 | `phase_fields()` | `Dict{String, Symbol}` | `Dict("P" => :P_time, "S" => :S_time)` |
 | `polarity_fields()` | `Dict{String, Symbol}` | `Dict("P" => :P_polarity)` |
 
@@ -98,6 +99,7 @@ Config.PolarityP.trim() = [0.0, 2.0]
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
+Config.durations() = [0.1, 0.2, 0.3]
 Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
 Config.polarity_fields() = Dict("P" => :P_polarity)
 

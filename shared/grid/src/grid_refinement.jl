@@ -23,7 +23,7 @@ end
 
 Next-iteration search grid centered on best trial: SDR steps halved, fixed
 3×3×3 grid; depth/freq subsets keep indices with misfit ≤ 1.2 × best (single
-best index if empty). Returns a `Strategy` with `converged=0`, `iteration+1`
+best index if empty); duration indices are preserved. Returns a `Strategy` with `iteration+1`
 (the caller assess.jl prompts the operator and writes `status_{N+1}.h5`).
 """
 function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.Strategy
@@ -80,6 +80,7 @@ function refine_strategy(current::H5IO.Strategy, best_trial::TrialResult)::H5IO.
         new_nrake,
         new_depth_indices,
         new_freq_indices,
+        current.duration_indices,
         current.iteration + Int32(1),
     )
 end

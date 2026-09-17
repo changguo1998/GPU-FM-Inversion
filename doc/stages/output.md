@@ -31,7 +31,7 @@ Files located via `ENV["DATA_DIR"]` (exported by driver.sh): `database.h5`,
 
 | Group | Contents |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/solution` | strike, dip, rake, depth (deg/km), freq_idx, moment_tensor [6], misfit |
+| `/solution` | strike, dip, rake, depth, duration (Gaussian σ in s), freq_idx/duration_idx, moment_tensor [6], misfit |
 | `/uncertainty` | strike/dip/rake std over the best neighborhood (misfit ≤ 1.05×best), depth_range [min,max], freq_test_misfit_curve (NaN, unimplemented) |
 | `/per_phase` | phase_id, station_id, phase_type, misfit_per_module [N_modules × N_phases], selected, cross_correlation (== intermediates cc_max at best trial) |
 | `/per_station_summary` | station_id, n_phases, mean_cross_correlation, misfit_total (zeros, pending) |

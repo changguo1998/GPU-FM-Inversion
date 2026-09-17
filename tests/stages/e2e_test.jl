@@ -2,9 +2,9 @@
 #
 # Drives the real `driver.sh` on a fresh synthetic event and asserts the single
 # iteration loop: driver exits 0, converges after one iteration, and `output.h5`
-# recovers the true source (30, 60, 90) @ 10 km. Rake ±90 are equal |cc_max|
-# complements (azimuthal CC has no polarity). Acceptance gate in AGENTS.md /
-# doc/roadmap.md: the XCorr-only pipeline must reproduce the ~0.16 baseline.
+# recovers the true moment tensor @ 10 km and STF σ=0.2 s. The reported SDR
+# may be either nodal-plane representation. Acceptance gate in AGENTS.md /
+# doc/roadmap.md: the XCorr P+S pipeline must recover the synthetic source.
 #
 # Usage:
 #   julia --project=. tests/stages/e2e_test.jl
@@ -34,30 +34,32 @@ include("test_util.jl")
             status0 = joinpath(dir, "status", "status_0.h5")
             h5open(status0, "r") do f
                 @test haskey(f, "/intermediates/XcorrS")
+                @test haskey(f, "/intermediates/XcorrP")
                 @test haskey(f, "/misfits/XcorrS")
-                @test read(f["/trials/N_trials"]) == 151848  # full-space 5° grid
+                @test haskey(f, "/misfits/XcorrP")
+                @test read(f["/trials/N_trials"]) == 455544  # 5° grid × 3 durations
             end
         end
 
         @testset "solution recovers true source" begin
             h5open(out_path, "r") do f
                 s = f["/solution"]
-                strike = read(s["strike"])
-                dip = read(s["dip"])
-                rake = read(s["rake"])
                 depth = read(s["depth"])
+                duration = read(s["duration"])
+                duration_idx = read(s["duration_idx"])
                 misfit = read(s["misfit"])
 
-                # 5° grid: true source (30, 60, 90); rake ±90 complementary
-                @test strike == 30.0
-                @test dip == 60.0
-                @test rake in (90.0, -90.0)
+                # True source and auxiliary plane represent the same MT.
+                mt = read(s["moment_tensor"])
+                mt_true = sdr_to_mt(30.0, 60.0, 90.0)
+                @test maximum(abs.(mt .- mt_true)) < 1.0e-12
                 @test depth == 10.0
-                @test misfit < 0.3          # far below random ~0.5
-                @test misfit > 0.05
+                @test duration == 0.2
+                @test duration_idx == 2
+                @test 0.0 < misfit < 1.0e-3
 
                 smry = f["/summary"]
-                @test read(smry["total_trials"]) == 151848
+                @test read(smry["total_trials"]) == 455544
                 @test read(smry["total_iterations"]) == 1
             end
         end

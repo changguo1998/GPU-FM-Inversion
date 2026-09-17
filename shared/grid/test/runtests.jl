@@ -22,7 +22,7 @@ end
 
 # === generate_trials ===
 
-# Full-space default strategy: 72×19×37 strikes/dips/rakes × 3 depths × 1 freq
+# Full-space default strategy: 72×19×37 SDR × 3 depths × 1 freq × 3 durations
 function full_strategy()
     return IO.Strategy(
         IO.DEFAULT_GRID.strike0,
@@ -36,20 +36,21 @@ function full_strategy()
         IO.DEFAULT_GRID.nrake,
         Int32[1, 2, 3],
         Int32[1],
+        Int32[1, 2, 3],
         Int32(0),
     )
 end
 
 @testset "generate_trials count and nesting" begin
     trials = Grid.generate_trials(full_strategy())
-    n = 72 * 19 * 37 * 3 * 1
+    n = 72 * 19 * 37 * 3 * 1 * 3
     @test length(trials.strike_idx) == n
-    # nesting: strike outermost, freq innermost; all params are 1-based indices
+    # nesting: strike outermost, duration innermost; all params are 1-based indices
     @test trials.strike_idx[1] == 1 && trials.strike_idx[n] == 72  # 72-axis
     @test trials.freq_idx[1] == 1
-    # cycles within each (strike,dip,rake) combo (strike → dip → rake → depth → freq)
-    @test trials.depth_idx[1:3] == Int32[1, 2, 3]
-    @test trials.depth_idx == Int32.(repeat([1, 2, 3], n ÷ 3))
+    # cycles within each (strike,dip,rake) combo
+    @test trials.depth_idx[1:9] == Int32[1, 1, 1, 2, 2, 2, 3, 3, 3]
+    @test trials.duration_idx[1:9] == Int32[1, 2, 3, 1, 2, 3, 1, 2, 3]
 end
 
 @testset "generate_trials empty indices default to [1]" begin
@@ -65,13 +66,15 @@ end
         Int32(3),
         Int32[],
         Int32[],
+        Int32[],
         Int32(0),
     )
     trials = Grid.generate_trials(s)
-    # SDR 3×3×3 × depth[1] × freq[1]
+    # SDR 3×3×3 × depth[1] × freq[1] × duration[1]
     @test length(trials.strike_idx) == 27
     @test all(trials.depth_idx .== 1)
     @test all(trials.freq_idx .== 1)
+    @test all(trials.duration_idx .== 1)
 end
 
 # === refine_strategy ===
@@ -101,6 +104,7 @@ end
     # depth subset within 1.2× threshold
     @test next.depth_indices == Int32[1, 2, 3]
     @test next.freq_indices == Int32[1]
+    @test next.duration_indices == Int32[1, 2, 3]
     @test next.iteration == 1
 end
 

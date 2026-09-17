@@ -13,14 +13,14 @@ Used by: `preprocess.jl`, `assess.jl`.
 | `TrialResult` | `grid_refinement.jl` | `sdr[3], depth_idx, freq_idx, misfit, depth_misfits[], freq_misfits[]` | Best-trial result for refinement |
 
 No separate grid/trial structs — `generate_trials` consumes the full
-`IO.Strategy` (12 fields: SDR grid + depth/freq indices + iteration) and
+`IO.Strategy` (SDR grid + depth/freq/duration indices + iteration) and
 returns `IO.TrialSet`.
 
 ## Exports
 
 | Function | Used by | Role |
-|--------------------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------------------------------------|
-| `generate_trials(strategy::IO.Strategy)` | `preprocess.jl` | Cartesian product of per-axis 1-based indices: strike_idx × dip_idx × rake_idx × depth_idx × freq_idx (no physical values) |
+|--------------------------------------------------------------|-----------------|-------------------------------------------------------------------------------------|
+| `generate_trials(strategy::IO.Strategy)` | `preprocess.jl` | Cartesian product of 1-based indices: strike × dip × rake × depth × freq × duration |
 | `refine_strategy(current::H5IO.Strategy, best::TrialResult)` | `assess.jl` | Compute next iteration's grid from best trial |
 | `prompt_operator(best_sdr, misfit, current)` | `assess.jl` | Show best result, ask continue? Returns Bool |
 | `TrialResult` | `assess.jl` | Struct for best-trial data |
@@ -32,6 +32,7 @@ returns `IO.TrialSet`.
 - Grid size: fixed 3×3×3 SDR (`nstrike=3, ndip=3, nrake=3`)
 - Depth subset: indices where `depth_misfit ≤ 1.2 × best_depth_misfit`
 - Frequency subset: indices where `freq_misfit ≤ 1.2 × best_freq_misfit`
+- Duration subset: preserved unchanged (refinement pending)
 - Empty subset fallback: single best index
 - Depth misfit accumulator: element-wise min across iterations
 - Returns new `H5IO.Strategy` with iteration incremented

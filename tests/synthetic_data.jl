@@ -5,7 +5,8 @@
 # Far-field P/S waves in a two-layer half-space (upper 0–20 km vp=6/vs=4,
 # lower vp=8/vs=6). GF = delta impulses at direct + interface-reflected
 # arrivals, scaled by A_const / r² / v³ with full MT radiation pattern and
-# normal-incidence reflection coefficients. Observed = (GF * MT) ⊗ STF + noise,
+# normal-incidence reflection coefficients. Observed = (GF * MT) ⊗ STF + noise whose
+# standard deviation is 1% of the clean direct-P window RMS,
 # STF a Gaussian (configurable σ, default 0.2 s). Source at origin, depth =
 # 10 km; stations placed randomly around it.
 #
@@ -29,6 +30,7 @@ const DEFAULT_RAKE = 90.0
 const DEFAULT_EVENT_DEPTH = 10.0  # km
 const AMPLITUDE_SCALE = 1.0e6    # A_const
 const DEFAULT_STF_SIGMA = 0.2   # Gaussian source time function σ (seconds), 0 to disable
+const DEFAULT_NOISE_RATIO = 0.01  # noise σ relative to clean direct-P window RMS
 
 # CLI parsing
 
@@ -53,30 +55,30 @@ let
     local ssig = _stf_sigma
     while i <= length(ARGS)
         if ARGS[i] == "--nsta"
-            ns = parse(Int, ARGS[i + 1]);
+            ns = parse(Int, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--npts"
-            np = parse(Int, ARGS[i + 1]);
+            np = parse(Int, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--dt"
-            d = parse(Float64, ARGS[i + 1]);
+            d = parse(Float64, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--strike"
-            sk = parse(Float64, ARGS[i + 1]);
+            sk = parse(Float64, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--dip"
-            dp = parse(Float64, ARGS[i + 1]);
+            dp = parse(Float64, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--rake"
-            rk = parse(Float64, ARGS[i + 1]);
+            rk = parse(Float64, ARGS[i + 1])
             i += 2
         elseif ARGS[i] == "--stf-sigma"
-            ssig = parse(Float64, ARGS[i + 1]);
+            ssig = parse(Float64, ARGS[i + 1])
             i += 2
         elseif startswith(ARGS[i], "--")
             error("Unknown flag: $(ARGS[i])")
         else
-            od = ARGS[i];
+            od = ARGS[i]
             i += 1
         end
     end
@@ -209,8 +211,8 @@ for i in 1:n_station
         push!(γd_N, vn / vnorm)
         push!(γd_D, vd / vnorm)
     else
-        push!(γd_E, 0.0);
-        push!(γd_N, 0.0);
+        push!(γd_E, 0.0)
+        push!(γd_N, 0.0)
         push!(γd_D, 1.0)
     end
 
@@ -231,8 +233,8 @@ for i in 1:n_station
         push!(γr_N, vr_vn / vr_norm)
         push!(γr_D, vr_vd / vr_norm)
     else
-        push!(γr_E, 0.0);
-        push!(γr_N, 0.0);
+        push!(γr_E, 0.0)
+        push!(γr_N, 0.0)
         push!(γr_D, 1.0)
     end
 
@@ -255,8 +257,9 @@ function add_phase!(gf, nt, dt, idx, r_km, γ, scale, v)
     amp = scale / r_km / v^3
     for (m, (j, k)) in enumerate(MT_PAIRS)
         for i in 1:3
-            # P-wave from image: u_i = γ_i * γ_j * γ_k
-            gf[idx, m, i] += amp * γ[i] * γ[j] * γ[k]
+            # Off-diagonal MT components represent both symmetric tensor entries.
+            pair_weight = j == k ? 1.0 : 2.0
+            gf[idx, m, i] += amp * pair_weight * γ[i] * γ[j] * γ[k]
         end
     end
 end
@@ -286,7 +289,12 @@ for si in 1:n_station
         for (m, (j, k)) in enumerate(MT_PAIRS)
             for i in 1:3
                 δ_ij = i == j ? 1.0 : 0.0
-                gf[ts_d_idx, m, i] += s_scale * (δ_ij - γd[i] * γd[j]) * γd[k]
+                coeff = (δ_ij - γd[i] * γd[j]) * γd[k]
+                if j != k
+                    δ_ik = i == k ? 1.0 : 0.0
+                    coeff += (δ_ik - γd[i] * γd[k]) * γd[j]
+                end
+                gf[ts_d_idx, m, i] += s_scale * coeff
             end
         end
     end
@@ -305,7 +313,12 @@ for si in 1:n_station
         for (m, (j, k)) in enumerate(MT_PAIRS)
             for i in 1:3
                 δ_ij = i == j ? 1.0 : 0.0
-                gf[ts_r_idx, m, i] += r_scale * (δ_ij - γr[i] * γr[j]) * γr[k]
+                coeff = (δ_ij - γr[i] * γr[j]) * γr[k]
+                if j != k
+                    δ_ik = i == k ? 1.0 : 0.0
+                    coeff += (δ_ik - γr[i] * γr[k]) * γr[j]
+                end
+                gf[ts_r_idx, m, i] += r_scale * coeff
             end
         end
     end
@@ -346,6 +359,7 @@ end
 
 waveforms = Dict{String, Vector{Float64}}()
 noise_rng = Random.MersenneTwister(999)
+realized_p_noise_ratios = Float64[]
 
 for si in 1:n_station
     gf = gf_dict[si]
@@ -353,19 +367,30 @@ for si in 1:n_station
         gf_ch = _CH_TO_GF[oci]
         ch_id = sta_ids[si] * "." * ch_name
         syn = zeros(Float64, npts)
+        p_syn = zeros(Float64, npts)
+        p_idx = max(1, min(npts, round(Int, tp_dir_sec[si] / dt)))
         for m in 1:6
             syn .+= gf[:, m, gf_ch] .* mt_true[m]
+            p_syn[p_idx] += gf[p_idx, m, gf_ch] * mt_true[m]
         end
         # Z channel: output positive up (seismic convention), flip from GF D-down
         if ch_name == "Z"
             syn .= -syn
+            p_syn .= -p_syn
         end
         # Convolve with Gaussian source time function
         if stf_sigma > 0.0
             syn = _convolve_stf(syn, stf_sigma, dt)
+            p_syn = _convolve_stf(p_syn, stf_sigma, dt)
         end
-        rms = sqrt(sum(syn .^ 2) / npts)
-        noise = randn(noise_rng, Float64, npts) .* (rms * 0.1)
+        p_halfwidth = stf_sigma > 0.0 ? round(Int, 3.0 * stf_sigma / dt) : 0
+        p_range = max(1, p_idx - p_halfwidth):min(npts, p_idx + p_halfwidth)
+        p_rms = sqrt(sum(abs2, p_syn[p_range]) / length(p_range))
+        noise = randn(noise_rng, Float64, npts) .* (p_rms * DEFAULT_NOISE_RATIO)
+        p_rms > 0.0 && push!(
+            realized_p_noise_ratios,
+            sqrt(sum(abs2, noise[p_range]) / length(p_range)) / p_rms,
+        )
         waveforms[ch_id] = syn .+ noise
     end
 end
@@ -415,6 +440,9 @@ println(
     "  velocity model: upper(0–20 km) vp=$(VP_UPPER) vs=$(VS_UPPER), lower vp=$(VP_LOWER) vs=$(VS_LOWER)",
 )
 println("  reflection coeff: P=$(round(R_PP, digits=4)) S=$(round(R_SS, digits=4))")
+ratio_range = 100.0 .* collect(extrema(realized_p_noise_ratios))
+println("  noise: σ=$(100 * DEFAULT_NOISE_RATIO)% of clean direct-P window RMS")
+println("  realized P-window noise RMS: $(round.(ratio_range, digits=3))% of clean P RMS")
 if stf_sigma > 0.0
     fwhm = round(2.35482 * stf_sigma, digits = 3)
     println("  source time function: Gaussian σ=$(stf_sigma) s, FWHM=$(fwhm) s")

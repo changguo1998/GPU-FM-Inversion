@@ -2,7 +2,7 @@
 #
 # Runs `scripts/preprocess.jl` against a prepared `status_0.h5` (strategy
 # written like input.jl) and asserts `/trials`: index-only Cartesian product
-# of strike × dip × rake × depth × freq, 1-based into /paraspace axes.
+# of strike × dip × rake × depth × freq × duration, 1-based into /paraspace axes.
 #
 # Usage:
 #   julia --project=. tests/stages/preprocess_test.jl
@@ -34,6 +34,7 @@ include("test_util.jl")
             g.nrake,
             Int32[1, 2, 3],  # /paraspace/depth
             Int32[1],        # /paraspace/frequency
+            Int32[1, 2, 3],  # /paraspace/duration
             Int32(0),
         )
         # create file then write strategy into it
@@ -58,16 +59,18 @@ include("test_util.jl")
                 rake_idx = read(tr["rake_idx"])
                 depth_idx = read(tr["depth_idx"])
                 freq_idx = read(tr["freq_idx"])
+                duration_idx = read(tr["duration_idx"])
                 n_trials = read(tr["N_trials"])
                 nd = read(f["/strategy"]["nstrike"])
 
-                expected = Int(72 * 19 * 37 * 3 * 1)
+                expected = Int(72 * 19 * 37 * 3 * 1 * 3)
                 @test n_trials == expected
                 @test length(strike_idx) == expected
                 @test length(dip_idx) == expected
                 @test length(rake_idx) == expected
                 @test length(depth_idx) == expected
                 @test length(freq_idx) == expected
+                @test length(duration_idx) == expected
 
                 # index ranges: 1-based into /paraspace axes
                 @test all(1 .<= strike_idx .<= 72)
@@ -75,6 +78,7 @@ include("test_util.jl")
                 @test all(1 .<= rake_idx .<= 37)
                 @test all(1 .<= depth_idx .<= 3)
                 @test all(freq_idx .== 1)
+                @test all(1 .<= duration_idx .<= 3)
 
                 # uniformity: strike is outermost, each value repeated n/72 times
                 @test all(count(==(s), strike_idx) == expected ÷ 72 for s in 1:72)
@@ -83,8 +87,14 @@ include("test_util.jl")
 
                 # full Cartesian coverage: every combination exactly once
                 combos = Set(
-                    (strike_idx[i], dip_idx[i], rake_idx[i], depth_idx[i], freq_idx[i]) for
-                    i in 1:expected
+                    (
+                        strike_idx[i],
+                        dip_idx[i],
+                        rake_idx[i],
+                        depth_idx[i],
+                        freq_idx[i],
+                        duration_idx[i],
+                    ) for i in 1:expected
                 )
                 @test length(combos) == expected
 
