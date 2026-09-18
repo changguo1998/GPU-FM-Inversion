@@ -17,16 +17,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CHECK=false
 
 while [[ $# -gt 0 ]]; do
-	case "$1" in
-	--check)
-		CHECK=true
-		shift
-		;;
-	*)
-		echo "Usage: bash format.sh [--check]"
-		exit 1
-		;;
-	esac
+    case "$1" in
+        --check)
+            CHECK=true
+            shift
+            ;;
+        *)
+            echo "Usage: bash format.sh [--check]"
+            exit 1
+            ;;
+    esac
 done
 
 source ~/.bashrc
@@ -34,12 +34,12 @@ echo "spack setup file: $SPACK_SETUP_ENV"
 source "$SPACK_SETUP_ENV"
 
 checkexe() {
-	local e
-	e="$1"
-	if [[ -z "${e}" ]]; then
-		return 0
-	fi
-	echo "${e}: $(command -v "${e}")"
+    local e
+    e="$1"
+    if [[ -z "${e}" ]]; then
+        return 0
+    fi
+    echo "${e}: $(command -v "${e}")"
 }
 checkexe jlfmt
 checkexe shfmt
@@ -47,8 +47,8 @@ checkexe mdformat
 checkexe fnm
 checkexe markdown-table-formatter
 
-if ! command -v clang-format >/dev/null 2>&1; then
-	spack load llvm
+if ! command -v clang-format > /dev/null 2>&1; then
+    spack load llvm
 fi
 checkexe clang-format
 
@@ -67,55 +67,55 @@ fail() { echo -e "${RED}FAIL${NC} $1"; }
 
 # Formatter helpers (silent on success; fail + mark on check failure)
 fmt_julia() {
-	local f="$1"
-	if [[ "$CHECK" == true ]]; then
-		if jlfmt --check "$f" &>/dev/null; then return 0; fi
-		fail "$f (would be formatted)"
-		mark_fail "$f"
-	else
-		local tmp
-		tmp=$(mktemp /tmp/jlfmt_XXXXXX)
-		jlfmt "$f" 2>/dev/null >"$tmp"
-		if [[ -s "$tmp" ]]; then
-			mv "$tmp" "$f"
-		else
-			rm -f "$tmp"
-		fi
-	fi
+    local f="$1"
+    if [[ "$CHECK" == true ]]; then
+        if jlfmt --check "$f" &> /dev/null; then return 0; fi
+        fail "$f (would be formatted)"
+        mark_fail "$f"
+    else
+        local tmp
+        tmp=$(mktemp /tmp/jlfmt_XXXXXX)
+        jlfmt "$f" 2> /dev/null > "$tmp"
+        if [[ -s "$tmp" ]]; then
+            mv "$tmp" "$f"
+        else
+            rm -f "$tmp"
+        fi
+    fi
 }
 
 fmt_bash() {
-	local f="$1"
-	if [[ "$CHECK" == true ]]; then
-		if shfmt -d "$f" &>/dev/null; then return 0; fi
-		fail "$f (would be formatted)"
-		mark_fail "$f"
-	else
-		shfmt -w "$f" 2>/dev/null || true
-	fi
+    local f="$1"
+    if [[ "$CHECK" == true ]]; then
+        if shfmt -d "$f" &> /dev/null; then return 0; fi
+        fail "$f (would be formatted)"
+        mark_fail "$f"
+    else
+        shfmt -w "$f" 2> /dev/null || true
+    fi
 }
 
 fmt_cxx() {
-	local f="$1"
-	if [[ "$CHECK" == true ]]; then
-		if clang-format --dry-run --Werror "$f" &>/dev/null; then return 0; fi
-		fail "$f (would be formatted)"
-		mark_fail "$f"
-	else
-		clang-format -i --style=file "$f" 2>/dev/null || clang-format -i --style=LLVM "$f" 2>/dev/null || true
-	fi
+    local f="$1"
+    if [[ "$CHECK" == true ]]; then
+        if clang-format --dry-run --Werror "$f" &> /dev/null; then return 0; fi
+        fail "$f (would be formatted)"
+        mark_fail "$f"
+    else
+        clang-format -i --style=file "$f" 2> /dev/null || clang-format -i --style=LLVM "$f" 2> /dev/null || true
+    fi
 }
 
 fmt_md() {
-	local f="$1"
-	if [[ "$CHECK" == true ]]; then
-		if mdformat --check "$f" &>/dev/null; then return 0; fi
-		fail "$f (would be formatted)"
-		mark_fail "$f"
-	else
-		markdown-table-formatter "$f" 2>/dev/null || true
-		mdformat "$f" 2>/dev/null || true
-	fi
+    local f="$1"
+    if [[ "$CHECK" == true ]]; then
+        if mdformat --check "$f" &> /dev/null; then return 0; fi
+        fail "$f (would be formatted)"
+        mark_fail "$f"
+    else
+        markdown-table-formatter "$f" 2> /dev/null || true
+        mdformat "$f" 2> /dev/null || true
+    fi
 }
 
 # Export for parallel xargs execution
@@ -124,14 +124,14 @@ export CHECK _faildir RED YELLOW NC
 
 # File discovery
 project_files() {
-	local ext="$1"
-	find "$SCRIPT_DIR" -type f -name "*$ext" \
-		-not -path '*/node_modules/*' \
-		-not -path '*/build/*' \
-		-not -path '*/.git/*' \
-		-not -path '*/.pi-glla/*' \
-		-not -path '*/Manifest.toml' |
-		sort
+    local ext="$1"
+    find "$SCRIPT_DIR" -type f -name "*$ext" \
+        -not -path '*/node_modules/*' \
+        -not -path '*/build/*' \
+        -not -path '*/.git/*' \
+        -not -path '*/.pi-glla/*' \
+        -not -path '*/Manifest.toml' |
+        sort
 }
 
 # Parallelism
@@ -140,47 +140,47 @@ JOBS="${JOBS:-$(nproc)}"
 # Main
 echo "=== Formatting refactor-fm (parallel, ${JOBS} jobs) ==="
 
-if command -v jlfmt &>/dev/null; then
-	project_files ".jl" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_julia "$1"' _
+if command -v jlfmt &> /dev/null; then
+    project_files ".jl" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_julia "$1"' _
 else
-	warn "jlfmt not found — skipping Julia"
+    warn "jlfmt not found — skipping Julia"
 fi
 
-if command -v shfmt &>/dev/null; then
-	project_files ".sh" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_bash "$1"' _
+if command -v shfmt &> /dev/null; then
+    project_files ".sh" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_bash "$1"' _
 else
-	warn "shfmt not found — skipping shell scripts"
+    warn "shfmt not found — skipping shell scripts"
 fi
 
-if command -v mdformat &>/dev/null; then
-	project_files ".md" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_md "$1"' _
+if command -v mdformat &> /dev/null; then
+    project_files ".md" | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_md "$1"' _
 else
-	warn "mdformat not found — skipping markdown"
+    warn "mdformat not found — skipping markdown"
 fi
 
-if command -v clang-format &>/dev/null; then
-	{
-		project_files ".cpp"
-		project_files ".hpp"
-		project_files ".h"
-		project_files ".cu"
-		project_files ".cuh"
-	} | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_cxx "$1"' _
+if command -v clang-format &> /dev/null; then
+    {
+        project_files ".cpp"
+        project_files ".hpp"
+        project_files ".h"
+        project_files ".cu"
+        project_files ".cuh"
+    } | xargs -r -P "$JOBS" -n 1 bash -c 'fmt_cxx "$1"' _
 else
-	warn "clang-format not found — skipping C++/CUDA"
+    warn "clang-format not found — skipping C++/CUDA"
 fi
 
 # Summary
 echo ""
 if [[ "$CHECK" == true ]]; then
-	_errors=$(find "$_faildir" -type f | wc -l)
-	if [[ ${_errors} -eq 0 ]]; then
-		echo "✓ All files formatted."
-		exit 0
-	else
-		echo "✗ ${_errors} file(s) need formatting."
-		exit 1
-	fi
+    _errors=$(find "$_faildir" -type f | wc -l)
+    if [[ ${_errors} -eq 0 ]]; then
+        echo "✓ All files formatted."
+        exit 0
+    else
+        echo "✗ ${_errors} file(s) need formatting."
+        exit 1
+    fi
 else
-	echo "Formatting complete."
+    echo "Formatting complete."
 fi

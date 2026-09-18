@@ -1,10 +1,11 @@
 #include "data_cache.h"
 #include "hdf5_io.h"
+#include "validation.h"
 
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <limits>
 #include <set>
 
 // ─ DataCache construction ─
@@ -82,10 +83,8 @@ void DataCache::load_from_database(const std::string &database_path,
                                    const std::vector<Trial> &trials) {
     // 1. Find unique combos
     auto combos = unique_combos(trials);
-    if (combos.empty()) {
-        std::cerr << "DataCache: no (freq, depth, duration) combos in trials" << std::endl;
-        return;
-    }
+    if (combos.empty())
+        throw std::runtime_error("DataCache: no (freq, depth, duration) combos in trials");
 
     // 2. Open database.h5 and read index
     hid_t file_id = H5Fopen(database_path.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -201,8 +200,8 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     station_idx.reserve(p_si.size() + s_si.size());
     station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
     station_idx.insert(station_idx.end(), s_si.begin(), s_si.end());
-    if (station_idx.empty())
-        station_idx.resize(n_ph, 0);
+    if (station_idx.size() != static_cast<size_t>(n_ph))
+        throw std::runtime_error("DataCache: station_idx length does not match phase count");
 
     // ── Determine P/S indices (data already partitioned in groups) ──────
     std::vector<int> p_indices(n_p), s_indices(n_s);
@@ -214,77 +213,79 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // ── Read XCorr data from new schema ───────────────────────────────────
 
     // Process P phases
-    if (n_p > 0 && h5.group_exists((std::string("/XcorrP/obs/") + freq_str).c_str())) {
+    if (n_p > 0) {
+        const std::string obs_path = "/XcorrP/obs/" + freq_str + "/obs";
+        if (!h5.group_exists(obs_path.c_str()))
+            throw std::runtime_error("DataCache: missing " + obs_path);
         // Read obs: [N_samples, N_phases_P]
         int n_obs, n_ph_p;
-        std::vector<double> obs_p = h5.read_double_2d(
-            (std::string("/XcorrP/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_p);
-        if (n_ph_p == n_p) {
-            // Read GF: [N_samples, 6, N_phases_P]
-            std::string gf_path =
-                "/XcorrP/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
-            int n_gf, n_comp, n_ph_gf;
-            std::vector<double> gf_p;
-            if (h5.group_exists(gf_path.c_str())) {
-                gf_p = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
-            }
-            bool gf_ok = (!gf_p.empty() && n_gf == n_obs && n_comp == 6 && n_ph_gf == n_p);
+        std::vector<double> obs_p = h5.read_double_2d(obs_path.c_str(), n_obs, n_ph_p);
+        if (n_obs <= 0 || n_ph_p != n_p)
+            throw std::runtime_error("DataCache: invalid shape for " + obs_path);
 
-            for (int j = 0; j < n_p; ++j) {
-                int i = p_indices[j];
-                auto &hd = host_data[i];
-                // obs: column-major in file is row-major C order: [n_obs, n_p]
-                // Column j is at offsets: j, j+n_p, j+2*n_p, ...
-                hd.obs.resize(n_obs);
-                for (int t = 0; t < n_obs; ++t)
-                    hd.obs[t] = obs_p[t * n_p + j];
-                hd.n_xcorr = n_obs;
+        // Read GF: [N_samples, 6, N_phases_P]
+        std::string gf_path =
+            "/XcorrP/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
+        if (!h5.group_exists(gf_path.c_str()))
+            throw std::runtime_error("DataCache: missing " + gf_path);
+        int n_gf, n_comp, n_ph_gf;
+        std::vector<double> gf_p = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
+        if (n_gf != n_obs || n_comp != 6 || n_ph_gf != n_p)
+            throw std::runtime_error("DataCache: invalid shape for " + gf_path);
 
-                if (gf_ok) {
-                    // gf: [n_obs, 6, n_p] in C order
-                    // For phase j, component c, time t:
-                    //   offset = t*6*n_p + c*n_p + j
-                    hd.gf.resize(n_obs * 6);
-                    for (int t = 0; t < n_obs; ++t)
-                        for (int c = 0; c < 6; ++c)
-                            hd.gf[t * 6 + c] = gf_p[t * 6 * n_p + c * n_p + j];
-                }
-                has_xcorr = true;
-            }
+        for (int j = 0; j < n_p; ++j) {
+            int i = p_indices[j];
+            auto &hd = host_data[i];
+            // obs: column-major in file is row-major C order: [n_obs, n_p]
+            // Column j is at offsets: j, j+n_p, j+2*n_p, ...
+            hd.obs.resize(n_obs);
+            for (int t = 0; t < n_obs; ++t)
+                hd.obs[t] = obs_p[t * n_p + j];
+            hd.n_xcorr = n_obs;
+
+            // gf: [n_obs, 6, n_p] in C order
+            // For phase j, component c, time t:
+            //   offset = t*6*n_p + c*n_p + j
+            hd.gf.resize(fm::checked_mul(static_cast<size_t>(n_obs), 6, "P GF phase"));
+            for (int t = 0; t < n_obs; ++t)
+                for (int c = 0; c < 6; ++c)
+                    hd.gf[t * 6 + c] = gf_p[t * 6 * n_p + c * n_p + j];
+            has_xcorr = true;
         }
     }
 
     // Process S phases (same approach)
-    if (n_s > 0 && h5.group_exists((std::string("/XcorrS/obs/") + freq_str).c_str())) {
+    if (n_s > 0) {
+        const std::string obs_path = "/XcorrS/obs/" + freq_str + "/obs";
+        if (!h5.group_exists(obs_path.c_str()))
+            throw std::runtime_error("DataCache: missing " + obs_path);
         int n_obs, n_ph_s;
-        std::vector<double> obs_s = h5.read_double_2d(
-            (std::string("/XcorrS/obs/") + freq_str + "/obs").c_str(), n_obs, n_ph_s);
-        if (n_ph_s == n_s) {
-            std::string gf_path =
-                "/XcorrS/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
-            int n_gf, n_comp, n_ph_gf;
-            std::vector<double> gf_s;
-            if (h5.group_exists(gf_path.c_str())) {
-                gf_s = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
-            }
-            bool gf_ok = (!gf_s.empty() && n_gf == n_obs && n_comp == 6 && n_ph_gf == n_s);
+        std::vector<double> obs_s = h5.read_double_2d(obs_path.c_str(), n_obs, n_ph_s);
+        if (n_obs <= 0 || n_ph_s != n_s)
+            throw std::runtime_error("DataCache: invalid shape for " + obs_path);
 
-            for (int j = 0; j < n_s; ++j) {
-                int i = s_indices[j];
-                auto &hd = host_data[i];
-                hd.obs.resize(n_obs);
-                for (int t = 0; t < n_obs; ++t)
-                    hd.obs[t] = obs_s[t * n_s + j];
-                hd.n_xcorr = n_obs;
+        std::string gf_path =
+            "/XcorrS/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
+        if (!h5.group_exists(gf_path.c_str()))
+            throw std::runtime_error("DataCache: missing " + gf_path);
+        int n_gf, n_comp, n_ph_gf;
+        std::vector<double> gf_s = h5.read_double_3d(gf_path.c_str(), n_gf, n_comp, n_ph_gf);
+        if (n_gf != n_obs || n_comp != 6 || n_ph_gf != n_s)
+            throw std::runtime_error("DataCache: invalid shape for " + gf_path);
 
-                if (gf_ok) {
-                    hd.gf.resize(n_obs * 6);
-                    for (int t = 0; t < n_obs; ++t)
-                        for (int c = 0; c < 6; ++c)
-                            hd.gf[t * 6 + c] = gf_s[t * 6 * n_s + c * n_s + j];
-                }
-                has_xcorr = true;
-            }
+        for (int j = 0; j < n_s; ++j) {
+            int i = s_indices[j];
+            auto &hd = host_data[i];
+            hd.obs.resize(n_obs);
+            for (int t = 0; t < n_obs; ++t)
+                hd.obs[t] = obs_s[t * n_s + j];
+            hd.n_xcorr = n_obs;
+
+            hd.gf.resize(fm::checked_mul(static_cast<size_t>(n_obs), 6, "S GF phase"));
+            for (int t = 0; t < n_obs; ++t)
+                for (int c = 0; c < 6; ++c)
+                    hd.gf[t * 6 + c] = gf_s[t * 6 * n_s + c * n_s + j];
+            has_xcorr = true;
         }
     }
 
@@ -336,6 +337,23 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
     h5.close();
 
+    if (!has_xcorr || n_ph == 0)
+        throw std::runtime_error("DataCache: combo has no XCorr data");
+
+    int window_length = -1;
+    for (int i = 0; i < n_ph; ++i) {
+        const auto &hd = host_data[i];
+        if (hd.n_xcorr <= 0 || hd.obs.size() != static_cast<size_t>(hd.n_xcorr) ||
+            hd.gf.size() != fm::checked_mul(static_cast<size_t>(hd.n_xcorr), 6, "XCorr GF"))
+            throw std::runtime_error("DataCache: incomplete XCorr phase " + std::to_string(i));
+        if (window_length < 0)
+            window_length = hd.n_xcorr;
+        else if (hd.n_xcorr != window_length)
+            throw std::runtime_error("DataCache: P/S XCorr window lengths differ");
+        fm::validate_finite(hd.obs.data(), hd.obs.size(), "XCorr observation");
+        fm::validate_finite(hd.gf.data(), hd.gf.size(), "XCorr Green function");
+    }
+
     // ── Allocate flat arrays ──────────────────────────────────────────────
 
     if (has_xcorr) {
@@ -350,23 +368,36 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         const int cc_rows = 2 * eff_maxlag + 1;
         entry.xcorr.maxlag = eff_maxlag;
         entry.xcorr.cc_rows = cc_rows;
-        entry.xcorr.cc = new double[static_cast<size_t>(n_ph * cc_rows * 6)];
-        entry.xcorr.n_syn_phases = n_ph * 6; // synamp: [n_ph*36 × cc_rows]
-        entry.xcorr.synamp = new double[static_cast<size_t>(n_ph * 36 * cc_rows)];
+        const size_t cc_count = fm::checked_mul(
+            fm::checked_mul(static_cast<size_t>(n_ph), static_cast<size_t>(cc_rows), "XCorr cc"), 6,
+            "XCorr cc components");
+        entry.xcorr.cc = new double[cc_count];
+        const size_t syn_phase_count =
+            fm::checked_mul(static_cast<size_t>(n_ph), 6, "XCorr synamp phase stride");
+        if (syn_phase_count > static_cast<size_t>(std::numeric_limits<int>::max()))
+            throw std::runtime_error("XCorr synamp phase stride exceeds INT_MAX");
+        entry.xcorr.n_syn_phases = static_cast<int>(syn_phase_count);
+        const size_t synamp_count =
+            fm::checked_mul(fm::checked_mul(static_cast<size_t>(n_ph), 36, "XCorr synamp"),
+                            static_cast<size_t>(cc_rows), "XCorr synamp lags");
+        entry.xcorr.synamp = new double[synamp_count];
         entry.xcorr.n_phases = n_ph;
         entry.xcorr.obs_norm2 = new double[n_ph];
     }
 
     if (has_polarity) {
         entry.polarity.n_phases = n_ph;
-        entry.polarity.pol_vec = new double[static_cast<size_t>(n_ph * 6)];
+        entry.polarity.pol_vec =
+            new double[fm::checked_mul(static_cast<size_t>(n_ph), 6, "polarity cache")];
         entry.polarity.obs_pol = new double[n_ph];
     }
 
     if (has_psr) {
         entry.psr.n_phases = n_ph;
-        entry.psr.amp_P = new double[static_cast<size_t>(n_ph * 6 * 6)];
-        entry.psr.amp_S = new double[static_cast<size_t>(n_ph * 6 * 6)];
+        const size_t psr_count = fm::checked_mul(
+            fm::checked_mul(static_cast<size_t>(n_ph), 6, "PSR cache"), 6, "PSR cache components");
+        entry.psr.amp_P = new double[psr_count];
+        entry.psr.amp_S = new double[psr_count];
         entry.psr.obs_psr = new double[n_ph];
     }
 
@@ -380,13 +411,13 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         // Use the window-clamped stride from allocation; the raw maxlag_ may exceed
         // half the window and would index past the smaller array.
         const int cc_rows = entry.xcorr.cc_rows;
+        const size_t syn_stride =
+            fm::checked_mul(static_cast<size_t>(n_ph), 36, "XCorr synamp stride");
+        const size_t cc_stride = fm::checked_mul(static_cast<size_t>(n_ph),
+                                                 static_cast<size_t>(cc_rows), "XCorr cc stride");
 
         for (int i = 0; i < n_ph; ++i) {
             auto &hd = host_data[i];
-            if (hd.n_xcorr == 0) {
-                obs_norm2[i] = 0.0;
-                continue;
-            }
 
             // obs_norm2 = sum(obs^2)
             double norm2 = 0.0;
@@ -413,9 +444,14 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
                                 sum += hd.gf[t_shift * 6 + a] * hd.gf[t_shift * 6 + b];
                             }
                         }
-                        synamp_tot[i + (a * 6 + b) * n_ph + lag_idx * (n_ph * 36)] = sum;
-                        synamp_tot[i + (b * 6 + a) * n_ph + lag_idx * (n_ph * 36)] =
-                            sum; // symmetric
+                        const size_t ab_offset = static_cast<size_t>(i) +
+                                                 static_cast<size_t>(a * 6 + b) * n_ph +
+                                                 static_cast<size_t>(lag_idx) * syn_stride;
+                        const size_t ba_offset = static_cast<size_t>(i) +
+                                                 static_cast<size_t>(b * 6 + a) * n_ph +
+                                                 static_cast<size_t>(lag_idx) * syn_stride;
+                        synamp_tot[ab_offset] = sum;
+                        synamp_tot[ba_offset] = sum; // symmetric
                     }
                 }
             }
@@ -433,7 +469,9 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
                         }
                     }
                     // column-major: row = i * cc_rows + lag_idx, col = comp
-                    cc_total[i * cc_rows + lag_idx + comp * (n_ph * cc_rows)] = sum;
+                    const size_t offset = static_cast<size_t>(i) * cc_rows + lag_idx +
+                                          static_cast<size_t>(comp) * cc_stride;
+                    cc_total[offset] = sum;
                 }
             }
         }

@@ -50,8 +50,7 @@ include("test_util.jl")
         IO.write_trials(status0, trials)
         N_trials = length(trials.strike_idx)
 
-        exe = joinpath(PROJECT_ROOT, "forward", "build", "forward")
-        fwd = run_cmd(`$exe $db $status0`)
+        fwd = run_forward(db, status0)
         @test fwd.ok
 
         # ── Assess with DATA_DIR set (exercises the decision-file path) ──

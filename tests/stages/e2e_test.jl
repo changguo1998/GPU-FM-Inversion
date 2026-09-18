@@ -20,10 +20,21 @@ include("test_util.jl")
         config = write_test_config(dir)
 
         drv = run_cmd(`bash $(joinpath(PROJECT_ROOT, "driver.sh")) --data-dir $dir`)
+        if get(ENV, "FM_REPORT_TIMING", "0") == "1"
+            for line in split(drv.stdout, '\n')
+                occursin("timing ms", line) && println(line)
+            end
+        end
 
         out_path = joinpath(dir, "output.h5")
         @testset "driver run" begin
             @test drv.ok
+            expected_backend = get(ENV, "FM_TEST_CUDA", "0") == "1" ? "cuda" : "cpu"
+            @test occursin("selected backend=$expected_backend", drv.stdout)
+            if expected_backend == "cuda"
+                @test occursin("device=0 (NVIDIA", drv.stdout)
+                @test occursin("CUDA timing ms", drv.stdout)
+            end
             @test isfile(out_path)
             @test isfile(joinpath(dir, "result.toml"))
             @test isfile(joinpath(dir, "report.md"))

@@ -37,6 +37,11 @@ struct Hdf5Handle {
     bool group_exists(const char *path);
     void create_group(const char *path);
     void delete_group(const char *path);
+    void move_link(const char *source, const char *destination);
+    void flush();
+
+    /// Validate a 2D dataset's exact datatype and shape.
+    void validate_dataset_2d(const char *path, hid_t expected_type, hsize_t dim1, hsize_t dim2);
 
     // Writer
     void write_double_2d(const char *path, const double *data, hsize_t dim1, hsize_t dim2);

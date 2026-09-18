@@ -1,5 +1,7 @@
 #include "hdf5_io.h"
+#include "validation.h"
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -16,6 +18,18 @@ static void check_null(const char *context, hid_t id) {
         std::string msg = std::string("HDF5 error (invalid id) in ") + context;
         throw std::runtime_error(msg);
     }
+}
+
+static size_t checked_hsize(hsize_t value, const char *context) {
+    if (value > static_cast<hsize_t>(std::numeric_limits<size_t>::max()))
+        throw std::runtime_error(std::string(context) + ": dimension exceeds size_t");
+    return static_cast<size_t>(value);
+}
+
+static int checked_int_dimension(hsize_t value, const char *context) {
+    if (value > static_cast<hsize_t>(std::numeric_limits<int>::max()))
+        throw std::runtime_error(std::string(context) + ": dimension exceeds INT_MAX");
+    return static_cast<int>(value);
 }
 
 void Hdf5Handle::open(const char *path, unsigned flags) {
@@ -74,7 +88,7 @@ std::vector<int> Hdf5Handle::read_int_1d(const char *path) {
     check_herr("H5Sget_simple_extent_dims (int_1d)",
                H5Sget_simple_extent_dims(space, dims, nullptr));
 
-    std::vector<int> result(dims[0]);
+    std::vector<int> result(checked_hsize(dims[0], "read_int_1d"));
     check_herr("H5Dread (int_1d)",
                H5Dread(dset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, result.data()));
 
@@ -101,7 +115,7 @@ std::vector<double> Hdf5Handle::read_double_1d(const char *path) {
     check_herr("H5Sget_simple_extent_dims (double_1d)",
                H5Sget_simple_extent_dims(space, dims, nullptr));
 
-    std::vector<double> result(dims[0]);
+    std::vector<double> result(checked_hsize(dims[0], "read_double_1d"));
     check_herr("H5Dread (double_1d)",
                H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, result.data()));
 
@@ -130,10 +144,11 @@ std::vector<double> Hdf5Handle::read_double_2d(const char *path, int &rows, int 
     check_herr("H5Sget_simple_extent_dims (double_2d)",
                H5Sget_simple_extent_dims(space, dims, nullptr));
 
-    rows = static_cast<int>(dims[0]);
-    cols = static_cast<int>(dims[1]);
+    rows = checked_int_dimension(dims[0], "read_double_2d rows");
+    cols = checked_int_dimension(dims[1], "read_double_2d cols");
 
-    std::vector<double> result(rows * cols);
+    std::vector<double> result(
+        fm::checked_mul(static_cast<size_t>(rows), static_cast<size_t>(cols), "read_double_2d"));
     check_herr("H5Dread (double_2d)",
                H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, result.data()));
 
@@ -162,11 +177,14 @@ std::vector<double> Hdf5Handle::read_double_3d(const char *path, int &dim1, int 
     check_herr("H5Sget_simple_extent_dims (double_3d)",
                H5Sget_simple_extent_dims(space, dims, nullptr));
 
-    dim1 = static_cast<int>(dims[0]);
-    dim2 = static_cast<int>(dims[1]);
-    dim3 = static_cast<int>(dims[2]);
+    dim1 = checked_int_dimension(dims[0], "read_double_3d dim1");
+    dim2 = checked_int_dimension(dims[1], "read_double_3d dim2");
+    dim3 = checked_int_dimension(dims[2], "read_double_3d dim3");
 
-    std::vector<double> result(dim1 * dim2 * dim3);
+    const size_t first_two =
+        fm::checked_mul(static_cast<size_t>(dim1), static_cast<size_t>(dim2), "read_double_3d");
+    std::vector<double> result(
+        fm::checked_mul(first_two, static_cast<size_t>(dim3), "read_double_3d"));
     check_herr("H5Dread (double_3d)",
                H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, result.data()));
 
@@ -178,29 +196,37 @@ std::vector<double> Hdf5Handle::read_double_3d(const char *path, int &dim1, int 
 // --- Group ops ---
 
 bool Hdf5Handle::link_exists(hid_t file, const char *path) {
-    hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
-    if (lapl < 0)
-        return false;
-    htri_t status;
-    H5E_BEGIN_TRY {
-        status = H5Lexists(file, path, lapl);
+    const std::string full_path(path);
+    if (full_path.empty() || full_path == "/")
+        return true;
+
+    std::string current = full_path.front() == '/' ? "/" : "";
+    size_t begin = full_path.front() == '/' ? 1 : 0;
+    while (begin < full_path.size()) {
+        const size_t end = full_path.find('/', begin);
+        const std::string component = full_path.substr(begin, end - begin);
+        if (!component.empty()) {
+            if (current.size() > 1 && current.back() != '/')
+                current += "/";
+            current += component;
+            htri_t status;
+            H5E_BEGIN_TRY {
+                status = H5Lexists(file, current.c_str(), H5P_DEFAULT);
+            }
+            H5E_END_TRY;
+            if (status < 0)
+                throw std::runtime_error("HDF5 error in H5Lexists: " + current);
+            if (status == 0)
+                return false;
+        }
+        if (end == std::string::npos)
+            break;
+        begin = end + 1;
     }
-    H5E_END_TRY;
-    H5Pclose(lapl);
-    return status > 0;
+    return true;
 }
 bool Hdf5Handle::group_exists(const char *path) {
-    hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
-    if (lapl < 0)
-        return false;
-    // Silence HDF5-DIAG noise when the path legitimately does not exist.
-    htri_t status;
-    H5E_BEGIN_TRY {
-        status = H5Lexists(file_id, path, lapl);
-    }
-    H5E_END_TRY;
-    H5Pclose(lapl);
-    return status > 0;
+    return link_exists(file_id, path);
 }
 
 void Hdf5Handle::create_group(const char *path) {
@@ -210,22 +236,50 @@ void Hdf5Handle::create_group(const char *path) {
 }
 
 void Hdf5Handle::delete_group(const char *path) {
-    // Remove the group link; its contents are freed with it.
-    hid_t lapl = H5Pcreate(H5P_LINK_ACCESS);
-    if (lapl < 0)
+    if (!group_exists(path))
         return;
-    htri_t status;
-    H5E_BEGIN_TRY {
-        status = H5Lexists(file_id, path, lapl);
+    check_herr("H5Ldelete", H5Ldelete(file_id, path, H5P_DEFAULT));
+}
+
+void Hdf5Handle::move_link(const char *source, const char *destination) {
+    if (!group_exists(source))
+        throw std::runtime_error(std::string("HDF5 source link does not exist: ") + source);
+    if (group_exists(destination))
+        throw std::runtime_error(std::string("HDF5 destination link already exists: ") +
+                                 destination);
+    check_herr("H5Lmove", H5Lmove(file_id, source, file_id, destination, H5P_DEFAULT, H5P_DEFAULT));
+}
+
+void Hdf5Handle::flush() {
+    check_herr("H5Fflush", H5Fflush(file_id, H5F_SCOPE_GLOBAL));
+}
+
+void Hdf5Handle::validate_dataset_2d(const char *path, hid_t expected_type, hsize_t dim1,
+                                     hsize_t dim2) {
+    if (!group_exists(path))
+        throw std::runtime_error(std::string(path) + ": dataset does not exist");
+    hid_t dset = H5Dopen(file_id, path, H5P_DEFAULT);
+    check_null("H5Dopen (validate_dataset_2d)", dset);
+    hid_t space = H5Dget_space(dset);
+    check_null("H5Dget_space (validate_dataset_2d)", space);
+    if (H5Sget_simple_extent_ndims(space) != 2) {
+        H5Sclose(space);
+        H5Dclose(dset);
+        throw std::runtime_error(std::string(path) + ": expected a 2D dataset");
     }
-    H5E_END_TRY;
-    if (status > 0) {
-        H5E_BEGIN_TRY {
-            H5Ldelete(file_id, path, lapl);
-        }
-        H5E_END_TRY;
-    }
-    H5Pclose(lapl);
+    hsize_t dims[2] = {0, 0};
+    check_herr("H5Sget_simple_extent_dims (validate_dataset_2d)",
+               H5Sget_simple_extent_dims(space, dims, nullptr));
+    hid_t datatype = H5Dget_type(dset);
+    check_null("H5Dget_type (validate_dataset_2d)", datatype);
+    const htri_t type_equal = H5Tequal(datatype, expected_type);
+    check_herr("H5Tclose (validate_dataset_2d)", H5Tclose(datatype));
+    check_herr("H5Sclose (validate_dataset_2d)", H5Sclose(space));
+    check_herr("H5Dclose (validate_dataset_2d)", H5Dclose(dset));
+    if (type_equal <= 0)
+        throw std::runtime_error(std::string(path) + ": unexpected datatype");
+    if (dims[0] != dim1 || dims[1] != dim2)
+        throw std::runtime_error(std::string(path) + ": unexpected shape");
 }
 
 // --- Writer ---
@@ -299,7 +353,9 @@ std::vector<std::string> Hdf5Handle::read_string_1d(const char *path) {
         H5Tclose(memtype);
     } else {
         size_t sz = H5Tget_size(filetype);
-        std::vector<char> buf((size_t)dims[0] * sz, '\0');
+        std::vector<char> buf(
+            fm::checked_mul(checked_hsize(dims[0], "read_string_1d"), sz, "read_string_1d buffer"),
+            '\0');
         check_herr("H5Dread (string_1d fixed)",
                    H5Dread(dset, filetype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buf.data()));
         for (hsize_t i = 0; i < dims[0]; ++i)

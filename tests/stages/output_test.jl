@@ -51,8 +51,7 @@ include("test_util.jl")
         IO.write_trials(status0, trials)
         N_trials = length(trials.strike_idx)
 
-        exe = joinpath(PROJECT_ROOT, "forward", "build", "forward")
-        @test run_cmd(`$exe $db $status0`).ok
+        @test run_forward(db, status0).ok
         @test run_stage_script(joinpath("scripts", "assess.jl"), [db, status0]).ok
 
         out = run_stage_script(

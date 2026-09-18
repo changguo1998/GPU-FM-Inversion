@@ -24,20 +24,20 @@ DIFF_FILE="$(mktemp)"
 trap 'rm -f "$DIFF_FILE"' EXIT
 
 if ! git diff --quiet "$BASE" -- . \
-	':(exclude)forward/build' \
-	':(exclude)scripts/check_comment_compression.sh'; then
-	if ! git diff --unified=2 "$BASE" -M --no-color -- . \
-		':(exclude)forward/build' \
-		':(exclude)scripts/check_comment_compression.sh' >"$DIFF_FILE"; then
-		echo "check: cannot diff $BASE" >&2
-		exit 3
-	fi
+    ':(exclude)forward/build' \
+    ':(exclude)scripts/check_comment_compression.sh'; then
+    if ! git diff --unified=2 "$BASE" -M --no-color -- . \
+        ':(exclude)forward/build' \
+        ':(exclude)scripts/check_comment_compression.sh' > "$DIFF_FILE"; then
+        echo "check: cannot diff $BASE" >&2
+        exit 3
+    fi
 else
-	echo "check: no diff vs $BASE — nothing to verify" >&2
-	exit 3
+    echo "check: no diff vs $BASE — nothing to verify" >&2
+    exit 3
 fi
 
-python3 - "$DIFF_FILE" "$BASE" <<'PYEOF'
+python3 - "$DIFF_FILE" "$BASE" << 'PYEOF'
 import re
 import subprocess
 import sys

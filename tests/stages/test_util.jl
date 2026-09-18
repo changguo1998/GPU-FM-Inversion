@@ -24,6 +24,36 @@ function run_cmd(cmd::Cmd)
 end
 
 """
+    forward_executable() -> path
+
+Return the forward binary selected for stage tests.
+"""
+function forward_executable()
+    return get(ENV, "FM_FORWARD_EXE", joinpath(PROJECT_ROOT, "forward", "build", "forward"))
+end
+
+"""
+    run_forward(database, status; backend, batch_trials, env) -> result
+
+Run the selected forward binary with optional backend and CUDA batch arguments.
+"""
+function run_forward(
+    database::AbstractString,
+    status::AbstractString;
+    backend = nothing,
+    batch_trials = nothing,
+    env = nothing,
+)
+    args = String[forward_executable()]
+    backend === nothing || append!(args, ["--backend", string(backend)])
+    batch_trials === nothing || append!(args, ["--cuda-batch-trials", string(batch_trials)])
+    append!(args, [database, status])
+    cmd = Cmd(args)
+    env === nothing || (cmd = addenv(cmd, env))
+    return run_cmd(cmd)
+end
+
+"""
     run_stage_script(script, args; env) -> (ok, code, output)
 
 Run a Julia stage script as a subprocess in the project environment.
@@ -74,11 +104,11 @@ end
 
 # Physical SDR -> MT conversion, matching tests/synthetic_data.jl (NED).
 function sdr_to_mt(s::Float64, d::Float64, r::Float64)::Vector{Float64}
-    sd = sind(d);
-    cd = cosd(d);
-    ss = sind(s);
-    cs = cosd(s);
-    sr = sind(r);
+    sd = sind(d)
+    cd = cosd(d)
+    ss = sind(s)
+    cs = cosd(s)
+    sr = sind(r)
     cr = cosd(r)
     Mxx = -(sd * cr * sind(2s) + sind(2d) * sr * ss^2)
     Myy = sd * cr * sind(2s) - sind(2d) * sr * cs^2
