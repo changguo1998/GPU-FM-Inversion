@@ -11,8 +11,7 @@ using Misfit
 
 Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-# TODO(deferred): Polarity/Psr registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-# TODO(deferred): AbsShiftP/S/RelShift remain disabled for the XCorr P+S baseline.
+# TODO(deferred): Polarity/Psr and AbsShiftP/S/RelShift remain disabled.
 
 Config.XcorrP.trim() = [-2.0, 8.0]
 Config.XcorrP.max_lag_periods() = 3.0

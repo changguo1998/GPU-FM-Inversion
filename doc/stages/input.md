@@ -35,10 +35,10 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 6. 预处理波形 (Layer 0 共享预处理 + 算子 process)
    ├─ Layer 0: 对每个频带和 duration 候选, GF 逐分量卷积 Gaussian STF，
    │    再与 obs 一起执行 Signal.preprocess_waveform!（duration 为 σ，单位秒）
-   ├─ 算子 process(): XcorrS 输出 obs/obs_norm2 + per-lag (XCorrS-only)
+   ├─ 算子 process(): XcorrP/XcorrS 分别输出 obs/obs_norm2 + per-lag
    │    synamp_lag[depth][band][duration] + dot_obs_gf_lag[band][duration]
    └─ 各深度独立预处理 GF
-       (Polarity/Psr 分支 deferred — XCorr-only 模式: basic-clean GF /
+       (Polarity/Psr 分支 deferred: basic-clean GF /
         极性窗口 / obs_psr 路径均已移除)
 
 
@@ -70,7 +70,8 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 - **各深度 GF 独立预处理**: 不再复用第一个深度
 - **config 无索引**: `band_low`/`band_high`/`freq_indices` 为整数索引，分别存于 `/config` 与 `/strategy`
 
-当前已完成：数据接入 (input.jl) + Layer 0 共享预处理 + Misfit 算子 (Xcorr 活跃；Polarity/Psr **deferred**) + aggregate 两级聚合；`preprocess.jl`/`assess.jl`/`output.jl`/`driver.sh` 全部已实现，管道单迭代闭环贯通（**XCorr-only 模式**）。输出 `database.h5` 和 `status_0.h5` 作为后续阶段的接口契约。
+当前 XCorr P+S 数据接入、Layer 0 预处理和 duration 变体预计算已完成。
+`database.h5` 和 `status_0.h5` 是后续阶段的接口契约。
 
 ## Inputs
 
@@ -112,14 +113,15 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when `include`
 
 Tooling functions (time parsing, distance/azimuth computation, phase ID extraction) live in `shared/io/` (module `IO`) and are called as `IO.parse_time_iso`, `IO.haversine_distance`, etc.
 
-- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). Psr 算子 **deferred**（XCorr-only 模式）——其 `process()` 计算 `obs_psr`/`amp_P`/`amp_S` 的路径已移除，恢复时按 git HEAD 0a9ad69 重新接线。
+- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). Psr 算子
+  **deferred**，其 `obs_psr`/`amp_P`/`amp_S` 预处理路径当前未接入。
 - Butterworth bandpass filter (DSP.jl, zero-phase forward-backward)
 - Time-window trimming
 - Green's function loader
 
 ## What It Does NOT Do
 
-- Does NOT generate trials (future `preprocess.jl`)
-- Does NOT compute misfits (future forward stage)
-- Does NOT apply weights or make strategy decisions (future `assess.jl`)
+- Does NOT generate trials (`preprocess.jl` owns this).
+- Does NOT compute intermediates or misfits (forward/assess own these).
+- Does NOT apply weights or make strategy decisions (`assess.jl` owns these).
 - Does NOT run more than once per pipeline invocation

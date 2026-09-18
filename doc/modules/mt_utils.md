@@ -2,7 +2,7 @@
 
 **Location**: `shared/mt/` (Julia package `MT`)
 
-> **当前状态**: 开发第一阶段。Julia 端 (`shared/mt/`) 已可用。C++ 端 (`forward/src/mt_utils.*`) 保留为历史参考，未在当前开发中使用。
+> **当前状态**: Julia 与 C++ 实现均在使用。forward 在 host 将每个 trial 的 SDR 转为 MT，再把按 combo 打包的 MT 交给 OpenMP 或 CUDA XCorr launcher。
 
 ## Description
 
@@ -11,10 +11,8 @@ Double-couple SDR (strike, dip, rake) to 6-component moment tensor conversion. M
 ## Used By
 
 | Stage | Language |
-|-----------------|-----------------------------------------|
-| `input.jl` | Julia (preprocessing; initial strategy) |
-| `preprocess.jl` | Julia (generating trials) |
-| `forward.cpp` | C++ (SDR → MT on GPU, per trial) |
+|------------------------|---------------------------------|
+| `forward/src/main.cpp` | C++（host SDR → MT，CPU/GPU 共用） |
 | `output.jl` | Julia (recomputing best-fit MT) |
 
 ## Algorithm
@@ -58,8 +56,6 @@ struct MomentTensor {
 // Host function (declared in header, defined in .cpp)
 MomentTensor sdr_to_mt(double strike_rad, double dip_rad, double rake_rad);
 
-// GPU-compatible device function (also callable from host)
-MT_HOST_DEVICE MomentTensor sdr_to_mt_device(double strike_rad, double dip_rad, double rake_rad);
 ```
 
 Angles are in **radians**. No batch interface in C++ — the Julia side generates arrays and the C++ side iterates per trial.
@@ -72,7 +68,6 @@ Angles are in **radians**. No batch interface in C++ — the Julia side generate
 
 ## GPU/CPU Notes
 
-- `sdr_to_mt_device` is marked `MT_HOST_DEVICE` (expands to `__host__ __device__` under `__CUDACC__`, empty otherwise) for use in both CUDA kernel launches and OpenMP parallel loops (single source, dual-compile).
-- Per-trial SDR→MT conversion may happen during kernel launch or in a separate pre-conversion pass.
-- When pre-converting all trials to `mt[N_trials × 6]`, the conversion runs on device via `Device<Backend>::parallel_for` — same dispatch pattern as the misfit kernels.
-- Flat arrays with explicit strides replace `Kokkos::View`. Data is `double*` with manual index computation. Most arrays are column-major; the XCorr MT input is **row-major** (`mt[trial * 6 + comp]`, see `misfit_kernel.md` — fixed 2026-08-10).
+- MT 转换只在 host 执行一次，不在 CUDA kernel 内重复计算。
+- XCorr MT 输入为 **row-major** `mt[trial * 6 + comp]`；combo 与 batch 打包都保持此布局。
+- CPU 与 CUDA 消费同一 MT 数组和同一 `xcorr_work_item` 数学实现。

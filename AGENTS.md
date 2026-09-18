@@ -2,12 +2,12 @@
 
 ## Project identity
 
-震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成数据接入、Misfit 算子、aggregate 两级聚合与**全管道贯通**（单迭代闭环）；多迭代细化（assess 权重聚合/网格细化）待开发。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。已完成 XCorr P+S **全管道贯通**（单迭代闭环）；多迭代细化（assess 权重聚合/网格细化）待开发。
 
 ## Project layout
 
 ```
-scripts/        Flat stage scripts (input/preprocess/assess/output — 全部已实现)
+scripts/        Flat stage scripts (input/preprocess/assess/output/report — 全部已实现)
 shared/         Julia packages by function (io, mt, grid, signal, aggregate, misfit, config, stage_log)
 config_sample.jl   Template pipeline configuration
 ```
@@ -30,30 +30,29 @@ config_sample.jl   Template pipeline configuration
 （input → preprocess → forward → assess → output），最后再扩展其他算子（Polarity/Psr）。
 
 - 当前所有开发决策以 `examples/synthetic` 为准：改动必须保持 XCorr 全流程在该事例上端到端可跑，best 结果可复现。
-  - **历史验收基线（absolute CC，2026-08-14）**：72 网格全链 best = **(30,60,90) @ 10 km, misfit ≈ 0.1602**（XCorrS-only，9 通道）。signed max CC 不再将 rake ±90 视为等价解；新 XCorr P+S 全链基线待逐阶段验证后更新。历史基线 (30,65,-90)/0.1593 由 `sdr_to_mt` 的 `sin(2d)`→`sind(2d)` 笔误（生成数据 MT 错误）所致，已随 2026-08-14 修复作废。
-  - **STF duration forward 基线（2026-09-18）**：候选 σ = `[0.1, 0.2, 0.3] s`，455544 trials；P+S best = **(210,30,90) @ 10 km, σ=0.2 s, misfit ≈ 6.993e-5**。该 SDR 是真值 `(30,60,90)` 的辅助节面，moment tensor 完全相同；P/S 全部 best lag = 0。
+  - **当前验收基线（2026-09-18）**：候选 σ = `[0.1, 0.2, 0.3] s`，455,544 trials；P+S best = **(210,30,90) @ 10 km, σ=0.2 s, misfit ≈ 6.993e-5**。该 SDR 是真值 `(30,60,90)` 的辅助节面，moment tensor 完全相同；P/S 全部 best lag = 0。
   - **历史警告**：2026-08-10 前所有 e2e 的 best #29522 (65,90,85, 0.15518) 均由 XCorr kernel 的 **MT 布局 bug**（kernel 列主读 `mt[trial + c*N]`、main 行主写 `mt[trial*6+c]`）产生，已作废。该 bug 与 trial 规模耦合（n_sub=1 时行列主等价掩盖），在 strike 72 网格（n_sub=50616）暴露为"misfit 错乱"；修复后 71/72 网格结果完全一致。
-- XCorr 一族（XcorrP/S、AbsShiftP/S、RelShift）为活跃目标函数/派生诊断；Polarity/Psr 属"算子扩展"阶段，恢复时按 `git HEAD 367dfd1` 前的注册与预处理接线为准。
+- XcorrP/S 为当前注册的目标函数；AbsShiftP/S、RelShift 已实现但未在基线 config 注册。Polarity/Psr 属"算子扩展"阶段。
 
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与初始化（Layer 0 共享预处理 + 算子 reductions）、Misfit 算子 (Xcorr 活跃；Polarity/Psr 已实现但 **deferred**，XCorr-only 模式)、aggregate 两级聚合 (extractors/composers/StdDev)、`assess.jl` (extract+compose+收敛决策)、`preprocess.jl` 试次生成、`output.jl` 输出编译、`driver.sh` 全管道贯通（单迭代收敛，XCorr-only）、**XCorr kernel MT 布局 bug 修复（2026-08-10）**、trials 全参数索引化（strike/dip/rake/depth/freq/duration 均以 `/paraspace` 索引表示）、Gaussian STF duration 搜索。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+已完成：`input.jl` 数据接入与 Layer 0 预处理、XCorr P+S reductions、trials 全参数索引化、Gaussian STF duration 搜索、aggregate extractors/composers、`assess.jl` 单轮收敛、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5
 ```
 
-后续阶段（preprocess → forward → assess → output）持续推进，接口契约由 `database.h5` 和 `status_N.h5` schema 定义（见 `doc/schema.md`）。
+后续阶段（preprocess → forward → assess → output → report）均已实现；接口契约由 `database.h5` 和 `status_N.h5` schema 定义（见 `doc/schema.md`）。
 
 ## HDF5 files
 
 | File | Lifetime | Contents |
 |-----------------|---------------|----------------------------------------------------------------------------------------------------------|
 | `database.h5` | Static | Greens at all depths, all freq-band variants, per-module preprocessed data, **paraspace**, config, index |
-| `status_{N}.h5` | Per-iteration | Strategy, trials, misfits for iteration N |
+| `status_{N}.h5` | Per-iteration | Strategy, trials, intermediates, misfits for iteration N |
 | `output.h5` | Final | Best-fit parameters, uncertainties, per-phase/station breakdown |
 
-### `/paraspace` (new in database.h5)
+### `/paraspace`
 
 Stores expanded float arrays for parameter-space dimensions:
 strike/dip/rake (from grid expansion), depth, frequency, duration（Gaussian STF σ，秒）。
@@ -66,7 +65,7 @@ See `doc/schema.md` for details.
 - **Moment tensor**: 6 components in NED: `[Mxx, Myy, Mzz, Mxy, Mxz, Myz]`
 - **Source params**: strike \[0,360), dip [0,90], rake [-90,90] (degrees)
 - **Green's functions**: 6-component waveforms per station, pre-computed externally
-- **Misfit modules**: XCorr active; Polarity/Psr implemented but **deferred** (XCorr-only mode, 2026-08-09). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). CAP — cancelled.
+- **Misfit modules**: XcorrP/S active; Polarity/Psr implemented but **deferred**. AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer（基线 config 未注册）。CAP — cancelled.
 - **Trial**: one combination of variable params (SDR, depth, frequency, STF duration)
 - **Phase** = station + channel + wave type (P/S) — channels subsumed by phases
 - **Phase key**: `{network}.{station}.{channel}.{phase_type}` (e.g. `IU.COLA.00.P`)

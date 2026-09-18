@@ -2,7 +2,7 @@
 
 ## Overview
 
-Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换。已完成：数据接入 (`input.jl`)、Misfit 算子（Xcorr 活跃；Polarity/Psr 已实现但 **deferred**，未注册实例）、aggregate 两级聚合、试次生成、assess 聚合 + 收敛决策、output 编译、driver.sh 全管道贯通（单迭代闭环，**XCorr-only**）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。当前 XCorr P+S 单迭代全管道已贯通；Polarity/Psr 已实现但 deferred。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ## Project Layout
 
@@ -17,7 +17,7 @@ shared/         Julia packages by function (not stage)
   misfit/       (Misfit)   Misfit operator package（Xcorr 活跃；Polarity/Psr 模板 + 输出字段常量，deferred）
   aggregate/    (Aggregate) Output extractor + composer 注册表
   stage_log/    (StageLog)  Per-stage logging
-forward/        C++ forward stage (OpenMP CPU) — kernel 产出中间产物
+forward/        C++ forward stage (OpenMP CPU / CUDA) — kernel 产出中间产物
 config_sample.jl   Template pipeline configuration
 ```
 
@@ -28,10 +28,10 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 ```
 
 | Stage | Role | Status |
-|--------------------------|---------------------------------------------------------------------------|-------------------------------|
+|---------------------------|---------------------------------------------------------------------------|-------------------------------|
 | `input.jl` | 数据接入 → `database.h5`；初始 strategy → `status_0.h5` | 已完成 |
 | `preprocess.jl` | 从 strategy 生成 trials（全参数 paraspace 索引化）→ `status_{N}.h5:/trials` | 已完成 |
-| forward (C++/OpenMP CPU) | kernel 重计算，产出**中间产物** → `status_{N}.h5:/intermediates/` | 已实现 |
+| forward (C++ OpenMP/CUDA) | kernel 重计算，产出**中间产物** → `status_{N}.h5:/intermediates/` | 已实现 |
 | `assess.jl` | extractor + composer → `/misfits/`；收敛决策 | 已完成（权重聚合/网格细化待做） |
 | `output.jl` | 编译最终结果 → `output.h5` | 已完成（加权聚合后完善） |
 | `report.jl` | 读取 `result.toml` → 人工可读 `report.md` | 已完成 |
@@ -67,6 +67,8 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 1. **Flat scripts** — 阶段脚本顶层直列执行，无 `main()` 包装；私有辅助函数扁平化深层嵌套（自包含、从属主流程）。
 1. **`/strategy` 仅含网格定义** — 无迭代状态字段（weights, best-fit, convergence）；状态由各阶段自行管理。
 1. **forward 无状态** — 读数据 + trials，写中间产物到 `/intermediates/`；无权重/聚合/策略/输出变换。
+1. **forward 双后端同公式** — OpenMP 与 CUDA 均调用唯一 XCorr work-item；CPU-only 构建不需要 CUDA，CUDA 构建运行时支持 `auto/cpu/cuda`。
+1. **forward 事务输出** — 先完整计算到 host，再以 temporary/backup/final 组原子替换；任何 preflight 或执行失败不提交部分结果。
 1. **三层分离** — `/paraspace` 存值，`/config` 存参数，`/strategy` 存索引。
 1. **Misfit 三层分解** — Misfit = Operator × Phase × Output；C++ kernel 产出中间产物，Julia extractor/composer 产出最终 misfit。详见 `doc/misfit-decomposition.md`。
 
@@ -81,13 +83,14 @@ Misfit = **Operator × Phase × Output**，完整设计见 `doc/misfit-decomposi
 
 `shared/misfit/` 为正式 Julia package，每个算子是 `module`（输出字段常量 + 模板桩 + 预处理）；`using Misfit` 后 `Misfit.Xcorr.CC_MAX` 形式指定输出，注册时校验 `output ∈ operator.outputs()`。
 
-Config 接口（XCorrS-only 现状）：
+Config 接口（当前 XCorr P+S）：
 
 ```julia
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
+Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 ```
 
-多实例/多输出扩展见 `doc/misfit-decomposition.md`（多模块注册已于 2026-08-09 XCorrS-only 清理时移除）。
+多实例/多输出扩展见 `doc/misfit-decomposition.md`。Polarity/Psr 仍 deferred。
 
 ## Dimension Symbols
 

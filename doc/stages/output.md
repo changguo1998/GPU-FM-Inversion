@@ -48,7 +48,7 @@ Waveforms, Green's functions, and other large intermediate arrays are omitted.
 `scripts/report.jl` consumes this file and writes the human-readable
 `DATA_DIR/report.md`; see `doc/stages/report.md`.
 
-## Simplifications / TODO (see `doc/roadmap.md` Phase 2)
+## Simplifications / TODO (see `doc/roadmap.md`)
 
 - Best trial is driven by the XCorr misfit only; per-module weights and the
   cross-module aggregation belong to the pending assess weighting work.
@@ -60,5 +60,5 @@ Waveforms, Green's functions, and other large intermediate arrays are omitted.
 
 - HDF5.jl reads the C++ C-order `cc_max` as `[N_trials × N_phases]`; the
   per-phase cross-correlation column is taken as the best-trial row.
-- Baseline (2026-08-14): best = true source (30, 60, 90) @ 10 km,
-  misfit ≈ 0.1602 — see `AGENTS.md`.
+- Baseline (2026-09-18): best = (210, 30, 90) @ 10 km, σ=0.2 s,
+  misfit ≈ 6.993e-5；该解与真值 (30, 60, 90) 的 moment tensor 相同。

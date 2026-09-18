@@ -1,9 +1,7 @@
 # Design: Misfit 三层分解（Operator × Phase × Output）
 
-> **状态 (2026-08-09)**: 管道运行 **XCorr-only**。Polarity/Psr 算子已实现
-> （`shared/misfit/` + C++ kernels）但 **deferred**——示例 config 不注册实例，
-> `input.jl` 对注册的 Polarity/Psr 实例显式报错。本文 Polarity/Psr 内容为设计
-> 记录；恢复时按 git HEAD 367dfd1 前的注册与预处理接线重新拉起。
+> **当前状态**: XcorrP 和 XcorrS 已注册并通过 CPU/CUDA 全流程验证。
+> Polarity/Psr 算子代码保留，但预处理和配置接线 deferred。
 
 ## 1. 动机
 
@@ -127,5 +125,5 @@ Config.use_misfit!(:RelShift, operator = Aggregate.StdDev,
 
 - `use_misfit!` 为 breaking change（`from::Symbol` → `operator::Module`），sample config 同步更新。
 - C++ forward 必须按 (operator, phase, channel) 去重 kernel，避免同一计算重复跑。
-- Level 2 依赖拓扑排序防循环；`best_lag` 为 Int32，CUDA 路径用 `int` 数组（`device.h`
-  `parallel_for` 已支持多输出传参，无需改 backend）。
+- Level 2 依赖拓扑排序防循环；`best_lag` 在 CPU/CUDA 共享
+  work-item 中均为 Int32。

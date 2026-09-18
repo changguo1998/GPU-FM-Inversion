@@ -2,7 +2,9 @@
 
 **Location**: `shared/grid/` (Julia package `Grid`)
 
-> **当前状态**: 开发第一阶段。`Grid.default_grid()` 提供默认初始网格参数。`generate_trials()` 和 `grid_refinement.jl` 待后续阶段接入。
+> **当前状态**: `Grid.default_grid()` 和 `generate_trials()` 已接入
+> `input.jl`/`preprocess.jl`。网格细化 helper 已存在，但尚未接入 `assess.jl`
+> 的多迭代流程。
 
 ## Sub-modules
 
@@ -18,7 +20,6 @@ Generate trials from strategy parameters (grid expansion). Cartesian product of 
 ## Used By
 
 - `scripts/preprocess.jl` — trial generation (each loop iteration)
-- `scripts/assess.jl` — grid refinement + operator prompt (each loop iteration)
 
 ### Trial Generation
 
@@ -29,7 +30,7 @@ Strategy from `status_{N}.h5`:
 - `strike0`, `dstrike`, `nstrike` (SDR grid)
 - `dip0`, `ddip`, `ndip` (SDR grid)
 - `rake0`, `drake`, `nrake` (SDR grid)
-- `depth_indices` (indices into `database.h5/config/depth_vals`)
+- `depth_indices` (indices into `database.h5:/paraspace/depth`)
 - `freq_indices` (frequency band indices)
 - `duration_indices` (indices into `/paraspace/duration`)
 
@@ -44,11 +45,11 @@ Strategy from `status_{N}.h5`:
 
 Where `N = max(nstrike,1) × max(ndip,1) × max(nrake,1) × max(len(depth_indices),1) × max(len(freq_indices),1) × max(len(duration_indices),1)`.
 
-### Grid Refinement
+### Grid Refinement (implemented helper, not integrated)
 
 Computes next iteration's grid parameters from current best trial.
 
-**Input**: strategy + per-trial aggregated misfits from `assess.jl`
+**Intended input**: strategy + per-trial aggregated misfits from `assess.jl`
 
 | Parameter | Source | Rule |
 |----------------------------|------------------------|-------------------------------------------------------|
@@ -70,9 +71,9 @@ Computes next iteration's grid parameters from current best trial.
 - Duration indices are preserved unchanged during refinement
 - First iteration (`status_0.h5`) → initial strategy set by config, no refinement
 
-### Operator Prompt
+### Operator Prompt (not integrated)
 
-`grid_refinement.jl` includes `prompt_operator()` which displays current best result and asks the operator whether to continue (`y`/`N`).
+`grid_refinement.jl` includes `prompt_operator()`，但当前 `assess.jl` 不调用它。
 
 - **y** → writes refined strategy to `status_{N+1}.h5` with updated grid and `iteration+1`. Driver loops to preprocess.
 - **N** (any other) → operator signals stop. Driver breaks to output.

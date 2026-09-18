@@ -50,15 +50,15 @@ into it (converged). Exit code 0 on success.
 1. **Convergence decision**: current implementation converges on the first
    iteration (writes an empty `.decision.txt`). Weighted aggregation and grid
    refinement (multi-iteration loop) are the next planned feature — see
-   `doc/roadmap.md` Phase 2.
+   `doc/roadmap.md`.
 
 ## Outputs
 
 ### `status_N.h5:/misfits/{ModuleName}`
 
 | Dataset | Type | Shape | Description |
-|----------|---------|--------------------------|--------------------------|
-| `XcorrS` | Float64 | `[N_entries × N_trials]` | per-module misfit matrix |
+|--------------------|---------|--------------------------|--------------------------|
+| `XcorrP`, `XcorrS` | Float64 | `[N_entries × N_trials]` | per-module misfit matrix |
 
 ### `{DATA_DIR}/.decision.txt`
 
@@ -68,9 +68,9 @@ Empty file = converged (driver exits the loop). Non-empty = continue.
 
 - `read_intermediate` uses the (N_trials, N_entries) heuristic on the read
   shape to normalize the C++ C-order storage into `[entries × trials]`.
-- XCorr-only mode: only `XcorrS` is registered in sample configs, so Level 2
-  composition is exercised only by the `Aggregate` package tests.
+- 当前基线注册 `XcorrP` 和 `XcorrS`；Level 2 composition 主要由
+  `Aggregate` package tests 覆盖。
 - assess does NOT modify `/strategy` or `/trials` (grid refinement is pending).
-- Baseline (2026-08-14, after MT-formula fix in `tests/synthetic_data.jl`):
-  best trial = true source (30, 60, 90) @ 10 km, XCorrS mean misfit ≈ 0.1602
-  — see `AGENTS.md`.
+- Baseline (2026-09-18): P+S best trial = (210, 30, 90) @ 10 km,
+  σ=0.2 s, misfit ≈ 6.993e-5；该解与真值 (30, 60, 90) 的 moment
+  tensor 相同。

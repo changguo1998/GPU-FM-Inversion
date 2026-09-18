@@ -71,8 +71,8 @@ Algorithm metadata and module-specific parameters. No float parameter-space
 values or integer indices — those live in `/paraspace` and `/strategy` respectively.
 
 | Dataset | Type | Shape | Description |
-|------------------|--------|---------------|------------------------------------------------------------------------------|
-| `misfit_modules` | String | `[N_modules]` | Active module instance names (e.g. `"XcorrS"`; XCorrS-only since 2026-08-09) |
+|------------------|--------|---------------|-------------------------------------------------------------------------|
+| `misfit_modules` | String | `[N_modules]` | Active module instance names (current baseline: `"XcorrP"`, `"XcorrS"`) |
 Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
@@ -148,8 +148,7 @@ group names never carry float-formatted depth strings.
 ### `/{ModuleName}` — Per-Misfit-Module Data
 
 Each active misfit module instance gets its own group, named after the module
-instance as listed in `misfit_modules` (e.g. `XcorrS`; other operators registered
-only when restored from the XCorrS-only mode).
+instance as listed in `misfit_modules` (current baseline: `XcorrP`, `XcorrS`).
 
 The internal structure follows a general schema:
 
@@ -197,13 +196,12 @@ XCorr reductions also carry the duration level:
 /{ModuleName}/dot_obs_gf_lag/{band}/{duration_idx}
 ```
 
-The Layer 0 `/preprocess` and `/gf_preprocessed` debug
-persistence was removed in the XCorr-only cleanup (2026-08-09).
+The Layer 0 `/preprocess` and `/gf_preprocessed` debug persistence is not part
+of the current schema.
 
-> Operator status (2026-08-09): pipeline runs **XCorr-only**. Polarity and PSR
-> operators remain implemented (Julia `shared/misfit/` + C++ kernels) but are
-> **deferred** — no instances registered in sample configs; `input.jl` errors
-> loudly on any registered Polarity/Psr instance.
+> Operator status: XcorrP/XcorrS are active. Polarity and PSR remain implemented
+> (Julia `shared/misfit/` + C++ kernels) but are **deferred**; `input.jl` rejects
+> registered Polarity/Psr instances until their preprocessing paths are restored.
 
 ______________________________________________________________________
 
@@ -236,8 +234,9 @@ Plus the iteration counter.
 | `iteration` | Int32 | scalar | Iteration number |
 
 The full-space 5° grid (initial iteration) is the single source of truth
-`IO.DEFAULT_GRID` / `Grid.default_grid()`. `assess.jl` writes a refined
-(3×3×3, halved step, best-centered) grid into `status_{N+1}.h5` each iteration.
+`IO.DEFAULT_GRID` / `Grid.default_grid()`. Current `assess.jl` converges after
+the first iteration and does not yet write `status_{N+1}.h5`; refined-grid
+helpers are reserved for the pending multi-iteration integration.
 
 ### `/trials`
 
@@ -260,7 +259,7 @@ best-trial/uncertainty).
 
 Raw kernel intermediate products (written by C++ forward, consumed by
 Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
-(e.g. `XcorrS`; the key scheme applies to any active operator — `XcorrP`,
+(e.g. `XcorrP`, `XcorrS`; the key scheme applies to any active operator —
 `PolarityP`, etc. when restored). Multiple misfit instances sharing the same
 (operator, phase, channel) share one intermediate group.
 
@@ -291,7 +290,7 @@ ______________________________________________________________________
 ### `/solution`
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|-------------------------------------------|
+|-----------------|---------|--------|------------------------------------------------|
 | `strike` | Float64 | scalar | Best-fit strike (deg) |
 | `dip` | Float64 | scalar | Best-fit dip (deg) |
 | `rake` | Float64 | scalar | Best-fit rake (deg) |
@@ -299,7 +298,7 @@ ______________________________________________________________________
 | `duration` | Float64 | scalar | Best-fit Gaussian STF σ (s) |
 | `duration_idx` | Float64 | scalar | Best-fit index into `/paraspace/duration` |
 | `moment_tensor` | Float64 | `[6]` | [Mxx, Myy, Mzz, Mxy, Mxz, Myz] |
-| `misfit` | Float64 | scalar | Final weighted misfit |
+| `misfit` | Float64 | scalar | Current equal-weight XCorr P/S combined misfit |
 
 ### `/uncertainty`
 

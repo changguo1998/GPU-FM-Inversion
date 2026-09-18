@@ -17,9 +17,15 @@
 # Misfit modules - registered via use_misfit!(), automatically detected
 using Misfit
 
+Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
 Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-# TODO(deferred): Polarity/Psr registration removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-# TODO(deferred): XcorrP/AbsShiftP/S/RelShift removed — XCorrS-only mode (single-module focus).
+# TODO(deferred): Polarity/Psr and AbsShiftP/S/RelShift are not registered.
+
+Config.XcorrP.trim() = [-2.0, 8.0]
+Config.XcorrP.max_lag_periods() = 3.0
+Config.XcorrP.filter_order() = 4
+Config.XcorrP.band_low() = Int32[1]
+Config.XcorrP.band_high() = Int32[2]
 
 Config.XcorrS.trim() = [-2.0, 8.0]
 Config.XcorrS.max_lag_periods() = 3.0

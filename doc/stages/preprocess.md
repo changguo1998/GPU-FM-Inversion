@@ -89,12 +89,12 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 ## What It Does NOT Do
 
 - Does NOT modify `/strategy` (assess.jl writes the next strategy).
-- Does NOT read or write `/misfits` (forward stage writes misfits).
+- Does NOT read or write `/intermediates` or `/misfits`（forward/assess 分别负责）。
 - Does NOT read `/paraspace` or `database.h5` at all.
 - Does NOT compute misfits or apply weights.
 - Does NOT prompt the operator (assess.jl handles interaction).
-- Does NOT create `status_N.h5` — the file must already exist with `/strategy`
-  from `input.jl` or `assess.jl`.
+- Does NOT create `status_N.h5` — the file must already exist with `/strategy`;
+  current single-iteration flow receives `status_0.h5` from `input.jl`.
 
 ## Design Notes (from review)
 
