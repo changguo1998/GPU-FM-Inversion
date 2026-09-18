@@ -7,6 +7,37 @@ using Test
     @test_throws Config.ConfigError Config.durations()
 end
 
+@testset "objective expression registration" begin
+    observed = Misfit.observed(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    synthetic = Misfit.synthetic(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    expr = 1 - Misfit.maxCC(observed, synthetic; maxlag = 3)
+
+    Config.@objective T_Objective = expr
+    @test Config.objective(:T_Objective) === expr
+    @test Config.objectives()[:T_Objective] === expr
+    @test_throws ErrorException Config.objective!(:T_Objective, expr)
+    @test_throws MethodError Config.objective!(:T_Invalid, 1.0)
+end
+
+@testset "objective compilation" begin
+    Config.freq_bands() = [(0.5, 2.0)]
+    Config.compile_objectives!()
+    @test Config.phase_type(:T_Objective) == "P"
+    @test Config.output_field(:T_Objective) == Misfit.Xcorr.CC_MAX
+    @test Config.operator_module(:T_Objective) === Misfit.Xcorr
+    instance = Config._instance_module(:T_Objective)
+    @test instance.trim() == [-2.0, 8.0]
+    @test instance.max_lag_periods() == 3.0
+    @test instance.filter_order() == 4
+    @test instance.band_low() == Int32[1]
+    @test instance.band_high() == Int32[2]
+    @test "T_Objective" in Config.misfit_modules()
+    @test isnothing(Config.compile_objectives!())
+
+    unsupported = Misfit.energy(Misfit.input(:waveform))
+    @test_throws ArgumentError Config._compile_objective!(:T_Unsupported, unsupported)
+end
+
 @testset "use_misfit! base registration" begin
     Config.use_misfit!(
         :T2_XcorrP,

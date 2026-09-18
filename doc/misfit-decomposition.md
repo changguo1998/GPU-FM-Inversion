@@ -105,7 +105,10 @@ end
 5. Level 2 实例（拓扑排序，bases 先算）: misfit = COMPOSERS[operator](...) → /misfits/{name}
 ```
 
-## 9. use_misfit! 接口（shared/config）
+## 9. use_misfit! 后端接口（shared/config）
+
+新用户配置通过 `Config.@objective` 声明目标函数。`use_misfit!` 作为 DSL 编译产物的
+注册接口，同时保留旧配置兼容性。
 
 ```julia
 # Level 1

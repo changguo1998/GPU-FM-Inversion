@@ -4,7 +4,8 @@
 
 Pipeline configuration interface. Declares functions that the user's `config.jl` script must implement. Each unimplemented function throws a descriptive `ConfigError` at runtime.
 
-Also provides `use_misfit!()` for loading misfit module plugins from `shared/misfit/`.
+`@objective` 是用户面目标函数接口。`input.jl` 先将表达式编译为管道算子实例，
+再持久化到 `database.h5:/config/objectives`。`use_misfit!()` 保留为编译后端/兼容接口。
 
 Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 
@@ -13,8 +14,8 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 ### Configuration functions
 
 | Function | Return type | Example return value |
-|---------------------|-----------------------------------|--------------------------------------------------------------|
-| `misfit_modules()` | `Vector{String}` | Auto-detected from `use_misfit!()` calls |
+|---------------------|-----------------------------------|-----------------------------------------------------------------|
+| `misfit_modules()` | `Vector{String}` | Auto-detected from compiled objectives or `use_misfit!()` calls |
 | `freq_bands()` | `Vector{Tuple{Float64, Float64}}` | `[(0.5, 2.0)]` |
 | `depths()` | `Vector{Float64}` | `[5.0, 10.0, 15.0]` |
 | `durations()` | `Vector{Float64}` | Gaussian STF σ candidates in seconds, e.g. `[0.1, 0.2, 0.3]` |
@@ -33,6 +34,18 @@ Used by: `input.jl` (via `include(config_jl)` which defines the functions).
 | `channel_of(name)` | Return channel filter or `nothing` |
 | `phase_type(name)` | Return the declared phase type, or `nothing` |
 
+### 目标函数表达式
+
+```julia
+p_obs = observed(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+p_syn = synthetic(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
+```
+
+`window` 和 `maxlag` 单位为主频周期数，`band` 单位为 Hz。`objective(name)`读取单个
+表达式，`objectives()`返回注册表副本。`compile_objectives!()` 按注册顺序编译。
+首版只支持 `1 - maxCC(observed(...), synthetic(...))` 和单一频带；P/S 共用现有 XCorr 后端。
+
 ### Inner modules (loaded via `use_misfit!`)
 
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
@@ -43,15 +56,14 @@ Each loaded plugin creates a `Config.{name}` inner module. Functions depend on t
 | `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |
 `PolarityP` (instance) — deferred (XCorr-only mode)
 
-Users instantiate operators with `Config.use_misfit!(...; operator=Misfit.Xcorr, output=Misfit.Xcorr.CC_MAX)` then override functions:
+Compiler/backend code instantiates operators with `Config.use_misfit!()`; new user configs use `@objective`:
 
 ```julia
 using Misfit
 
-Config.use_misfit!(:XcorrP,
-    operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
-Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.max_lag_periods() = 0.5
+p_obs = observed(P; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+p_syn = synthetic(P; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 0.5)
 ```
 
 ### Data interface functions
@@ -81,21 +93,12 @@ User writes a `.jl` file that implements the functions:
 # (Config module is already loaded by input.jl)
 using Misfit
 
-Config.use_misfit!(:XcorrP,
-    operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(:XcorrS,
-    operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(:PolarityP,
-    operator = Misfit.Polarity, phase = "P", output = Misfit.Polarity.SYN_SIGN)
-Config.XcorrP.trim() = [-2.0, 5.0]
-Config.XcorrP.max_lag_periods() = 0.5
-Config.XcorrP.filter_order() = 4
-
-Config.XcorrS.trim() = [-2.0, 5.0]
-Config.XcorrS.max_lag_periods() = 0.5
-Config.XcorrS.filter_order() = 4
-
-Config.PolarityP.trim() = [0.0, 2.0]
+p_obs = observed(P; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+p_syn = synthetic(P; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+s_obs = observed(S; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+s_syn = synthetic(S; band = (0.5, 2.0), window = (-2, 5), filter_order = 4)
+Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 0.5)
+Config.@objective XcorrS = 1 - maxCC(s_obs, s_syn; maxlag = 0.5)
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]
@@ -115,8 +118,8 @@ The stage script (`input.jl`) loads it via `include(abspath(config_jl))`. All co
 
 ## Coding conventions
 
-- Interface-only module — no implementation logic, no HDF5 I/O.
+- 配置接口与轻量注册模块；不执行数值计算，不负责 HDF5 I/O。
 - Each function uses `throw(ConfigError(...))` as default body (plugin templates use `Config.ConfigError`).
 - Function signatures enforce return types with `::` annotations where practical.
 - `input.jl` uses `include()` to evaluate config in the same scope — users register `Config.xxx()` functions directly.
-- Misfit module plugins live in `shared/misfit/` and are loaded via `Config.use_misfit!()`.
+- Misfit module plugins live in `shared/misfit/`; DSL compiler lowers supported expressions via `Config.use_misfit!()`.

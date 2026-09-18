@@ -9,21 +9,14 @@ using Random
 
 using Misfit
 
-Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
+p_observed = observed(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+p_synthetic = synthetic(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+s_observed = observed(S; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+s_synthetic = synthetic(S; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+
+Config.@objective XcorrP = 1 - maxCC(p_observed, p_synthetic; maxlag = 3)
+Config.@objective XcorrS = 1 - maxCC(s_observed, s_synthetic; maxlag = 3)
 # TODO(deferred): Polarity/Psr and AbsShiftP/S/RelShift remain disabled.
-
-Config.XcorrP.trim() = [-2.0, 8.0]
-Config.XcorrP.max_lag_periods() = 3.0
-Config.XcorrP.filter_order() = 4
-Config.XcorrP.band_low() = Int32[1]
-Config.XcorrP.band_high() = Int32[2]
-
-Config.XcorrS.trim() = [-2.0, 8.0]
-Config.XcorrS.max_lag_periods() = 3.0
-Config.XcorrS.filter_order() = 4
-Config.XcorrS.band_low() = Int32[1]
-Config.XcorrS.band_high() = Int32[2]
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]

@@ -8,8 +8,9 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 ```
 1. 引导配置
-   └─ include(config.jl) → Config.use_misfit!() 注册插件,
-                           Config.misfit_modules() (auto), freq_bands(), depths(), durations()
+   └─ include(config.jl) → Config.@objective 注册目标函数
+   └─ Config.compile_objectives!() → XCorr 管道算子实例
+   └─ Config.misfit_modules() (auto), freq_bands(), depths(), durations()
    └─ Config.phase_fields()/polarity_fields() 定义震相→字段映射
    └─ 插件可声明 phase_type="P"/"S", 通过 Config.phase_type() 查询
 
@@ -82,8 +83,8 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ## Outputs
 
 | Source | Description |
-|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `database.h5` | All preprocessed data: GF at all depths, filtered waveform variants, per-module preprocessing, algorithm config (`/config`, **no indices**), expanded float arrays (`/paraspace`) |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `database.h5` | All preprocessed data: GF at all depths, filtered waveform variants, per-module preprocessing, algorithm config (`/config`, including DSL objectives and compiled operator settings), expanded float arrays (`/paraspace`) |
 | `status_0.h5` | Initial strategy (`/strategy`) — integer indices referencing `/paraspace`. No trials yet. |
 
 ## 三层分离设计

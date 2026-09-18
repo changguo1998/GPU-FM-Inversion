@@ -1,5 +1,7 @@
 module Config
 
+import Misfit
+
 # Config — pipeline configuration interface (declarations only)
 #
 # Users write a config script that includes this module and implements each
@@ -16,6 +18,7 @@ export misfit_modules, minimum_stations, phase_type
 export freq_bands, depths, durations
 export use_misfit!, phase_fields, polarity_fields
 export operator_module, output_field, bases_of, is_composed, channel_of
+export @objective, compile_objectives!, objective, objective!, objectives
 export load_event, load_stations, load_phase_picks, load_waveform, load_gf
 
 # Error for unimplemented interface functions
@@ -31,12 +34,124 @@ Base.showerror(io::IO, e::ConfigError) = print(
     "  Your config script must define:  $(e.func)()  $(e.msg)",
 )
 
+# Target-function expression registry
+
+const _OBJECTIVES = Dict{Symbol, Misfit.AbstractExpr}()
+const _OBJECTIVE_ORDER = Symbol[]
+const _COMPILED_OBJECTIVES = Set{Symbol}()
+
+"""Register a named target-function expression."""
+function objective!(name::Symbol, expr::Misfit.AbstractExpr)
+    haskey(_OBJECTIVES, name) && error("objective already registered: $name")
+    _OBJECTIVES[name] = expr
+    push!(_OBJECTIVE_ORDER, name)
+    return expr
+end
+
+"""Return a registered target-function expression."""
+objective(name::Symbol)::Misfit.AbstractExpr = _OBJECTIVES[name]
+
+"""Return a copy of all registered target-function expressions."""
+objectives() = copy(_OBJECTIVES)
+
+"""Register `@objective Name = expression` in the target-function registry."""
+macro objective(definition)
+    definition isa Expr && definition.head == :(=) || error("usage: @objective Name = expression")
+    name, expr = definition.args
+    name isa Symbol || error("objective name must be a Symbol")
+    return :(objective!($(QuoteNode(name)), $(esc(expr))))
+end
+
+function _xcorr_spec(name::Symbol, expr::Misfit.AbstractExpr)
+    valid =
+        expr isa Misfit.CallNode &&
+        expr.op isa Misfit.SubtractOp &&
+        length(expr.args) == 2 &&
+        expr.args[1] isa Misfit.LiteralNode &&
+        expr.args[1].value == 1
+    valid || throw(
+        ArgumentError(
+            "objective $name: only `1 - maxCC(observed(...), synthetic(...))` is supported",
+        ),
+    )
+
+    cc = expr.args[2]
+    valid = cc isa Misfit.CallNode && cc.op isa Misfit.MaxCCOp && length(cc.args) == 2
+    valid || throw(
+        ArgumentError(
+            "objective $name: only `1 - maxCC(observed(...), synthetic(...))` is supported",
+        ),
+    )
+    keys(cc.kwargs) == (:maxlag,) ||
+        throw(ArgumentError("objective $name: maxCC requires only the `maxlag` keyword"))
+
+    observed_node, synthetic_node = cc.args
+    observed_node isa Misfit.WaveformNode && observed_node.role == :observed ||
+        throw(ArgumentError("objective $name: first maxCC argument must be observed(...)"))
+    synthetic_node isa Misfit.WaveformNode && synthetic_node.role == :synthetic ||
+        throw(ArgumentError("objective $name: second maxCC argument must be synthetic(...)"))
+
+    for field in (:phase, :band, :window, :channel, :filter_order)
+        getfield(observed_node, field) == getfield(synthetic_node, field) ||
+            throw(ArgumentError("objective $name: observed and synthetic $field values must match"))
+    end
+    observed_node.phase in (:P, :S) ||
+        throw(ArgumentError("objective $name: only P and S phases are supported"))
+
+    maxlag = Float64(cc.kwargs.maxlag)
+    maxlag > 0 || throw(ArgumentError("objective $name: maxlag must be positive"))
+    return observed_node, maxlag
+end
+
+function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
+    waveform, maxlag = _xcorr_spec(name, expr)
+    bands = freq_bands()
+    length(bands) == 1 || throw(
+        ArgumentError("objective $name: the first DSL version requires exactly one frequency band"),
+    )
+    Tuple(Float64.(bands[1])) == waveform.band || throw(
+        ArgumentError(
+            "objective $name: waveform band $(waveform.band) is not Config.freq_bands()[1]",
+        ),
+    )
+    haskey(_OPERATOR_MODULE, name) &&
+        error("objective $name conflicts with an existing misfit registration")
+
+    use_misfit!(
+        name;
+        operator = Misfit.Xcorr,
+        phase = string(waveform.phase),
+        output = Misfit.Xcorr.CC_MAX,
+        channel = waveform.channel,
+    )
+    instance = _instance_module(name)
+    window = collect(waveform.window)
+    filter_order = waveform.filter_order
+    Core.eval(instance, :(trim() = $window))
+    Core.eval(instance, :(max_lag_periods() = $maxlag))
+    Core.eval(instance, :(filter_order() = $filter_order))
+    Core.eval(instance, :(band_low() = Int32[1]))
+    Core.eval(instance, :(band_high() = Int32[2]))
+    return nothing
+end
+
+"""Compile registered objective expressions into pipeline operator instances."""
+function compile_objectives!()
+    for name in _OBJECTIVE_ORDER
+        name in _COMPILED_OBJECTIVES && continue
+        _compile_objective!(name, _OBJECTIVES[name])
+        push!(_COMPILED_OBJECTIVES, name)
+    end
+    return nothing
+end
+
 # Misfit operator plugin loader
 
 const _MISFIT_DIR = joinpath(@__DIR__, "..", "..", "misfit", "src")
 const _LOADED_MISFIT_MODULES = String[]
 const _PHASE_TYPE = Dict{Symbol, String}()
 const _OPERATOR_MODULE = Dict{Symbol, Module}()   # name -> operator module
+const _INSTANCE_MODULE = Dict{Symbol, Module}()   # name -> generated Config submodule
 const _OUTPUT_FIELD = Dict{Symbol, Symbol}()      # name -> output field
 const _BASES = Dict{Symbol, Vector{Symbol}}()     # composed name -> bases
 const _IS_COMPOSED = Set{Symbol}()
@@ -73,6 +188,7 @@ function use_misfit!(
         @eval module $(name)
         include($(tmpl))
         end
+        _INSTANCE_MODULE[name] = Base.invokelatest(getfield, @__MODULE__, name)
         _PHASE_TYPE[name] = phase
         channel !== nothing && (_CHANNEL[name] = channel)
     else
@@ -89,6 +205,7 @@ end
 
 # Accessors
 operator_module(name::Symbol)::Module = _OPERATOR_MODULE[name]
+_instance_module(name::Symbol)::Module = _INSTANCE_MODULE[name]
 output_field(name::Symbol)::Symbol = _OUTPUT_FIELD[name]
 bases_of(name::Symbol) = _BASES[name]
 is_composed(name::Symbol)::Bool = name in _IS_COMPOSED

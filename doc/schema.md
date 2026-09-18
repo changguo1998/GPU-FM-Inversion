@@ -91,6 +91,22 @@ Each module group also carries misfit-decomposition metadata (see
 | `channel` | String | scalar | Channel filter (`""`=none, `"Z"`/`"N"`/`"E"`) - Level 1 only |
 | `bases` | String | `[k]` | Base misfit names — Level 2 only |
 
+DSL 目标函数注册后写入 `/config/objectives/{ObjectiveName}/`。表达式以递归节点组存储：
+
+| Dataset/group | Type | Description |
+| `kind` | String | `"input"`、`"waveform"`、`"literal"` 或 `"call"` |
+| `name` | String | 输入节点名称，仅 `input` 节点存在 |
+| `role` / `phase` | String | `observed`/`synthetic` 与 `P`/`S`，仅 `waveform` 节点存在 |
+| `band` / `window` | Float64 | 两元数组，仅 `waveform` 节点存在 |
+| `channel` / `filter_order` | String / Int | 通道过滤与滤波器阶数，仅 `waveform` 节点存在 |
+| `value` | Number | 常量值，仅 `literal` 节点存在 |
+| `op` | String | 算子名称，仅 `call` 节点存在 |
+| `args/{1..N}` | Group | 按位置编号的子表达式 |
+| `kwargs/{name}` | scalar | 算子关键字参数，例如 `maxlag` |
+
+首版 DSL 编译器将 `1 - maxCC(observed(...), synthetic(...))` 降低为现有
+XCorr pipeline；`misfit_modules` 和每模块配置是编译产物，供后续阶段直接使用。
+
 | Dataset | Type | Shape | Description |
 |-------------|-------|-------------|------------------------------------------------------|
 | `band_low` | Int32 | `[N_bands]` | Low-cut indices into `/paraspace/frequency` (XCorr) |

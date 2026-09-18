@@ -14,7 +14,7 @@ using Dates
 
 using StageLog
 
-using IO, Signal, Config, Grid
+using IO, Signal, Config, Grid, Misfit
 
 # === 2. 命令行参数 & 日志 ===
 config_jl = ARGS[1]
@@ -30,6 +30,7 @@ StageLog.setup_logger!("input", joinpath(data_dir, "input.log"))
 # === 3. 加载用户配置 (config.jl) ===
 # include config.jl, 用户在此注册插件和定义数据接口
 include(abspath(config_jl))
+Config.compile_objectives!()
 
 # 读取配置中的管道参数
 misfit_modules = Config.misfit_modules()
@@ -207,7 +208,7 @@ module_instances = Dict{String, Module}()
 for m_name in misfit_modules
     sym = Symbol(m_name)
     Config.is_composed(sym) && continue   # Level 2 无 instance module
-    module_instances[m_name] = getfield(Config, sym)
+    module_instances[m_name] = Config._instance_module(sym)
 end
 
 # === 9a. Layer 0: shared full-waveform preprocessing ===
@@ -390,6 +391,12 @@ paraspace = Dict{String, Any}(
 )
 
 db_config = Dict{String, Any}("misfit_modules" => misfit_modules)
+objective_exprs = Config.objectives()
+if !isempty(objective_exprs)
+    db_config["objectives"] = Dict{String, Any}(
+        string(name) => Misfit.encode_expression(expr) for (name, expr) in objective_exprs
+    )
+end
 
 # 写入 /config/{ModuleName}/
 # Level 1: 有 instance module 的实例（含预处理参数）

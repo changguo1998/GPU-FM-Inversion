@@ -83,12 +83,15 @@ Misfit = **Operator × Phase × Output**，完整设计见 `doc/misfit-decomposi
 
 `shared/misfit/` 为正式 Julia package，每个算子是 `module`（输出字段常量 + 模板桩 + 预处理）；`using Misfit` 后 `Misfit.Xcorr.CC_MAX` 形式指定输出，注册时校验 `output ∈ operator.outputs()`。
 
-Config 接口（当前 XCorr P+S）：
+Config DSL（当前 XCorr P+S）：
 
 ```julia
-Config.use_misfit!(:XcorrS, operator = Misfit.Xcorr, phase = "S", output = Misfit.Xcorr.CC_MAX)
-Config.use_misfit!(:XcorrP, operator = Misfit.Xcorr, phase = "P", output = Misfit.Xcorr.CC_MAX)
+p_obs = observed(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+p_syn = synthetic(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
+Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
 ```
+
+`input.jl` 将该语法编译到现有 XCorr 模块 IR；forward CPU/CUDA 公式不变。
 
 多实例/多输出扩展见 `doc/misfit-decomposition.md`。Polarity/Psr 仍 deferred。
 

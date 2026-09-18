@@ -503,11 +503,7 @@ end
         # Request max_lag_periods=6.0 -> configured maxlag = 6.0/2.0/0.01 = 300,
         # which exceeds (501-1)/2 = 250; DataCache must clamp to 250.
         cfg = read(config, String)
-        cfg = replace(
-            cfg,
-            "Config.XcorrP.max_lag_periods() = 3.0" => "Config.XcorrP.max_lag_periods() = 6.0",
-            "Config.XcorrS.max_lag_periods() = 3.0" => "Config.XcorrS.max_lag_periods() = 6.0",
-        )
+        cfg = replace(cfg, "maxlag = 3" => "maxlag = 6")
         write(config, cfg)
 
         r = run_stage_script(joinpath("scripts", "input.jl"), [config])

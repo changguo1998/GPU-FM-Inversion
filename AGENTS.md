@@ -36,7 +36,7 @@ config_sample.jl   Template pipeline configuration
 
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与 Layer 0 预处理、XCorr P+S reductions、trials 全参数索引化、Gaussian STF duration 搜索、aggregate extractors/composers、`assess.jl` 单轮收敛、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+已完成：`input.jl` 数据接入与 Layer 0 预处理、目标函数 DSL 到 XCorr P+S 的编译、XCorr reductions、trials 全参数索引化、Gaussian STF duration 搜索、aggregate extractors/composers、`assess.jl` 单轮收敛、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5

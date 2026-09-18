@@ -11,10 +11,31 @@ Operators: Xcorr (active); Polarity/Psr implemented but **deferred** (XCorr-only
 ## Files
 
 | File | Module | Role |
-|-----------------|--------|------------------------------------------------------------------------|
+|----------------------|--------|------------------------------------------------------------------------|
 | `src/Misfit.jl` | Misfit | Package entry, wraps Xcorr/Polarity/Psr as sub-modules |
+| `src/Expressions.jl` | Misfit | 目标函数表达式节点与 Julia 基础运算构图 |
+| `src/Operators.jl` | Misfit | 六个目标函数算子的 CPU 参考实现 |
 | `src/Xcorr.jl` | XCorr | Cross-correlation misfit - bandpass + trim + outputs() |
 | `src/Psr.jl` | Psr | P/S amplitude-ratio misfit - log10(rms_P/rms_S) reductions + outputs() |
+
+## 目标函数算子
+
+- `maxCC` / `lagCC`：最大 signed 归一化互相关及对应采样点 lag。
+- `energy`：波形采样值平方和。
+- `ampScale`：半峰峰值，`(maximum(x) - minimum(x)) / 2`。
+- `signScale`：`x[min(argmin(x), argmax(x))]` 的符号。
+- `rms`：均方根振幅，`sqrt(energy(x) / length(x))`。
+
+六个算子对数值输入立即计算；对 `input(:name)` 或波形数据源节点返回
+`CallNode`。`observed(P/S; band, window, channel, filter_order)` 和 `synthetic(...)`
+创建波形数据源。表达式支持 `+`、`-`、`*`、`/`、`^`、`abs2`、`log10` 和
+`sign`。`evaluate(expr, inputs)` 使用输入名到数值的字典执行表达式。
+`encode_expression` / `decode_expression` 在表达式节点与递归字典之间转换，供
+HDF5 `/config/objectives` 持久化。
+
+首版编译器识别 `1 - maxCC(observed(...), synthetic(...))`，并降低到现有
+XCorr 预处理/forward IR。数值版 `maxCC`/`lagCC` 的 lag 单位为采样点；波形 DSL
+的 `maxlag` 单位为主频周期数。
 
 ## `process()` return format
 
