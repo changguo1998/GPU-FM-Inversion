@@ -6,17 +6,17 @@ Per-module preprocessing for misfit computation. Each module is a template
 included inside a dynamically-created Config inner module at pipeline init.
 Provides single-trace `preprocess()` and batch `process()` functions.
 
-Operators: Xcorr (active); Polarity/Psr implemented but **deferred** (XCorr-only mode, 2026-08-09 — no instances registered; `input.jl` errors loudly if registered). AbsShift = Xcorr BEST_LAG output; RelShift = Aggregate.StdDev composer (registered in sample configs). CAP cancelled.
+Active objectives: Xcorr P/S, signed Lag P/S, PSR and normalized polarity. PSR and polarity reuse XCorr windows/reductions; their legacy standalone preprocessing templates remain compatibility code, not the active path. CAP cancelled.
 
 ## Files
 
 | File | Module | Role |
-|----------------------|--------|------------------------------------------------------------------------|
+|----------------------|--------|--------------------------------------------------------|
 | `src/Misfit.jl` | Misfit | Package entry, wraps Xcorr/Polarity/Psr as sub-modules |
 | `src/Expressions.jl` | Misfit | 目标函数表达式节点与 Julia 基础运算构图 |
 | `src/Operators.jl` | Misfit | 六个目标函数算子的 CPU 参考实现 |
 | `src/Xcorr.jl` | XCorr | Cross-correlation misfit - bandpass + trim + outputs() |
-| `src/Psr.jl` | Psr | P/S amplitude-ratio misfit - log10(rms_P/rms_S) reductions + outputs() |
+| `src/Psr.jl` | Psr | PSR composed-objective output declaration |
 
 ## 目标函数算子
 
@@ -28,14 +28,13 @@ Operators: Xcorr (active); Polarity/Psr implemented but **deferred** (XCorr-only
 
 六个算子对数值输入立即计算；对 `input(:name)` 或波形数据源节点返回
 `CallNode`。`observed(P/S; band, window, channel, filter_order)` 和 `synthetic(...)`
-创建波形数据源。表达式支持 `+`、`-`、`*`、`/`、`^`、`abs2`、`log10` 和
+创建波形数据源。表达式支持 `+`、`-`、`*`、`/`、`^`、`abs2`、`abs`、`log`、`log10` 和
 `sign`。`evaluate(expr, inputs)` 使用输入名到数值的字典执行表达式。
 `encode_expression` / `decode_expression` 在表达式节点与递归字典之间转换，供
 HDF5 `/config/objectives` 持久化。
 
-首版编译器识别 `1 - maxCC(observed(...), synthetic(...))`，并降低到现有
-XCorr 预处理/forward IR。数值版 `maxCC`/`lagCC` 的 lag 单位为采样点；波形 DSL
-的 `maxlag` 单位为主频周期数。
+编译器识别 XCorr、signed lag、PSR 平方残差和归一化极性表达式。数值版
+`maxCC`/`lagCC` 的 lag 单位为采样点；波形 DSL 的 `maxlag` 单位为主频周期数。
 
 ## `process()` return format
 

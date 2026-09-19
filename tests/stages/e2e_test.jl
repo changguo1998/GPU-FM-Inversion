@@ -11,6 +11,7 @@
 
 using Test
 using HDF5
+using Statistics
 
 include("test_util.jl")
 
@@ -50,7 +51,20 @@ include("test_util.jl")
                 @test haskey(f, "/intermediates/XcorrP")
                 @test haskey(f, "/misfits/XcorrS")
                 @test haskey(f, "/misfits/XcorrP")
+                @test haskey(f, "/misfits/LagP")
+                @test haskey(f, "/misfits/LagS")
+                @test haskey(f, "/misfits/Psr")
+                @test haskey(f, "/misfits/PolarityP")
                 @test read(f["/trials/N_trials"]) == 455544  # 5° grid × 3 durations
+
+                xcorr_p = read(f["/misfits/XcorrP"])
+                xcorr_s = read(f["/misfits/XcorrS"])
+                total = vec(mean(xcorr_p; dims = 1) ./ 2 .+ mean(xcorr_s; dims = 1) ./ 2)
+                best = argmin(total)
+                @test all(iszero, read(f["/misfits/LagP"])[:, best])
+                @test all(iszero, read(f["/misfits/LagS"])[:, best])
+                @test maximum(read(f["/misfits/Psr"])[:, best]) < 1.0e-3
+                @test maximum(read(f["/misfits/PolarityP"])[:, best]) < 1.0e-3
             end
         end
 

@@ -18,7 +18,7 @@ per-operator reduction fields populated depending on module type:
 
 - `obs_norm2`, `synamp_lag`, `dot_obs_gf_lag` — XCorr (per-lag reductions)
 - `synamp` — legacy single-window Gram matrix (XCorr, pre per-lag refactor)
-- `amp_P`, `amp_S`, `obs_psr` — PSR（XCorr-only 模式恒为空 dict，until deferred Psr re-enabled）
+- `amp_P`, `amp_S`, `obs_psr` — legacy standalone PSR fields; active PSR reuses XCorr `obs_norm2` and forward `syn_energy`
 - `gf` — trimmed GF waveforms (debug-only, XCorr)
 
 ## Key Functions

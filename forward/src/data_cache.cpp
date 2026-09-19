@@ -10,7 +10,8 @@
 
 // ─ DataCache construction ─
 
-DataCache::DataCache(int maxlag) : maxlag_(maxlag) {
+DataCache::DataCache(int maxlag, bool retain_waveforms)
+    : maxlag_(maxlag), retain_waveforms_(retain_waveforms) {
 }
 
 // ─ Helper: extract unique (freq, depth, duration) combos ─
@@ -383,6 +384,23 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
         entry.xcorr.synamp = new double[synamp_count];
         entry.xcorr.n_phases = n_ph;
         entry.xcorr.obs_norm2 = new double[n_ph];
+    }
+
+    if (retain_waveforms_) {
+        entry.waveform.n_phases = n_ph;
+        entry.waveform.n_samples = window_length;
+        entry.waveform.gf = new double[fm::checked_mul(
+            fm::checked_mul(static_cast<size_t>(n_ph), static_cast<size_t>(window_length),
+                            "waveform cache"),
+            6, "waveform cache components")];
+        for (int phase = 0; phase < n_ph; ++phase)
+            for (int sample = 0; sample < window_length; ++sample)
+                for (int component = 0; component < 6; ++component) {
+                    const size_t destination =
+                        static_cast<size_t>(phase) + static_cast<size_t>(sample) * n_ph +
+                        static_cast<size_t>(component) * n_ph * window_length;
+                    entry.waveform.gf[destination] = host_data[phase].gf[sample * 6 + component];
+                }
     }
 
     if (has_polarity) {

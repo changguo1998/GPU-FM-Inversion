@@ -37,6 +37,7 @@ end
 
 """Return waveform energy as the sum of squared samples."""
 energy(x::AbstractArray{<:Real}) = sum(abs2, x)
+energy(x::Real) = abs2(x)
 energy(x::AbstractExpr) = _call(EnergyOp(), x)
 
 """Return half the waveform peak-to-peak amplitude."""

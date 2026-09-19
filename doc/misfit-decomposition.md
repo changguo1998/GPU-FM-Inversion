@@ -1,7 +1,7 @@
 # Design: Misfit 三层分解（Operator × Phase × Output）
 
-> **当前状态**: XcorrP 和 XcorrS 已注册并通过 CPU/CUDA 全流程验证。
-> Polarity/Psr 算子代码保留，但预处理和配置接线 deferred。
+> **当前状态**: XcorrP/S、LagP/S、Psr 和 PolarityP 已注册；
+> PSR/极性作为 XCorr 基础中间量上的组合目标运行。
 
 ## 1. 动机
 
@@ -16,7 +16,7 @@ kernel 只输出单一 misfit 值，`best_lag`（时间偏移）被丢弃；组�
 1. **Julia 做语义解释**：extractor 从中间产物取值变换；composer 聚合基础 misfit。
 1. **输出字段编译期安全**：`output = Xcorr.CC_MAX`，注册时校验 `output ∈ operator.outputs()`。
 
-非目标：不改 `input.jl` 预处理数据流；不引入 ccall 共享库（边界仍为 HDF5）；PSR 组合/extractor 未实现（sample config 不注册 Psr）。
+非目标：不引入 ccall 共享库（边界仍为 HDF5）；不在 forward 内解释目标函数语义。
 
 ## 2. 概念模型
 
@@ -45,7 +45,7 @@ C++ forward (kernel 重计算) ──HDF5──▶ /intermediates/  ──HDF5�
 database.h5 (obs, gf, synamp, obs_norm2, ...)
    ▼
 C++ forward：按 (operator, phase, channel) 去重跑 kernel → /intermediates/
-   XcorrP/S:  cc_max, best_lag      PolarityP: syn_sign, dot_value
+   XcorrP/S:  cc_max, best_lag, syn_energy; XcorrP: amp_scale, sign_scale
    ▼
 Julia assess：
    Output Extractor:  cc_max → 1.0-cc_max；best_lag → best_lag*dt
@@ -58,11 +58,12 @@ Julia assess：
 组名：`{Operator}{Phase}[_{channel}]`（如 `XcorrP`、`XcorrS_N`）。
 
 | 组 | 字段 | 类型 | 形状 | 含义 |
-|--------------|-------------|---------|---------------------------|---------------------------------------------|
+|--------------|--------------|---------|-------------------------|---------------------------------------------|
 | `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | 最大归一化 CC 值 |
 | `Xcorr{P,S}` | `best_lag` | Int32 | `[N_phases × N_trials]` | 相对 maxlag 偏移（采样点；extractor ×dt 转秒） |
-| `PolarityP` | `syn_sign` | Int8 | `[N_stations × N_trials]` | 合成极性符号 (-1/0/1) |
-| `PolarityP` | `dot_value` | Float64 | `[N_stations × N_trials]` | 原始点积值（置信度） |
+| `Xcorr{P,S}` | `syn_energy` | Float64 | `[N_phases × N_trials]` | 中心 lag 二次型能量（PSR 按需） |
+| `XcorrP` | `amp_scale` | Float64 | `[N_phases × N_trials]` | 半峰峰值（极性按需） |
+| `XcorrP` | `sign_scale` | Int8 | `[N_phases × N_trials]` | 较早 min/max 极值的符号 |
 
 kernel 同时记录 signed CC 最大值的 `best_k`，输出 `cc_max_out` 与
 `best_lag_out = best_k - maxlag`（不再写 `1.0 - cc_max`）。性能开销可忽略。

@@ -50,9 +50,9 @@ windows/reductions are computed afterwards by the `shared/misfit/` modules.
 
 ## Preprocessing sequence (input.jl, per freq band)
 
-1. **Layer 0** — `preprocess_waveform!` (demean/detrend/taper + bandpass) on every obs trace and each GF component of every freq-dependent module's bands; `do_bandpass=false` for the Polarity (non-freq-dependent) basic-clean GF.
-1. XCorr/Psr `preprocess()`/`process()` compute operator windows and per-lag / Gram-matrix / amplitude-ratio reductions (see `shared/misfit/AGENTS.md`).
-1. `trim_time_window!` / `trim_to_polarity_window!` are called from within the XCorr/Polarity operators.
+1. **Layer 0** — `preprocess_waveform!` (demean/detrend/taper + bandpass) on every obs trace and each GF component.
+1. XCorr `preprocess()`/`process()` computes shared P/S windows and per-lag reductions (see `shared/misfit/AGENTS.md`).
+1. PSR and normalized polarity reuse those XCorr windows; no separate signal preprocessing path runs.
 
 ## Coding conventions
 

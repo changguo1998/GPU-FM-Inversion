@@ -53,6 +53,8 @@ end
     @test (lag / 2).op isa Misfit.DivideOp
     @test (max_cc^2).op isa Misfit.PowerOp
     @test (-lag).op isa Misfit.NegateOp
+    @test abs(lag).op isa Misfit.AbsOp
+    @test log(Misfit.rms(synthetic)).op isa Misfit.LogOp
     @test sign(lag).op isa Misfit.SignOp
 
     ratio = Misfit.input(:observed_ratio)
@@ -80,7 +82,9 @@ end
         max_cc / 2,
         max_cc ^ 2,
         -max_cc,
+        abs(max_cc),
         abs2(max_cc),
+        log(Misfit.rms(synthetic)),
         log10(Misfit.rms(synthetic)),
         sign(lag),
     ]

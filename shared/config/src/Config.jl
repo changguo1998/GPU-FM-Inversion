@@ -39,6 +39,7 @@ Base.showerror(io::IO, e::ConfigError) = print(
 const _OBJECTIVES = Dict{Symbol, Misfit.AbstractExpr}()
 const _OBJECTIVE_ORDER = Symbol[]
 const _COMPILED_OBJECTIVES = Set{Symbol}()
+const _XCORR_BASES = Dict{Tuple, Symbol}()
 
 """Register a named target-function expression."""
 function objective!(name::Symbol, expr::Misfit.AbstractExpr)
@@ -62,26 +63,29 @@ macro objective(definition)
     return :(objective!($(QuoteNode(name)), $(esc(expr))))
 end
 
-function _xcorr_spec(name::Symbol, expr::Misfit.AbstractExpr)
-    valid =
-        expr isa Misfit.CallNode &&
-        expr.op isa Misfit.SubtractOp &&
-        length(expr.args) == 2 &&
-        expr.args[1] isa Misfit.LiteralNode &&
-        expr.args[1].value == 1
-    valid || throw(
-        ArgumentError(
-            "objective $name: only `1 - maxCC(observed(...), synthetic(...))` is supported",
-        ),
-    )
+_is_call(expr, op, nargs) = expr isa Misfit.CallNode && expr.op isa op && length(expr.args) == nargs
+_same_waveform(left, right) = all(
+    getfield(left, field) == getfield(right, field) for
+    field in (:phase, :band, :window, :channel, :filter_order)
+)
+_waveform_signature(node) = (node.phase, node.band, node.window, node.channel, node.filter_order)
 
-    cc = expr.args[2]
-    valid = cc isa Misfit.CallNode && cc.op isa Misfit.MaxCCOp && length(cc.args) == 2
-    valid || throw(
-        ArgumentError(
-            "objective $name: only `1 - maxCC(observed(...), synthetic(...))` is supported",
-        ),
-    )
+function _xcorr_spec(name::Symbol, expr::Misfit.AbstractExpr)
+    output = Misfit.Xcorr.CC_MAX
+    call = expr
+    if _is_call(expr, Misfit.SubtractOp, 2)
+        expr.args[1] isa Misfit.LiteralNode && expr.args[1].value == 1 ||
+            throw(ArgumentError("objective $name: XCorr misfit must be `1 - maxCC(...)`"))
+        call = expr.args[2]
+        _is_call(call, Misfit.MaxCCOp, 2) ||
+            throw(ArgumentError("objective $name: XCorr misfit must be `1 - maxCC(...)`"))
+    elseif _is_call(expr, Misfit.LagCCOp, 2)
+        output = Misfit.Xcorr.BEST_LAG
+    else
+        throw(ArgumentError("objective $name: unsupported XCorr expression"))
+    end
+
+    cc = call
     keys(cc.kwargs) == (:maxlag,) ||
         throw(ArgumentError("objective $name: maxCC requires only the `maxlag` keyword"))
 
@@ -91,20 +95,17 @@ function _xcorr_spec(name::Symbol, expr::Misfit.AbstractExpr)
     synthetic_node isa Misfit.WaveformNode && synthetic_node.role == :synthetic ||
         throw(ArgumentError("objective $name: second maxCC argument must be synthetic(...)"))
 
-    for field in (:phase, :band, :window, :channel, :filter_order)
-        getfield(observed_node, field) == getfield(synthetic_node, field) ||
-            throw(ArgumentError("objective $name: observed and synthetic $field values must match"))
-    end
+    _same_waveform(observed_node, synthetic_node) ||
+        throw(ArgumentError("objective $name: observed and synthetic waveform settings must match"))
     observed_node.phase in (:P, :S) ||
         throw(ArgumentError("objective $name: only P and S phases are supported"))
 
     maxlag = Float64(cc.kwargs.maxlag)
     maxlag > 0 || throw(ArgumentError("objective $name: maxlag must be positive"))
-    return observed_node, maxlag
+    return observed_node, maxlag, output
 end
 
-function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
-    waveform, maxlag = _xcorr_spec(name, expr)
+function _validate_band(name, waveform)
     bands = freq_bands()
     length(bands) == 1 || throw(
         ArgumentError("objective $name: the first DSL version requires exactly one frequency band"),
@@ -114,6 +115,12 @@ function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
             "objective $name: waveform band $(waveform.band) is not Config.freq_bands()[1]",
         ),
     )
+    return nothing
+end
+
+function _compile_xcorr!(name::Symbol, expr::Misfit.AbstractExpr)
+    waveform, maxlag, output = _xcorr_spec(name, expr)
+    _validate_band(name, waveform)
     haskey(_OPERATOR_MODULE, name) &&
         error("objective $name conflicts with an existing misfit registration")
 
@@ -121,7 +128,7 @@ function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
         name;
         operator = Misfit.Xcorr,
         phase = string(waveform.phase),
-        output = Misfit.Xcorr.CC_MAX,
+        output = output,
         channel = waveform.channel,
     )
     instance = _instance_module(name)
@@ -132,7 +139,118 @@ function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
     Core.eval(instance, :(filter_order() = $filter_order))
     Core.eval(instance, :(band_low() = Int32[1]))
     Core.eval(instance, :(band_high() = Int32[2]))
+    get!(_XCORR_BASES, _waveform_signature(waveform), name)
     return nothing
+end
+
+function _rms_waveform(expr, role, phase)
+    _is_call(expr, Misfit.RMSOp, 1) || return nothing
+    node = expr.args[1]
+    node isa Misfit.WaveformNode && node.role == role && node.phase == phase || return nothing
+    return node
+end
+
+function _log_ratio(expr, role)
+    _is_call(expr, Misfit.LogOp, 1) || return nothing
+    ratio = expr.args[1]
+    _is_call(ratio, Misfit.DivideOp, 2) || return nothing
+    s_node = _rms_waveform(ratio.args[1], role, :S)
+    p_node = _rms_waveform(ratio.args[2], role, :P)
+    return s_node === nothing || p_node === nothing ? nothing : (p_node, s_node)
+end
+
+function _psr_spec(name, expr)
+    _is_call(expr, Misfit.Abs2Op, 1) ||
+        throw(ArgumentError("objective $name: PSR must be a squared log-ratio residual"))
+    difference = expr.args[1]
+    _is_call(difference, Misfit.SubtractOp, 2) ||
+        throw(ArgumentError("objective $name: PSR must subtract observed and synthetic ratios"))
+    observed_nodes = _log_ratio(difference.args[1], :observed)
+    synthetic_nodes = _log_ratio(difference.args[2], :synthetic)
+    observed_nodes === nothing && throw(ArgumentError("objective $name: invalid observed PSR"))
+    synthetic_nodes === nothing && throw(ArgumentError("objective $name: invalid synthetic PSR"))
+    p_obs, s_obs = observed_nodes
+    p_syn, s_syn = synthetic_nodes
+    _same_waveform(p_obs, p_syn) || throw(ArgumentError("objective $name: P settings must match"))
+    _same_waveform(s_obs, s_syn) || throw(ArgumentError("objective $name: S settings must match"))
+    return p_obs, s_obs
+end
+
+function _signed_amplitude(expr, role)
+    _is_call(expr, Misfit.MultiplyOp, 2) || return nothing
+    amp, polarity = expr.args
+    _is_call(amp, Misfit.AmpScaleOp, 1) || return nothing
+    _is_call(polarity, Misfit.SignScaleOp, 1) || return nothing
+    node = amp.args[1]
+    polarity_node = polarity.args[1]
+    node isa Misfit.WaveformNode && polarity_node isa Misfit.WaveformNode || return nothing
+    _same_waveform(node, polarity_node) || return nothing
+    node.role == role && polarity_node.role == role || return nothing
+    return node
+end
+
+function _normalized_signed_amplitude(expr, role)
+    _is_call(expr, Misfit.DivideOp, 2) || return nothing
+    node = _signed_amplitude(expr.args[1], role)
+    node === nothing && return nothing
+    denominator = expr.args[2]
+    _is_call(denominator, Misfit.PowerOp, 2) || return nothing
+    denominator.args[2] isa Misfit.LiteralNode && denominator.args[2].value == 0.5 || return nothing
+    energy_expr = denominator.args[1]
+    _is_call(energy_expr, Misfit.EnergyOp, 1) || return nothing
+    energy_node = _signed_amplitude(energy_expr.args[1], role)
+    energy_node === nothing && return nothing
+    _same_waveform(energy_node, node) || return nothing
+    return node
+end
+
+function _polarity_spec(name, expr)
+    _is_call(expr, Misfit.AbsOp, 1) ||
+        throw(ArgumentError("objective $name: polarity must use an absolute normalized residual"))
+    difference = expr.args[1]
+    _is_call(difference, Misfit.SubtractOp, 2) ||
+        throw(ArgumentError("objective $name: polarity must subtract normalized amplitudes"))
+    observed_node = _normalized_signed_amplitude(difference.args[1], :observed)
+    synthetic_node = _normalized_signed_amplitude(difference.args[2], :synthetic)
+    observed_node === nothing && throw(ArgumentError("objective $name: invalid observed polarity"))
+    synthetic_node === nothing &&
+        throw(ArgumentError("objective $name: invalid synthetic polarity"))
+    _same_waveform(observed_node, synthetic_node) ||
+        throw(ArgumentError("objective $name: polarity waveform settings must match"))
+    return observed_node
+end
+
+function _base_for(name, waveform)
+    base = get(_XCORR_BASES, _waveform_signature(waveform), nothing)
+    base === nothing &&
+        throw(ArgumentError("objective $name: register a matching XCorr waveform objective first"))
+    return base
+end
+
+function _compile_objective!(name::Symbol, expr::Misfit.AbstractExpr)
+    if _is_call(expr, Misfit.LagCCOp, 2) || _is_call(expr, Misfit.SubtractOp, 2)
+        return _compile_xcorr!(name, expr)
+    elseif _is_call(expr, Misfit.Abs2Op, 1)
+        p_waveform, s_waveform = _psr_spec(name, expr)
+        _validate_band(name, p_waveform)
+        _validate_band(name, s_waveform)
+        return use_misfit!(
+            name;
+            operator = Misfit.Psr,
+            bases = [_base_for(name, p_waveform), _base_for(name, s_waveform)],
+            output = Misfit.Psr.PSR_VALUE,
+        )
+    elseif _is_call(expr, Misfit.AbsOp, 1)
+        waveform = _polarity_spec(name, expr)
+        _validate_band(name, waveform)
+        return use_misfit!(
+            name;
+            operator = Misfit.Polarity,
+            bases = [_base_for(name, waveform)],
+            output = Misfit.Polarity.NORMALIZED_L1,
+        )
+    end
+    throw(ArgumentError("objective $name: unsupported expression"))
 end
 
 """Compile registered objective expressions into pipeline operator instances."""

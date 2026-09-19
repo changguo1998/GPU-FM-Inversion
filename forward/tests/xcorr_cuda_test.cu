@@ -35,13 +35,22 @@ void evaluate_case(fm::CudaXcorrExecutor &executor, const std::vector<double> &c
     }
 
     const std::vector<double> mt = moment_tensors(n_trials);
+    const std::vector<double> gf = {-4.0, 2.0, 3.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                    0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> output(n_trials, 123.0);
     std::vector<int32_t> lag(n_trials, 123);
-    executor.evaluate(mt.data(), cc.data(), synamp.data(), &obs_norm2, output.data(), lag.data(),
-                      n_trials, cc_rows, static_cast<int>(cc_rows / 2), context);
+    std::vector<double> energy(n_trials, -1.0);
+    std::vector<double> amplitude(n_trials, -1.0);
+    std::vector<int8_t> sign(n_trials, 9);
+    executor.evaluate(mt.data(), cc.data(), synamp.data(), &obs_norm2, gf.data(), output.data(),
+                      lag.data(), energy.data(), amplitude.data(), sign.data(), n_trials, cc_rows,
+                      4, static_cast<int>(cc_rows / 2), context);
     for (size_t trial = 0; trial < n_trials; ++trial) {
         require(output[trial] == expected_cc, context + ": wrong CC");
         require(lag[trial] == expected_lag, context + ": wrong lag");
+        require(energy[trial] == syn_norm2[cc_rows / 2], context + ": wrong energy");
+        require(amplitude[trial] == 3.5, context + ": wrong amplitude");
+        require(sign[trial] == -1, context + ": wrong sign");
     }
 }
 
@@ -52,7 +61,7 @@ int main() {
     require(probe.status == fm::CudaProbeStatus::Available,
             "CUDA device unavailable: " + probe.error);
 
-    fm::CudaXcorrExecutor executor(1, 3, 5, 2);
+    fm::CudaXcorrExecutor executor(1, 3, 4, 5, 2, true, true);
     evaluate_case(executor, {0.5, 0.5, 0.4}, {1.0, 1.0, 1.0}, 1.0, 5, 0.5, -1,
                   "exact tie residual batch");
 

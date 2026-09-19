@@ -10,7 +10,8 @@ CudaProbeResult probe_cuda_device() {
 
 struct CudaXcorrExecutor::Impl {};
 
-CudaXcorrExecutor::CudaXcorrExecutor(size_t, size_t, size_t, std::optional<size_t>)
+CudaXcorrExecutor::CudaXcorrExecutor(size_t, size_t, size_t, size_t, std::optional<size_t>, bool,
+                                     bool)
     : impl_(nullptr) {
     throw std::runtime_error("CUDA backend not compiled");
 }
@@ -42,7 +43,8 @@ const CudaTimings &CudaXcorrExecutor::timings() const {
 }
 
 void CudaXcorrExecutor::evaluate(const double *, const double *, const double *, const double *,
-                                 double *, int32_t *, size_t, size_t, int, const std::string &) {
+                                 const double *, double *, int32_t *, double *, double *, int8_t *,
+                                 size_t, size_t, size_t, int, const std::string &) {
     throw std::runtime_error("CUDA backend not compiled");
 }
 

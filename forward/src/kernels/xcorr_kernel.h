@@ -9,6 +9,7 @@
 /// Outputs (intermediate products, NOT final misfit):
 ///   cc_max[phase,trial]   = max_k cc_norm[k]               (Float64)
 ///   best_lag[phase,trial] = argmax_k cc_norm[k] - maxlag   (Int32, samples)
+///   energy[phase,trial]   = mᵀ Gram[k=0] m                 (Float64, optional)
 ///
 /// Misfit (cc_misfit) is derived in Julia assess: 1.0 - cc_max.
 /// AbsShift is derived in Julia assess: best_lag * dt.
@@ -43,6 +44,7 @@ xcorr_work_item(const double *mt,          // N_trials × 6, row-major: mt[trial
                 const double *obs_norm2,   // [N_phases]
                 double *cc_max_out,        // [N_phases × N_trials] column-major
                 int32_t *best_lag_out,     // [N_phases × N_trials] column-major
+                double *energy_out,        // optional [N_phases × N_trials] column-major
                 int N_phases, int N_trials, int cc_pp, int maxlag, int idx) {
     const int phase = idx / N_trials;
     const int trial = idx % N_trials;
@@ -51,18 +53,6 @@ xcorr_work_item(const double *mt,          // N_trials × 6, row-major: mt[trial
     double m[6];
     for (int c = 0; c < 6; ++c) {
         m[c] = mt[trial * 6 + c];
-    }
-
-    // ── Work items processed per (phase, trial) ──
-    const double obs_n2 = obs_norm2[phase];
-
-    // Guard: zero obs norm -> no information
-    if (obs_n2 <= 0.0) {
-        const size_t output_index =
-            static_cast<size_t>(phase) + static_cast<size_t>(trial) * static_cast<size_t>(N_phases);
-        cc_max_out[output_index] = 0.0;
-        best_lag_out[output_index] = 0;
-        return;
     }
 
     // Precompute the 21 unique coefficients of mᵀAm once per work item.
@@ -79,6 +69,32 @@ xcorr_work_item(const double *mt,          // N_trials × 6, row-major: mt[trial
     const size_t cc_start = static_cast<size_t>(phase) * static_cast<size_t>(cc_pp);
     const size_t syn_stride = static_cast<size_t>(N_phases) * 36;
     const size_t cc_stride = static_cast<size_t>(N_phases) * static_cast<size_t>(cc_pp);
+    const size_t output_index =
+        static_cast<size_t>(phase) + static_cast<size_t>(trial) * static_cast<size_t>(N_phases);
+
+    if (energy_out != nullptr) {
+        double energy = 0.0;
+        const double *synamp_zero = synamp_data + static_cast<size_t>(maxlag) * syn_stride;
+        coeff = 0;
+        for (int i = 0; i < 6; ++i) {
+            for (int j = i; j < 6; ++j) {
+                const size_t offset =
+                    static_cast<size_t>(phase) +
+                    static_cast<size_t>(i * 6 + j) * static_cast<size_t>(N_phases);
+                energy += quadratic_coeffs[coeff++] * synamp_zero[offset];
+            }
+        }
+        energy_out[output_index] = energy > 0.0 ? energy : 0.0;
+    }
+
+    // Guard: zero obs norm -> no correlation information, but energy remains valid.
+    const double obs_n2 = obs_norm2[phase];
+    if (obs_n2 <= 0.0) {
+        cc_max_out[output_index] = 0.0;
+        best_lag_out[output_index] = 0;
+        return;
+    }
+
     double best_cc = 0.0;
     bool found_cc = false;
     int best_k = maxlag; // default zero-shift
@@ -112,8 +128,6 @@ xcorr_work_item(const double *mt,          // N_trials × 6, row-major: mt[trial
         }
     }
 
-    const size_t output_index =
-        static_cast<size_t>(phase) + static_cast<size_t>(trial) * static_cast<size_t>(N_phases);
     cc_max_out[output_index] = best_cc;
     best_lag_out[output_index] = static_cast<int32_t>(best_k - maxlag);
 }
@@ -121,18 +135,19 @@ xcorr_work_item(const double *mt,          // N_trials × 6, row-major: mt[trial
 /// Launch the XCorr work items with OpenMP.
 inline void launch_xcorr_openmp(const double *mt, const double *cc_data, const double *synamp_data,
                                 const double *obs_norm2, double *cc_max_out, int32_t *best_lag_out,
-                                int N_phases, int N_trials, int cc_pp, int maxlag) {
+                                double *energy_out, int N_phases, int N_trials, int cc_pp,
+                                int maxlag) {
 #pragma omp parallel for
     for (int idx = 0; idx < N_phases * N_trials; ++idx) {
-        xcorr_work_item(mt, cc_data, synamp_data, obs_norm2, cc_max_out, best_lag_out, N_phases,
-                        N_trials, cc_pp, maxlag, idx);
+        xcorr_work_item(mt, cc_data, synamp_data, obs_norm2, cc_max_out, best_lag_out, energy_out,
+                        N_phases, N_trials, cc_pp, maxlag, idx);
     }
 }
 
 /// Launch XCorr work items on CUDA device buffers.
 void launch_xcorr_cuda(const double *mt, const double *cc_data, const double *synamp_data,
                        const double *obs_norm2, double *cc_max_out, int32_t *best_lag_out,
-                       int n_phases, int n_trials, int cc_pp, int maxlag);
+                       double *energy_out, int n_phases, int n_trials, int cc_pp, int maxlag);
 
 } // namespace fm
 

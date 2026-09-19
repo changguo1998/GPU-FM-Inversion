@@ -42,6 +42,7 @@ if(FM_ENABLE_CUDA)
     list(APPEND FORWARD_CORE_SOURCES
         src/backends/cuda_runtime.cu
         src/kernels/xcorr_kernel.cu
+        src/kernels/waveform_kernel.cu
     )
 else()
     list(APPEND FORWARD_CORE_SOURCES src/backends/cuda_runtime_stub.cpp)
@@ -81,9 +82,14 @@ if(BUILD_TESTING)
     target_link_libraries(xcorr_math_test PRIVATE forward_core)
     add_test(NAME xcorr_math COMMAND xcorr_math_test)
 
+    add_executable(waveform_math_test tests/waveform_math_test.cpp)
+    target_link_libraries(waveform_math_test PRIVATE forward_core)
+    add_test(NAME waveform_math COMMAND waveform_math_test)
+
     if(FM_ENABLE_CUDA)
         add_executable(xcorr_cuda_test tests/xcorr_cuda_test.cu)
         target_link_libraries(xcorr_cuda_test PRIVATE forward_core)
         set_target_properties(xcorr_cuda_test PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+        add_test(NAME xcorr_cuda COMMAND xcorr_cuda_test)
     endif()
 endif()

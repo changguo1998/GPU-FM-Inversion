@@ -44,17 +44,16 @@ Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
 
 `window` 和 `maxlag` 单位为主频周期数，`band` 单位为 Hz。`objective(name)`读取单个
 表达式，`objectives()`返回注册表副本。`compile_objectives!()` 按注册顺序编译。
-首版只支持 `1 - maxCC(observed(...), synthetic(...))` 和单一频带；P/S 共用现有 XCorr 后端。
+当前支持 `1-maxCC`、signed `lagCC`、`abs2(Δlog(rms(S)/rms(P)))` 和归一化 signed-amplitude 极性表达式；首版仅支持单一频带。
 
 ### Inner modules (loaded via `use_misfit!`)
 
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|--------------------------------|------------------------------------------------|
-`Misfit.Polarity` (template) — deferred (XCorr-only mode)
-| `XcorrP`, `XcorrS` (instances) | Inherited from `Misfit.Xcorr` template |
-`PolarityP` (instance) — deferred (XCorr-only mode)
+|------------------------------------|----------------------------------------------------------|
+| `XcorrP`, `XcorrS`, `LagP`, `LagS` | Inherited from `Misfit.Xcorr` template |
+| `Psr`, `PolarityP` | Composed objectives; no independent preprocessing module |
 
 Compiler/backend code instantiates operators with `Config.use_misfit!()`; new user configs use `@objective`:
 

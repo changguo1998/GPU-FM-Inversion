@@ -138,8 +138,14 @@ include("test_util.jl")
 
                 @testset "/config" begin
                     cf = f["/config"]
-                    @test String.(read(cf["misfit_modules"])) == ["XcorrP", "XcorrS"]
-                    for (name, phase) in (("XcorrP", "P"), ("XcorrS", "S"))
+                    @test String.(read(cf["misfit_modules"])) ==
+                          ["XcorrP", "XcorrS", "LagP", "LagS", "Psr", "PolarityP"]
+                    for (name, phase, output) in (
+                        ("XcorrP", "P", "cc_max"),
+                        ("XcorrS", "S", "cc_max"),
+                        ("LagP", "P", "best_lag"),
+                        ("LagS", "S", "best_lag"),
+                    )
                         x = cf[name]
                         @test read(x["trim"]) == [-2.0, 8.0]
                         @test read(x["max_lag_periods"]) ≈ 3.0
@@ -147,11 +153,19 @@ include("test_util.jl")
                         @test read(x["band_low"]) == [1]
                         @test read(x["band_high"]) == [2]
                         @test String(read(x["operator"])) == "Xcorr"
-                        @test String(read(x["output"])) == "cc_max"
+                        @test String(read(x["output"])) == output
                         @test read(x["is_composed"]) == 0
                         @test String(read(x["phase"])) == phase
                         @test String(read(x["channel"])) == ""
                     end
+                    @test String(read(cf["Psr/operator"])) == "Psr"
+                    @test String(read(cf["Psr/output"])) == "psr_value"
+                    @test String.(read(cf["Psr/bases"])) == ["XcorrP", "XcorrS"]
+                    @test read(cf["Psr/is_composed"]) == 1
+                    @test String(read(cf["PolarityP/operator"])) == "Polarity"
+                    @test String(read(cf["PolarityP/output"])) == "normalized_l1"
+                    @test String.(read(cf["PolarityP/bases"])) == ["XcorrP"]
+                    @test read(cf["PolarityP/is_composed"]) == 1
                 end
 
                 for name in ("XcorrP", "XcorrS")

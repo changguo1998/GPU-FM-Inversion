@@ -80,9 +80,26 @@ include("test_util.jl")
                     expect = 1.0 .- permutedims(cc)
                     @test m ≈ expect atol = 1e-12
                 end
+                for name in ("LagP", "LagS")
+                    @test haskey(f["/misfits"], name)
+                    m = read(f["/misfits/$name"])
+                    @test size(m, 2) == N_trials
+                    @test all(isfinite, m)
+                end
+                for name in ("Psr", "PolarityP")
+                    @test haskey(f["/misfits"], name)
+                    m = read(f["/misfits/$name"])
+                    @test size(m, 2) == N_trials
+                    @test all(m .>= 0.0)
+                end
+                @test haskey(f, "/intermediates/XcorrP/syn_energy")
+                @test haskey(f, "/intermediates/XcorrS/syn_energy")
+                @test haskey(f, "/intermediates/XcorrP/amp_scale")
+                @test haskey(f, "/intermediates/XcorrP/sign_scale")
             end
             h5open(db, "r") do f
-                @test string.(read(f["/config/misfit_modules"])) == ["XcorrP", "XcorrS"]
+                @test string.(read(f["/config/misfit_modules"])) ==
+                      ["XcorrP", "XcorrS", "LagP", "LagS", "Psr", "PolarityP"]
             end
         end
 

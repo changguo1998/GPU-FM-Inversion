@@ -123,9 +123,9 @@ include("test_util.jl")
                     @test length(cc) == length(pids)
                     # cross_correlation column == cc_max at best trial (per phase)
                     @test cc ≈ _CCMAX[best_idx, :] atol = 1e-12
-                    # Both Xcorr modules are represented across the combined P+S phase axis.
+                    # Every objective gets a row; channel-aligned bases populate phase columns.
                     mpm = read(pp["misfit_per_module"])
-                    @test size(mpm, 1) == 2
+                    @test size(mpm, 1) == 6
                     @test size(mpm, 2) == length(pids)
                 end
 
@@ -144,7 +144,8 @@ include("test_util.jl")
             @test parsed["format_version"] == 1
             @test parsed["solution"]["duration"] ≈ _DURATION[_TDURATION[best_idx]]
             @test parsed["per_phase"]["phase_id"] == _CH
-            @test parsed["per_phase"]["misfit_modules"] == ["XcorrP", "XcorrS"]
+            @test parsed["per_phase"]["misfit_modules"] ==
+                  ["LagP", "LagS", "PolarityP", "Psr", "XcorrP", "XcorrS"]
             @test length(parsed["per_phase"]["cross_correlation"]) == length(_CH)
             @test parsed["summary"]["total_trials"] == N_trials
         end

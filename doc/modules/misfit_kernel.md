@@ -3,8 +3,8 @@
 ## Description
 
 Kernels live in `forward/src/kernels/`, all functions in namespace `fm`.
-XCorr P+S is active on OpenMP and CUDA. Polarity/PSR templates remain
-**deferred** and CUDA rejects configurations containing active non-XCorr operators.
+XCorr, center-lag energy and waveform amplitude/sign primitives are active on
+OpenMP and CUDA. PSR and normalized polarity semantics are evaluated by Julia.
 
 ## Used By
 
@@ -36,6 +36,7 @@ syn_norm²   = mᵀ · synamp · m                   // 6×6 quadratic form
 cc_norm[k]  = cc_syn[k] / √(obs_norm² · syn_norm²)
 best_lag    = argmaxₖ(cc_norm[k]) − maxlag     // → best_lag_out (Int32, samples)
 cc_max      = maxₖ(cc_norm[k])                  // signed → cc_max_out
+syn_energy  = mᵀ · synamp[k=0] · m              // optional PSR primitive
 ```
 
 每个 work item 在 lag 循环前预计算 21 个唯一的上三角系数
@@ -56,9 +57,17 @@ synamp_data  // [N_phases × 36] column-major: synamp_data[phase + (i*6+j) * N_p
 obs_norm2    // [N_phases]
 cc_max_out   // [N_phases × N_trials] column-major: cc_max_out[phase + trial * N_phases]
 best_lag_out // [N_phases × N_trials] Int32 column-major (relative shift, samples)
+energy_out   // optional [N_phases × N_trials] center-lag energy
 ```
 
-## Polarity Kernel (deferred — not launched in current baseline)
+## Waveform scale kernel
+
+`waveform_scale_work_item` forms `Gm` sample by sample, then returns
+`amp_scale=(maximum-minimum)/2` and `sign_scale`, the sign of whichever global
+minimum/maximum occurs first. One work item handles one `(phase, trial)` pair;
+OpenMP and CUDA call the same implementation.
+
+## Legacy standalone Polarity kernel
 
 **Outputs (intermediate products):**
 
@@ -84,7 +93,7 @@ void launch_polarity_kernel(const double *mt,        // N_trials × 6, column-ma
 }
 ```
 
-## PSR Kernel (deferred — never launched from main.cpp)
+## Legacy standalone PSR kernel
 
 Header-only template exists in `psr_kernel.h`; `launch_psr_kernel` is defined
 but **never called** in the current pipeline (PSR input reductions are not
@@ -105,12 +114,10 @@ void launch_psr_kernel(
 
 Missing stations (obs_psr is NaN, or amplitude near zero) returns NaN.
 
-**Misfit formula (Julia assess, when restored):**
+The active PSR path does not call this legacy kernel. Julia assess evaluates:
 
 ```
-syn_amp_P = √(mᵀ · amp_P · m)          // synthetic P amplitude
-syn_amp_S = √(mᵀ · amp_S · m)          // synthetic S amplitude
-misfit = (log₁₀(syn_amp_P / syn_amp_S) - obs_psr)²
+misfit = (log(rms(S_obs)/rms(P_obs)) - log(rms(S_syn)/rms(P_syn)))²
 ```
 
 ## Launch Strategy (per combo in main.cpp)
@@ -137,6 +144,6 @@ not retry on CPU.
   degenerate synthetic norm, maxlag clamp, NaN/Inf preflight rejection
 - CUDA: auto/1/prime/residual batches, shuffled multi-combo trials, injected
   first/middle-batch failure, idempotence and compute-sanitizer memcheck
-- Polarity: all sign combos, edge cases (NaN, zero, ambiguous)
-- PSR: hand-calculated, non-diagonal `amp` matrices, degenerate zero-amplitude
-- Combined back-to-back launch (Polarity + PSR in one test) — only when restored
+- Waveform scale: earlier-extremum tie, zero waveform, multiple phases/trials
+- PSR: hand-calculated natural-log RMS ratios and degenerate zero energy
+- CUDA parity: `cc_max`, signed lag, energy, amplitude and sign

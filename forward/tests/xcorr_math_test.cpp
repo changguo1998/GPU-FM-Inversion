@@ -10,6 +10,7 @@ namespace {
 struct Result {
     double cc;
     int32_t lag;
+    double energy;
 };
 
 Result evaluate(const std::vector<double> &cc_values, double obs_norm2,
@@ -23,10 +24,11 @@ Result evaluate(const std::vector<double> &cc_values, double obs_norm2,
     }
     const double mt[6] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     double output = 0.0;
+    double energy = -1.0;
     int32_t lag = 0;
-    fm::xcorr_work_item(mt, cc.data(), synamp.data(), &obs_norm2, &output, &lag, 1, 1, cc_rows,
-                        cc_rows / 2, 0);
-    return {output, lag};
+    fm::xcorr_work_item(mt, cc.data(), synamp.data(), &obs_norm2, &output, &lag, &energy, 1, 1,
+                        cc_rows, cc_rows / 2, 0);
+    return {output, lag, energy};
 }
 
 void require(bool condition, const char *message) {
@@ -48,9 +50,11 @@ int main() {
     const Result negative = evaluate({-0.5, -0.2, -0.3}, 1.0, {1.0, 1.0, 1.0});
     require(negative.cc == -0.2 && negative.lag == 0, "negative CC must not use absolute value");
 
-    const Result zero_observation = evaluate({0.5, 0.6, 0.7}, 0.0, {1.0, 1.0, 1.0});
+    const Result zero_observation = evaluate({0.5, 0.6, 0.7}, 0.0, {1.0, 2.0, 3.0});
     require(zero_observation.cc == 0.0 && zero_observation.lag == 0,
             "zero observation norm must be neutral");
+    require(zero_observation.energy == 2.0,
+            "synthetic energy must be written when observation norm is zero");
 
     const Result degenerate = evaluate({0.5, 0.6, 0.7}, 1.0, {0.0, 0.0, 0.0});
     require(degenerate.cc == 0.0 && degenerate.lag == 0,

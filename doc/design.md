@@ -2,7 +2,7 @@
 
 ## Overview
 
-Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。当前 XCorr P+S 单迭代全管道已贯通；Polarity/Psr 已实现但 deferred。待开发：assess 权重聚合/网格细化（多迭代闭环）。
+Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通。待开发：assess 权重聚合/网格细化（多迭代闭环）。
 
 ## Project Layout
 
@@ -14,7 +14,7 @@ shared/         Julia packages by function (not stage)
   grid/         (Grid)     Trial generation + grid refinement
   signal/       (Signal)   Waveform preprocessing (filtering, trimming)
   config/       (Config)   Pipeline configuration interface
-  misfit/       (Misfit)   Misfit operator package（Xcorr 活跃；Polarity/Psr 模板 + 输出字段常量，deferred）
+  misfit/       (Misfit)   目标函数 DSL、数学原语与编译目标
   aggregate/    (Aggregate) Output extractor + composer 注册表
   stage_log/    (StageLog)  Per-stage logging
 forward/        C++ forward stage (OpenMP CPU / CUDA) — kernel 产出中间产物
@@ -67,7 +67,7 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 1. **Flat scripts** — 阶段脚本顶层直列执行，无 `main()` 包装；私有辅助函数扁平化深层嵌套（自包含、从属主流程）。
 1. **`/strategy` 仅含网格定义** — 无迭代状态字段（weights, best-fit, convergence）；状态由各阶段自行管理。
 1. **forward 无状态** — 读数据 + trials，写中间产物到 `/intermediates/`；无权重/聚合/策略/输出变换。
-1. **forward 双后端同公式** — OpenMP 与 CUDA 均调用唯一 XCorr work-item；CPU-only 构建不需要 CUDA，CUDA 构建运行时支持 `auto/cpu/cuda`。
+1. **forward 双后端同公式** — OpenMP 与 CUDA 共用 XCorr 二次型及 waveform-scale work-item；CPU-only 构建不需要 CUDA，CUDA 构建运行时支持 `auto/cpu/cuda`。
 1. **forward 事务输出** — 先完整计算到 host，再以 temporary/backup/final 组原子替换；任何 preflight 或执行失败不提交部分结果。
 1. **三层分离** — `/paraspace` 存值，`/config` 存参数，`/strategy` 存索引。
 1. **Misfit 三层分解** — Misfit = Operator × Phase × Output；C++ kernel 产出中间产物，Julia extractor/composer 产出最终 misfit。详见 `doc/misfit-decomposition.md`。
@@ -76,8 +76,8 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 
 Misfit = **Operator × Phase × Output**，完整设计见 `doc/misfit-decomposition.md`。
 
-- **Level 1（Base）**：Operator（XCorr/Polarity）× Phase（P/S）× Output（cc_max/best_lag/...）。kernel 消费预处理数据，产出中间产物到 `/intermediates/{Operator}{Phase}[_{channel}]/`。同一 (Operator, Phase) 可派生多个 Base misfit，共享一次 kernel 运行。
-- **Level 2（Composed）**：Aggregate Operator（StdDev/...）× Base misfit 集合 × Output。纯 Julia，消费 Level 1 值聚合，不触及波形/GF。
+- **Level 1（Base）**：XCorr 波形窗产出 `cc_max`、signed `best_lag`，并按需产出 `syn_energy`、`amp_scale`、`sign_scale`。
+- **Level 2（Composed）**：PSR/极性用基础 XCorr 中间量组合；StdDev 等通用 composer 消费基础 misfit。
 
 **C++/Julia 边界**：C++ 只重计算 → `/intermediates/`；Julia 做语义解释 → `/misfits/`。
 
@@ -93,7 +93,7 @@ Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
 
 `input.jl` 将该语法编译到现有 XCorr 模块 IR；forward CPU/CUDA 公式不变。
 
-多实例/多输出扩展见 `doc/misfit-decomposition.md`。Polarity/Psr 仍 deferred。
+多实例/多输出扩展见 `doc/misfit-decomposition.md`。
 
 ## Dimension Symbols
 

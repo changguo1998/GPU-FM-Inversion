@@ -9,7 +9,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ```
 1. 引导配置
    └─ include(config.jl) → Config.@objective 注册目标函数
-   └─ Config.compile_objectives!() → XCorr 管道算子实例
+   └─ Config.compile_objectives!() → XCorr/Lag 基础实例 + PSR/极性组合目标
    └─ Config.misfit_modules() (auto), freq_bands(), depths(), durations()
    └─ Config.phase_fields()/polarity_fields() 定义震相→字段映射
    └─ 插件可声明 phase_type="P"/"S", 通过 Config.phase_type() 查询
@@ -38,9 +38,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
    │    再与 obs 一起执行 Signal.preprocess_waveform!（duration 为 σ，单位秒）
    ├─ 算子 process(): XcorrP/XcorrS 分别输出 obs/obs_norm2 + per-lag
    │    synamp_lag[depth][band][duration] + dot_obs_gf_lag[band][duration]
-   └─ 各深度独立预处理 GF
-       (Polarity/Psr 分支 deferred: basic-clean GF /
-        极性窗口 / obs_psr 路径均已移除)
+   └─ 各深度独立预处理 GF；PSR/极性复用 XCorr 窗口，不产生独立预处理数据
 
 
 7. 组装字典
@@ -71,7 +69,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 - **各深度 GF 独立预处理**: 不再复用第一个深度
 - **config 无索引**: `band_low`/`band_high`/`freq_indices` 为整数索引，分别存于 `/config` 与 `/strategy`
 
-当前 XCorr P+S 数据接入、Layer 0 预处理和 duration 变体预计算已完成。
+当前 XCorr P+S 数据接入、Layer 0 预处理和 duration 变体预计算已完成；PSR/极性共享这些波形窗。
 `database.h5` 和 `status_0.h5` 是后续阶段的接口契约。
 
 ## Inputs
@@ -99,14 +97,14 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 ## Responsibilities
 
-1. **Preprocess raw data**: filter waveforms to frequency bands, trim time windows, extract XCorr preprocessing output (Polarity 分支已 deferred), store in `database.h5`
+1. **Preprocess raw data**: filter waveforms to frequency bands, trim XCorr windows and store them in `database.h5`
 1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
 1. **Write algorithm config**: load `config.jl`, write `db_config` (module list, module params) into `database.h5` — **no indices, no float parameter values**
 1. **Write expanded parameter space**: compute grid axis expansions (strike/dip/rake) via `Grid.expand_axis()`, build `frequency` from unique band edges, store all as `/paraspace` in `database.h5`
 1. **Write initial strategy**: build `IO.Strategy(depth_indices, freq_indices, iteration=0)` → `/strategy` in `status_0.h5`
 1. **Write phase metadata**: write `channel_id` + `station_idx` into each `/{ModuleName}` group in `database.h5` (carried by `ModuleData`)
 1. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated.
-1. **Per-depth GF preprocessing**: each trial depth independently filters and windows its own Green's functions during XCorr preprocessing (Polarity 已 deferred; 此前所有深度复用第一个深度的 GF).
+1. **Per-depth GF preprocessing**: each trial depth independently filters and windows its own Green's functions during XCorr preprocessing.
 
 ## Script Style
 
@@ -114,8 +112,7 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when `include`
 
 Tooling functions (time parsing, distance/azimuth computation, phase ID extraction) live in `shared/io/` (module `IO`) and are called as `IO.parse_time_iso`, `IO.haversine_distance`, etc.
 
-- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`). Psr 算子
-  **deferred**，其 `obs_psr`/`amp_P`/`amp_S` 预处理路径当前未接入。
+- Julia (`HDF5.jl`, `DSP.jl` via `shared/signal/`, `Dates.jl`).
 - Butterworth bandpass filter (DSP.jl, zero-phase forward-backward)
 - Time-window trimming
 - Green's function loader

@@ -35,6 +35,12 @@ int main() {
                 6 * sizeof(double) + 9 * sizeof(double) + 9 * sizeof(int32_t),
             "wrong per-trial byte count");
 
+    const size_t extra = 9 * (2 * sizeof(double) + sizeof(int8_t));
+    const fm::CudaBatchPlan extended =
+        fm::plan_cuda_batch(1024 * MIB, 4096 * MIB, 9, 100000, std::nullopt, extra);
+    require(extended.per_trial_bytes == automatic.per_trial_bytes + extra,
+            "extra per-trial outputs not included");
+
     const fm::CudaBatchPlan limited = fm::plan_cuda_batch(1024 * MIB, 4096 * MIB, 9, 1000, 7);
     require(limited.capacity == 7, "explicit limit not applied");
     require((1000 % limited.capacity) != 0, "fixture must exercise a residual batch");

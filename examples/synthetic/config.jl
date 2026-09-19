@@ -16,7 +16,16 @@ s_synthetic = synthetic(S; band = (0.5, 2.0), window = (-2, 8), filter_order = 4
 
 Config.@objective XcorrP = 1 - maxCC(p_observed, p_synthetic; maxlag = 3)
 Config.@objective XcorrS = 1 - maxCC(s_observed, s_synthetic; maxlag = 3)
-# TODO(deferred): Polarity/Psr and AbsShiftP/S/RelShift remain disabled.
+Config.@objective LagP = lagCC(p_observed, p_synthetic; maxlag = 3)
+Config.@objective LagS = lagCC(s_observed, s_synthetic; maxlag = 3)
+Config.@objective Psr =
+    abs2(log(rms(s_observed) / rms(p_observed)) - log(rms(s_synthetic) / rms(p_synthetic)))
+p_observed_signed = ampScale(p_observed) * signScale(p_observed)
+p_synthetic_signed = ampScale(p_synthetic) * signScale(p_synthetic)
+Config.@objective PolarityP = abs(
+    p_observed_signed / energy(p_observed_signed)^0.5 -
+    p_synthetic_signed / energy(p_synthetic_signed)^0.5,
+)
 
 Config.freq_bands() = [(0.5, 2.0)]
 Config.depths() = [5.0, 10.0, 15.0]

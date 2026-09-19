@@ -1,6 +1,7 @@
 #include "backends/cuda_runtime.h"
 
 #include "backends/cuda_batch.h"
+#include "kernels/waveform_kernel.h"
 #include "kernels/xcorr_kernel.h"
 #include "validation.h"
 
@@ -128,9 +129,10 @@ CudaProbeResult probe_cuda_device() {
 }
 
 struct CudaXcorrExecutor::Impl {
-    Impl(size_t phase_count, size_t maximum_cc_rows, size_t total_trials,
-         std::optional<size_t> batch_limit)
-        : n_phases(phase_count), max_cc_rows(maximum_cc_rows) {
+    Impl(size_t phase_count, size_t maximum_cc_rows, size_t maximum_samples, size_t total_trials,
+         std::optional<size_t> batch_limit, bool compute_energy, bool compute_amplitude)
+        : n_phases(phase_count), max_cc_rows(maximum_cc_rows), max_samples(maximum_samples),
+          need_energy(compute_energy), need_amplitude(compute_amplitude) {
         const auto started = std::chrono::steady_clock::now();
         if (n_phases == 0 || max_cc_rows == 0)
             throw std::runtime_error("CUDA XCorr executor requires phases and CC rows");
@@ -147,12 +149,34 @@ struct CudaXcorrExecutor::Impl {
         cc.allocate(cc_count, "CUDA XCorr CC buffer");
         synamp.allocate(synamp_count, "CUDA XCorr synamp buffer");
         obs_norm2.allocate(n_phases, "CUDA XCorr obs norm buffer");
+        if (need_amplitude) {
+            if (max_samples == 0 ||
+                max_samples > static_cast<size_t>(std::numeric_limits<int>::max()))
+                throw std::runtime_error("CUDA waveform shape is invalid");
+            gf.allocate(checked_mul(checked_mul(n_phases, max_samples, "CUDA waveform samples"), 6,
+                                    "CUDA waveform components"),
+                        "CUDA waveform GF buffer");
+        }
 
         size_t free_bytes = 0;
         size_t total_bytes = 0;
         check_cuda(cudaMemGetInfo(&free_bytes, &total_bytes), "cudaMemGetInfo");
-        const CudaBatchPlan plan =
-            plan_cuda_batch(free_bytes, total_bytes, n_phases, total_trials, batch_limit);
+        size_t extra_per_trial_bytes = 0;
+        if (need_energy)
+            extra_per_trial_bytes = checked_add(
+                extra_per_trial_bytes, checked_mul(n_phases, sizeof(double), "CUDA energy bytes"),
+                "CUDA extra output bytes");
+        if (need_amplitude) {
+            extra_per_trial_bytes =
+                checked_add(extra_per_trial_bytes,
+                            checked_mul(n_phases, sizeof(double), "CUDA amplitude bytes"),
+                            "CUDA extra output bytes");
+            extra_per_trial_bytes = checked_add(
+                extra_per_trial_bytes, checked_mul(n_phases, sizeof(int8_t), "CUDA sign bytes"),
+                "CUDA extra output bytes");
+        }
+        const CudaBatchPlan plan = plan_cuda_batch(free_bytes, total_bytes, n_phases, total_trials,
+                                                   batch_limit, extra_per_trial_bytes);
         batch_capacity = plan.capacity;
 
         mt.allocate(checked_mul(batch_capacity, 6, "CUDA batch MT count"), "CUDA batch MT buffer");
@@ -160,6 +184,15 @@ struct CudaXcorrExecutor::Impl {
                         "CUDA batch CC output buffer");
         best_lag.allocate(checked_mul(n_phases, batch_capacity, "CUDA batch lag count"),
                           "CUDA batch lag output buffer");
+        if (need_energy)
+            energy.allocate(checked_mul(n_phases, batch_capacity, "CUDA batch energy count"),
+                            "CUDA batch energy output buffer");
+        if (need_amplitude) {
+            amp_scale.allocate(checked_mul(n_phases, batch_capacity, "CUDA batch amplitude count"),
+                               "CUDA batch amplitude output buffer");
+            sign_scale.allocate(checked_mul(n_phases, batch_capacity, "CUDA batch sign count"),
+                                "CUDA batch sign output buffer");
+        }
         timing.initialization_ms =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
                 .count();
@@ -167,19 +200,28 @@ struct CudaXcorrExecutor::Impl {
 
     size_t n_phases;
     size_t max_cc_rows;
+    size_t max_samples;
+    bool need_energy;
+    bool need_amplitude;
     size_t batch_capacity = 0;
     CudaTimings timing;
     CudaBuffer<double> cc;
     CudaBuffer<double> synamp;
     CudaBuffer<double> obs_norm2;
+    CudaBuffer<double> gf;
     CudaBuffer<double> mt;
     CudaBuffer<double> cc_max;
     CudaBuffer<int32_t> best_lag;
+    CudaBuffer<double> energy;
+    CudaBuffer<double> amp_scale;
+    CudaBuffer<int8_t> sign_scale;
 };
 
-CudaXcorrExecutor::CudaXcorrExecutor(size_t n_phases, size_t max_cc_rows, size_t total_trials,
-                                     std::optional<size_t> batch_limit)
-    : impl_(new Impl(n_phases, max_cc_rows, total_trials, batch_limit)) {
+CudaXcorrExecutor::CudaXcorrExecutor(size_t n_phases, size_t max_cc_rows, size_t max_samples,
+                                     size_t total_trials, std::optional<size_t> batch_limit,
+                                     bool need_energy, bool need_amplitude)
+    : impl_(new Impl(n_phases, max_cc_rows, max_samples, total_trials, batch_limit, need_energy,
+                     need_amplitude)) {
 }
 
 CudaXcorrExecutor::~CudaXcorrExecutor() {
@@ -213,16 +255,24 @@ const CudaTimings &CudaXcorrExecutor::timings() const {
 
 void CudaXcorrExecutor::evaluate(const double *mt_host, const double *cc_host,
                                  const double *synamp_host, const double *obs_norm2_host,
-                                 double *cc_max_host, int32_t *best_lag_host, size_t n_trials,
-                                 size_t cc_rows, int maxlag, const std::string &context) {
+                                 const double *gf_host, double *cc_max_host, int32_t *best_lag_host,
+                                 double *energy_host, double *amp_scale_host,
+                                 int8_t *sign_scale_host, size_t n_trials, size_t cc_rows,
+                                 size_t n_samples, int maxlag, const std::string &context) {
     if (!impl_)
         throw std::runtime_error(context + ": CUDA XCorr executor is not initialized");
     if (!mt_host || !cc_host || !synamp_host || !obs_norm2_host || !cc_max_host || !best_lag_host)
         throw std::runtime_error(context + ": null CUDA XCorr pointer");
+    if (impl_->need_energy && !energy_host)
+        throw std::runtime_error(context + ": missing CUDA energy output");
+    if (impl_->need_amplitude && (!gf_host || !amp_scale_host || !sign_scale_host))
+        throw std::runtime_error(context + ": missing CUDA waveform input or output");
     if (n_trials == 0 || cc_rows == 0 || cc_rows > impl_->max_cc_rows)
         throw std::runtime_error(context + ": invalid CUDA XCorr shape");
     if (cc_rows > static_cast<size_t>(std::numeric_limits<int>::max()))
         throw std::runtime_error(context + ": CUDA XCorr rows exceed INT_MAX");
+    if (impl_->need_amplitude && (n_samples == 0 || n_samples > impl_->max_samples))
+        throw std::runtime_error(context + ": invalid CUDA waveform shape");
 
     const size_t cc_count = checked_mul(checked_mul(impl_->n_phases, cc_rows, context + " CC rows"),
                                         6, context + " CC components");
@@ -234,6 +284,12 @@ void CudaXcorrExecutor::evaluate(const double *mt_host, const double *cc_host,
         copy_to_device(impl_->synamp.data(), synamp_host, synamp_count, context + " synamp H2D");
         copy_to_device(impl_->obs_norm2.data(), obs_norm2_host, impl_->n_phases,
                        context + " obs norm H2D");
+        if (impl_->need_amplitude) {
+            const size_t gf_count =
+                checked_mul(checked_mul(impl_->n_phases, n_samples, context + " waveform samples"),
+                            6, context + " waveform components");
+            copy_to_device(impl_->gf.data(), gf_host, gf_count, context + " waveform H2D");
+        }
     });
 
     std::optional<size_t> injected_failure_batch;
@@ -264,8 +320,13 @@ void CudaXcorrExecutor::evaluate(const double *mt_host, const double *cc_host,
         impl_->timing.kernel_ms += measure_cuda(batch_context + " kernel", [&]() {
             launch_xcorr_cuda(impl_->mt.data(), impl_->cc.data(), impl_->synamp.data(),
                               impl_->obs_norm2.data(), impl_->cc_max.data(), impl_->best_lag.data(),
+                              impl_->need_energy ? impl_->energy.data() : nullptr,
                               static_cast<int>(impl_->n_phases), static_cast<int>(batch_count),
                               static_cast<int>(cc_rows), maxlag);
+            if (impl_->need_amplitude)
+                launch_waveform_cuda(impl_->mt.data(), impl_->gf.data(), impl_->amp_scale.data(),
+                                     impl_->sign_scale.data(), static_cast<int>(impl_->n_phases),
+                                     static_cast<int>(batch_count), static_cast<int>(n_samples));
         });
 
         impl_->timing.d2h_ms += measure_cuda(batch_context + " D2H", [&]() {
@@ -273,6 +334,15 @@ void CudaXcorrExecutor::evaluate(const double *mt_host, const double *cc_host,
                          batch_context + " CC D2H");
             copy_to_host(best_lag_host + begin * impl_->n_phases, impl_->best_lag.data(),
                          output_count, batch_context + " lag D2H");
+            if (impl_->need_energy)
+                copy_to_host(energy_host + begin * impl_->n_phases, impl_->energy.data(),
+                             output_count, batch_context + " energy D2H");
+            if (impl_->need_amplitude) {
+                copy_to_host(amp_scale_host + begin * impl_->n_phases, impl_->amp_scale.data(),
+                             output_count, batch_context + " amplitude D2H");
+                copy_to_host(sign_scale_host + begin * impl_->n_phases, impl_->sign_scale.data(),
+                             output_count, batch_context + " sign D2H");
+            }
         });
     }
 }

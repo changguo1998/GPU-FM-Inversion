@@ -32,17 +32,18 @@ into it (converged). Exit code 0 on success.
    `(operator, output)` to an extractor in `Aggregate.EXTRACTORS`:
 
    | (operator, output) | Extraction |
-   |------------------------------------------------------|--------------------------------------|
+   |-----------------------|-----------------------------------------------------------------|
    | `(:Xcorr, :cc_max)` | `1 .− cc_max` (normalized-CC misfit) |
    | `(:Xcorr, :best_lag)` | `best_lag · dt` (absolute shift, s) |
-   | `(:Polarity, :syn_sign)` / `(:Polarity, :dot_value)` | deferred |
+   | PSR | `abs2(log(rms(S_obs)/rms(P_obs)) - log(rms(S_syn)/rms(P_syn)))` |
+   | normalized polarity | L1 difference of per-trial L2-normalized signed amplitudes |
 
    Intermediate rows are transposed to `[entries × trials]` (the C++ writes
    C-order `[N_phases × N_trials]`, which HDF5.jl reads reversed).
 
-1. **Level 2 — compose**: composed modules (`is_composed == 1`) select their
-   base misfits and run `Aggregate.COMPOSERS[op]` (e.g. `StdDev`), resolved
-   topologically over `bases`.
+1. **Level 2 — compose**: composed modules (`is_composed == 1`) resolve
+   topologically over `bases`. PSR and polarity use their mathematical
+   primitive evaluators; generic aggregates use `Aggregate.COMPOSERS[op]`.
 
 1. **Write `/misfits/`**: one dataset per module, shape `[N_entries × N_trials]`,
    replacing any previous value (idempotent).
@@ -57,8 +58,8 @@ into it (converged). Exit code 0 on success.
 ### `status_N.h5:/misfits/{ModuleName}`
 
 | Dataset | Type | Shape | Description |
-|--------------------|---------|--------------------------|--------------------------|
-| `XcorrP`, `XcorrS` | Float64 | `[N_entries × N_trials]` | per-module misfit matrix |
+|------------------------------------------|---------|--------------------------|----------------------------|
+| `XcorrP/S`, `LagP/S`, `Psr`, `PolarityP` | Float64 | `[N_entries × N_trials]` | per-objective value matrix |
 
 ### `{DATA_DIR}/.decision.txt`
 
@@ -68,8 +69,7 @@ Empty file = converged (driver exits the loop). Non-empty = continue.
 
 - `read_intermediate` uses the (N_trials, N_entries) heuristic on the read
   shape to normalize the C++ C-order storage into `[entries × trials]`.
-- 当前基线注册 `XcorrP` 和 `XcorrS`；Level 2 composition 主要由
-  `Aggregate` package tests 覆盖。
+- 当前基线注册 XcorrP/S、LagP/S、Psr、PolarityP。Lag 保留方向符号。
 - assess does NOT modify `/strategy` or `/trials` (grid refinement is pending).
 - Baseline (2026-09-18): P+S best trial = (210, 30, 90) @ 10 km,
   σ=0.2 s, misfit ≈ 6.993e-5；该解与真值 (30, 60, 90) 的 moment

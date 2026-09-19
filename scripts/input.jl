@@ -34,9 +34,6 @@ Config.compile_objectives!()
 
 # 读取配置中的管道参数
 misfit_modules = Config.misfit_modules()
-if "Psr" in misfit_modules
-    error("Psr operator deferred (XCorr-only mode) — see TODO(deferred) in input.jl")
-end
 freq_bands = Config.freq_bands()
 depths = Config.depths()
 durations = Config.durations()

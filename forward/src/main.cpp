@@ -20,6 +20,7 @@
 #include "hdf5_io.h"
 #include "intermediates_transaction.h"
 #include "kernels/polarity_kernel.h"
+#include "kernels/waveform_kernel.h"
 #include "kernels/xcorr_kernel.h"
 #include "mt_utils.h"
 #include "validation.h"
@@ -151,7 +152,7 @@ std::string intermediate_key(const ModuleConfig &module) {
 
 void validate_intermediates_group(Hdf5Handle &file, const std::string &root,
                                   const std::vector<ModuleConfig> &modules, int n_p, int n_s,
-                                  int n_stations, int n_trials) {
+                                  int n_stations, int n_trials, bool need_psr, bool need_polarity) {
     if (!file.group_exists(root.c_str()))
         throw std::runtime_error(root + ": group does not exist");
 
@@ -169,10 +170,22 @@ void validate_intermediates_group(Hdf5Handle &file, const std::string &root,
             file.validate_dataset_2d((group + "/cc_max").c_str(), H5T_NATIVE_DOUBLE, n_p, n_trials);
             file.validate_dataset_2d((group + "/best_lag").c_str(), H5T_NATIVE_INT32, n_p,
                                      n_trials);
+            if (need_psr)
+                file.validate_dataset_2d((group + "/syn_energy").c_str(), H5T_NATIVE_DOUBLE, n_p,
+                                         n_trials);
+            if (need_polarity) {
+                file.validate_dataset_2d((group + "/amp_scale").c_str(), H5T_NATIVE_DOUBLE, n_p,
+                                         n_trials);
+                file.validate_dataset_2d((group + "/sign_scale").c_str(), H5T_NATIVE_INT8, n_p,
+                                         n_trials);
+            }
         } else if (module.op == "Xcorr" && module.phase == "S") {
             file.validate_dataset_2d((group + "/cc_max").c_str(), H5T_NATIVE_DOUBLE, n_s, n_trials);
             file.validate_dataset_2d((group + "/best_lag").c_str(), H5T_NATIVE_INT32, n_s,
                                      n_trials);
+            if (need_psr)
+                file.validate_dataset_2d((group + "/syn_energy").c_str(), H5T_NATIVE_DOUBLE, n_s,
+                                         n_trials);
         } else if (module.op == "Polarity") {
             file.validate_dataset_2d((group + "/syn_sign").c_str(), H5T_NATIVE_INT8, n_stations,
                                      n_trials);
@@ -291,6 +304,13 @@ int main(int argc, char *argv[]) {
             modules.push_back(mc);
         }
 
+        bool need_psr = false;
+        bool need_polarity = false;
+        for (const auto &module : modules) {
+            need_psr = need_psr || (module.is_composed && module.op == "Psr");
+            need_polarity = need_polarity || (module.is_composed && module.op == "Polarity");
+        }
+
         bool has_xcorr_config = false;
         XCorrConfigContract xcorr_config;
         for (const auto &mc : modules) {
@@ -376,8 +396,8 @@ int main(int argc, char *argv[]) {
         }
 
         auto validate_intermediates = [&](const std::string &root) {
-            validate_intermediates_group(status_file, root, modules, n_p, n_s, N_stations,
-                                         N_trials);
+            validate_intermediates_group(status_file, root, modules, n_p, n_s, N_stations, N_trials,
+                                         need_psr, need_polarity);
         };
         fm::recover_intermediates(status_file, validate_intermediates);
 
@@ -409,7 +429,7 @@ int main(int argc, char *argv[]) {
         db_reader.close();
 
         // 4. Initialize DataCache, load preprocessed data
-        DataCache cache(maxlag);
+        DataCache cache(maxlag, need_polarity);
         cache.load_from_database(database_path, trials);
 
         // Collect unique (freq_idx, depth_idx, duration_idx) combos from trials
@@ -419,6 +439,7 @@ int main(int argc, char *argv[]) {
         std::vector<CacheKey> combos(combo_set.begin(), combo_set.end());
 
         size_t max_cc_rows = 0;
+        size_t max_samples = 0;
         for (const auto &[f_idx, d_idx, duration_idx] : combos) {
             const CacheEntry *entry = cache.get_or_compute(f_idx, d_idx, duration_idx);
             if (!entry->valid() || entry->xcorr.cc == nullptr || entry->xcorr.synamp == nullptr ||
@@ -439,12 +460,19 @@ int main(int argc, char *argv[]) {
             fm::validate_finite(entry->xcorr.synamp, synamp_count, "XCorr synamp");
             fm::validate_finite(entry->xcorr.obs_norm2, phase_count, "XCorr obs_norm2");
             max_cc_rows = std::max(max_cc_rows, static_cast<size_t>(entry->xcorr.cc_rows));
+            if (need_polarity) {
+                if (!entry->waveform.gf || entry->waveform.n_phases != N_phases ||
+                    entry->waveform.n_samples <= 0)
+                    throw std::runtime_error("invalid waveform cache shape for combo");
+                max_samples = std::max(max_samples, static_cast<size_t>(entry->waveform.n_samples));
+            }
         }
 
         std::unique_ptr<fm::CudaXcorrExecutor> cuda_executor;
         if (selection.backend == Backend::CUDA) {
             cuda_executor = std::make_unique<fm::CudaXcorrExecutor>(
-                phase_count, max_cc_rows, trial_count, options.cuda_batch_trials);
+                phase_count, max_cc_rows, max_samples, trial_count, options.cuda_batch_trials,
+                need_psr, need_polarity);
             std::cout << "fm_forward: CUDA batch capacity=" << cuda_executor->batch_capacity()
                       << std::endl;
         }
@@ -466,6 +494,10 @@ int main(int argc, char *argv[]) {
         std::vector<int32_t> best_lag_p(p_output_count, 0);
         std::vector<double> cc_max_s(s_output_count, 0.0);
         std::vector<int32_t> best_lag_s(s_output_count, 0);
+        std::vector<double> syn_energy_p(need_psr ? p_output_count : 0, 0.0);
+        std::vector<double> syn_energy_s(need_psr ? s_output_count : 0, 0.0);
+        std::vector<double> amp_scale_p(need_polarity ? p_output_count : 0, 0.0);
+        std::vector<int8_t> sign_scale_p(need_polarity ? p_output_count : 0, 0);
         std::vector<int8_t> syn_sign(station_output_count, 0);
         std::vector<double> dot_value(station_output_count,
                                       std::numeric_limits<double>::quiet_NaN());
@@ -514,21 +546,33 @@ int main(int argc, char *argv[]) {
                     throw std::runtime_error("combo XCorr work-item count exceeds INT_MAX");
                 std::vector<double> cc_max_sub(combo_output_count);
                 std::vector<int32_t> best_lag_sub(combo_output_count);
+                std::vector<double> energy_sub(need_psr ? combo_output_count : 0);
+                std::vector<double> amp_scale_sub(need_polarity ? combo_output_count : 0);
+                std::vector<int8_t> sign_scale_sub(need_polarity ? combo_output_count : 0);
 
                 if (selection.backend == Backend::CUDA) {
                     const std::string combo_context = "combo freq=" + std::to_string(f_idx) +
                                                       " depth=" + std::to_string(d_idx) +
                                                       " duration=" + std::to_string(duration_idx);
-                    cuda_executor->evaluate(mt_xcorr_sub.data(), entry->xcorr.cc,
-                                            entry->xcorr.synamp, entry->xcorr.obs_norm2,
-                                            cc_max_sub.data(), best_lag_sub.data(),
-                                            static_cast<size_t>(n_sub), static_cast<size_t>(cc_pp),
-                                            maxlag_e, combo_context);
+                    cuda_executor->evaluate(
+                        mt_xcorr_sub.data(), entry->xcorr.cc, entry->xcorr.synamp,
+                        entry->xcorr.obs_norm2, need_polarity ? entry->waveform.gf : nullptr,
+                        cc_max_sub.data(), best_lag_sub.data(),
+                        need_psr ? energy_sub.data() : nullptr,
+                        need_polarity ? amp_scale_sub.data() : nullptr,
+                        need_polarity ? sign_scale_sub.data() : nullptr, static_cast<size_t>(n_sub),
+                        static_cast<size_t>(cc_pp),
+                        need_polarity ? static_cast<size_t>(entry->waveform.n_samples) : 0,
+                        maxlag_e, combo_context);
                 } else {
-                    fm::launch_xcorr_openmp(mt_xcorr_sub.data(), entry->xcorr.cc,
-                                            entry->xcorr.synamp, entry->xcorr.obs_norm2,
-                                            cc_max_sub.data(), best_lag_sub.data(), N_phases, n_sub,
-                                            cc_pp, maxlag_e);
+                    fm::launch_xcorr_openmp(
+                        mt_xcorr_sub.data(), entry->xcorr.cc, entry->xcorr.synamp,
+                        entry->xcorr.obs_norm2, cc_max_sub.data(), best_lag_sub.data(),
+                        need_psr ? energy_sub.data() : nullptr, N_phases, n_sub, cc_pp, maxlag_e);
+                    if (need_polarity)
+                        fm::launch_waveform_openmp(mt_xcorr_sub.data(), entry->waveform.gf,
+                                                   amp_scale_sub.data(), sign_scale_sub.data(),
+                                                   N_phases, n_sub, entry->waveform.n_samples);
                 }
 
                 // Write back: split P (rows 0..n_p) and S (rows n_p..N_phases)
@@ -541,12 +585,20 @@ int main(int argc, char *argv[]) {
                                 static_cast<size_t>(ph) * trial_count + trial_indices[si];
                             cc_max_p[output_index] = v;
                             best_lag_p[output_index] = lag;
+                            if (need_psr)
+                                syn_energy_p[output_index] = energy_sub[ph + si * N_phases];
+                            if (need_polarity) {
+                                amp_scale_p[output_index] = amp_scale_sub[ph + si * N_phases];
+                                sign_scale_p[output_index] = sign_scale_sub[ph + si * N_phases];
+                            }
                         } else {
                             int sp = ph - n_p;
                             const size_t output_index =
                                 static_cast<size_t>(sp) * trial_count + trial_indices[si];
                             cc_max_s[output_index] = v;
                             best_lag_s[output_index] = lag;
+                            if (need_psr)
+                                syn_energy_s[output_index] = energy_sub[ph + si * N_phases];
                         }
                     }
                 for (int trial_index : trial_indices)
@@ -604,7 +656,10 @@ int main(int argc, char *argv[]) {
         auto write_intermediates = [&](const std::string &root) {
             status_file.create_group(root.c_str());
             auto write_xcorr_inter = [&](const std::string &key, const std::vector<double> &cc,
-                                         const std::vector<int32_t> &lag, int n_ph) {
+                                         const std::vector<int32_t> &lag,
+                                         const std::vector<double> *energy,
+                                         const std::vector<double> *amplitude,
+                                         const std::vector<int8_t> *sign, int n_ph) {
                 if (n_ph == 0)
                     return;
                 const std::string group = root + "/" + key;
@@ -612,6 +667,15 @@ int main(int argc, char *argv[]) {
                 status_file.write_double_2d((group + "/cc_max").c_str(), cc.data(), n_ph, N_trials);
                 status_file.write_int32_2d((group + "/best_lag").c_str(), lag.data(), n_ph,
                                            N_trials);
+                if (energy)
+                    status_file.write_double_2d((group + "/syn_energy").c_str(), energy->data(),
+                                                n_ph, N_trials);
+                if (amplitude && sign) {
+                    status_file.write_double_2d((group + "/amp_scale").c_str(), amplitude->data(),
+                                                n_ph, N_trials);
+                    status_file.write_int8_2d((group + "/sign_scale").c_str(), sign->data(), n_ph,
+                                              N_trials);
+                }
             };
 
             // Map module -> canonical intermediate key (operator + phase [+ channel]).
@@ -623,9 +687,12 @@ int main(int argc, char *argv[]) {
                 if (!written_keys.insert(key).second)
                     continue;
                 if (module.op == "Xcorr" && module.phase == "P")
-                    write_xcorr_inter(key, cc_max_p, best_lag_p, n_p);
+                    write_xcorr_inter(key, cc_max_p, best_lag_p, need_psr ? &syn_energy_p : nullptr,
+                                      need_polarity ? &amp_scale_p : nullptr,
+                                      need_polarity ? &sign_scale_p : nullptr, n_p);
                 else if (module.op == "Xcorr" && module.phase == "S")
-                    write_xcorr_inter(key, cc_max_s, best_lag_s, n_s);
+                    write_xcorr_inter(key, cc_max_s, best_lag_s, need_psr ? &syn_energy_s : nullptr,
+                                      nullptr, nullptr, n_s);
                 else if (module.op == "Polarity") {
                     const std::string group = root + "/" + key;
                     status_file.create_group(group.c_str());

@@ -13,20 +13,21 @@ Used by: `scripts/assess.jl`.
 ## Files
 
 | File | Role |
-|---------------------|-------------------------------------------------------------------------------------------------------|
-| `src/Aggregate.jl` | Package entry, includes StdDev/extractors/composers, exports `EXTRACTORS`, `COMPOSERS` |
+|-------------------------------|-------------------------------------------------------------------------------------------------------|
+| `src/Aggregate.jl` | Package entry and exports |
 | `src/extractors.jl` | `EXTRACTORS` registry — keyed by `(operator, output)`, maps intermediates → Level 1 misfit matrices |
 | `src/composers.jl` | `COMPOSERS` registry — keyed by aggregate operator, aggregates base misfits → Level 2 misfit matrices |
+| `src/objective_primitives.jl` | PSR and normalized-polarity matrix evaluators |
 | `src/StdDev.jl` | StdDev operator — `RELATIVE_OFFSET`/`MEAN` outputs, per-station std/mean across base misfits |
 
 ## Extractors (`EXTRACTORS[(operator, output)]`)
 
 | Key | Transform |
-|---------------------------|-------------------------------------------------------------------------------------------|
+|-------------------------------|--------------------------------------------------|
 | `(:Xcorr, :cc_max)` | `1 .- cc_max` (normalized CC misfit) |
 | `(:Xcorr, :best_lag)` | `best_lag * dt` (absolute time shift in seconds) |
-| `(:Polarity, :syn_sign)` | mismatch vs observed polarity (`syn_sign .!= obs_pol`) — deferred, no registered instance |
-| `(:Polarity, :dot_value)` | `abs(dot_value)` (confidence weight) — deferred, no registered instance |
+| PSR evaluator | squared natural-log RMS S/P residual |
+| normalized polarity evaluator | L1 difference of L2-normalized signed amplitudes |
 
 ## Composers (`COMPOSERS[operator]`)
 

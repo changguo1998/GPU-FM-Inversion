@@ -14,7 +14,8 @@ struct CudaBatchPlan {
 
 /// Plan a positive CUDA trial batch from post-combo free memory.
 CudaBatchPlan plan_cuda_batch(size_t free_bytes, size_t total_bytes, size_t n_phases,
-                              size_t n_trials, std::optional<size_t> explicit_limit);
+                              size_t n_trials, std::optional<size_t> explicit_limit,
+                              size_t extra_per_trial_bytes = 0);
 
 } // namespace fm
 

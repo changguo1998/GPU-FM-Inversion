@@ -28,6 +28,8 @@ forward/
 
 - C-order arrays: `cc_max[N_phases × N_trials]`; HDF5.jl reads as
   `(N_trials, N_phases)`.
+- PSR adds center-lag `syn_energy = mᵀGᵀGm`; normalized polarity adds
+  `amp_scale=(max-min)/2` and the sign of the earlier min/max extremum.
 - maxlag derived from the validated common XcorrP/XcorrS config, clamped to
   `(window_len-1)/2` in DataCache; reduction loop uses the clamped stride.
 - station indices 0-based internally, 1-based in HDF5.

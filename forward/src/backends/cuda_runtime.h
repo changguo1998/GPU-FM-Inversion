@@ -29,8 +29,8 @@ CudaProbeResult probe_cuda_device();
 
 class CudaXcorrExecutor {
   public:
-    CudaXcorrExecutor(size_t n_phases, size_t max_cc_rows, size_t total_trials,
-                      std::optional<size_t> batch_limit);
+    CudaXcorrExecutor(size_t n_phases, size_t max_cc_rows, size_t max_samples, size_t total_trials,
+                      std::optional<size_t> batch_limit, bool need_energy, bool need_amplitude);
     ~CudaXcorrExecutor();
     CudaXcorrExecutor(const CudaXcorrExecutor &) = delete;
     CudaXcorrExecutor &operator=(const CudaXcorrExecutor &) = delete;
@@ -41,8 +41,9 @@ class CudaXcorrExecutor {
     const CudaTimings &timings() const;
 
     void evaluate(const double *mt, const double *cc, const double *synamp, const double *obs_norm2,
-                  double *cc_max, int32_t *best_lag, size_t n_trials, size_t cc_rows, int maxlag,
-                  const std::string &context);
+                  const double *gf, double *cc_max, int32_t *best_lag, double *energy,
+                  double *amp_scale, int8_t *sign_scale, size_t n_trials, size_t cc_rows,
+                  size_t n_samples, int maxlag, const std::string &context);
 
   private:
     struct Impl;

@@ -8,11 +8,25 @@ using Test
 end
 
 @testset "objective expression registration" begin
-    observed = Misfit.observed(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
-    synthetic = Misfit.synthetic(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
-    expr = 1 - Misfit.maxCC(observed, synthetic; maxlag = 3)
+    p_observed = Misfit.observed(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    p_synthetic = Misfit.synthetic(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    s_observed = Misfit.observed(Misfit.S; band = (0.5, 2.0), window = (-2, 8))
+    s_synthetic = Misfit.synthetic(Misfit.S; band = (0.5, 2.0), window = (-2, 8))
+    expr = 1 - Misfit.maxCC(p_observed, p_synthetic; maxlag = 3)
 
     Config.@objective T_Objective = expr
+    Config.@objective T_XcorrS = 1 - Misfit.maxCC(s_observed, s_synthetic; maxlag = 3)
+    Config.@objective T_LagP = Misfit.lagCC(p_observed, p_synthetic; maxlag = 3)
+    Config.@objective T_Psr = abs2(
+        log(Misfit.rms(s_observed) / Misfit.rms(p_observed)) -
+        log(Misfit.rms(s_synthetic) / Misfit.rms(p_synthetic)),
+    )
+    observed_polarity = Misfit.ampScale(p_observed) * Misfit.signScale(p_observed)
+    synthetic_polarity = Misfit.ampScale(p_synthetic) * Misfit.signScale(p_synthetic)
+    Config.@objective T_Polarity = abs(
+        observed_polarity / Misfit.energy(observed_polarity)^0.5 -
+        synthetic_polarity / Misfit.energy(synthetic_polarity)^0.5,
+    )
     @test Config.objective(:T_Objective) === expr
     @test Config.objectives()[:T_Objective] === expr
     @test_throws ErrorException Config.objective!(:T_Objective, expr)
@@ -32,6 +46,13 @@ end
     @test instance.band_low() == Int32[1]
     @test instance.band_high() == Int32[2]
     @test "T_Objective" in Config.misfit_modules()
+    @test Config.output_field(:T_LagP) == Misfit.Xcorr.BEST_LAG
+    @test Config.is_composed(:T_Psr)
+    @test Config.bases_of(:T_Psr) == [:T_Objective, :T_XcorrS]
+    @test Config.operator_module(:T_Psr) === Misfit.Psr
+    @test Config.is_composed(:T_Polarity)
+    @test Config.bases_of(:T_Polarity) == [:T_Objective]
+    @test Config.output_field(:T_Polarity) == Misfit.Polarity.NORMALIZED_L1
     @test isnothing(Config.compile_objectives!())
 
     unsupported = Misfit.energy(Misfit.input(:waveform))

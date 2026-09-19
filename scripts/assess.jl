@@ -11,7 +11,7 @@
 
 using HDF5
 
-using IO, Config, Aggregate
+using IO, Config, Aggregate, Misfit
 
 db_path = ARGS[1]
 status_path = ARGS[2]
@@ -57,6 +57,66 @@ function read_intermediate(status_path, key)
     end
 end
 
+function read_database_dataset(path)
+    return h5open(f -> read(f[path]), db_path, "r")
+end
+
+function intermediate_key(mcfg)
+    key = string(mcfg["operator"], mcfg["phase"])
+    mcfg["channel"] != "" && (key *= "_" * mcfg["channel"])
+    return key
+end
+
+function evaluate_psr(bases)
+    length(bases) == 2 || error("assess: PSR requires P and S bases")
+    p_base = only(filter(base -> cfg[base]["phase"] == "P", bases))
+    s_base = only(filter(base -> cfg[base]["phase"] == "S", bases))
+    p_ids = String.(read_database_dataset("/$p_base/channel_id"))
+    s_ids = String.(read_database_dataset("/$s_base/channel_id"))
+    s_row = Dict(id => row for (row, id) in enumerate(s_ids))
+    p_rows = Int[]
+    s_rows = Int[]
+    for (row, id) in enumerate(p_ids)
+        haskey(s_row, id) || continue
+        push!(p_rows, row)
+        push!(s_rows, s_row[id])
+    end
+    isempty(p_rows) && error("assess: PSR bases have no common channel_id")
+
+    p_inter = read_intermediate(status_path, intermediate_key(cfg[p_base]))
+    s_inter = read_intermediate(status_path, intermediate_key(cfg[s_base]))
+    p_obs = read_database_dataset("/$p_base/obs/1/obs")
+    s_obs = read_database_dataset("/$s_base/obs/1/obs")
+    p_obs_energy = vec(read_database_dataset("/$p_base/obs/1/obs_norm2"))[p_rows]
+    s_obs_energy = vec(read_database_dataset("/$s_base/obs/1/obs_norm2"))[s_rows]
+    p_samples = fill(size(p_obs, 2), length(p_rows))
+    s_samples = fill(size(s_obs, 2), length(s_rows))
+    return Aggregate.psr_residual(
+        p_obs_energy,
+        p_samples,
+        p_inter["syn_energy"][p_rows, :],
+        s_obs_energy,
+        s_samples,
+        s_inter["syn_energy"][s_rows, :],
+    )
+end
+
+function evaluate_polarity(base)
+    mcfg = cfg[base]
+    mcfg["phase"] == "P" || error("assess: normalized polarity requires a P base")
+    inter = read_intermediate(status_path, intermediate_key(mcfg))
+    obs = read_database_dataset("/$base/obs/1/obs")
+    observed_signed = [
+        Misfit.ampScale(view(obs, row, :)) * Misfit.signScale(view(obs, row, :)) for
+        row in axes(obs, 1)
+    ]
+    return Aggregate.normalized_polarity_residual(
+        observed_signed,
+        inter["amp_scale"],
+        inter["sign_scale"],
+    )
+end
+
 # === 3. Level 1: extract ===
 misfits = Dict{String, Matrix{Float64}}()
 level2 = String[]
@@ -69,10 +129,7 @@ for m_name in modules
     end
     op = Symbol(mcfg["operator"])
     out = Symbol(mcfg["output"])
-    phase = mcfg["phase"]
-    ch = mcfg["channel"]
-    key = string(op, phase)
-    ch != "" && (key = key * "_" * ch)
+    key = intermediate_key(mcfg)
     inter = read_intermediate(status_path, key)
     isempty(inter) && continue
     # build extractor context
@@ -113,11 +170,17 @@ while !isempty(remaining)
         if all(b in keys(misfits) for b in bs)
             op = Symbol(mcfg["operator"])
             out = Symbol(mcfg["output"])
-            base_misfits = [misfits[b] for b in bs]
-            base_station_idx = [get(module_station_idx, b, Int32[]) for b in bs]
-            ctx = (N_stations = N_stations,)
-            res = COMPOSERS[op](base_misfits, base_station_idx, ctx)
-            misfits[m_name] = res[out]
+            if op == :Psr
+                misfits[m_name] = evaluate_psr(bs)
+            elseif op == :Polarity
+                misfits[m_name] = evaluate_polarity(only(bs))
+            else
+                base_misfits = [misfits[b] for b in bs]
+                base_station_idx = [get(module_station_idx, b, Int32[]) for b in bs]
+                ctx = (N_stations = N_stations,)
+                res = COMPOSERS[op](base_misfits, base_station_idx, ctx)
+                misfits[m_name] = res[out]
+            end
             filter!(!=(m_name), remaining)
             progressed = true
         end

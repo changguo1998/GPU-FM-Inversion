@@ -83,6 +83,8 @@ struct DivideOp <: AbstractOp end
 struct PowerOp <: AbstractOp end
 struct NegateOp <: AbstractOp end
 struct Abs2Op <: AbstractOp end
+struct AbsOp <: AbstractOp end
+struct LogOp <: AbstractOp end
 struct Log10Op <: AbstractOp end
 struct SignOp <: AbstractOp end
 
@@ -103,6 +105,8 @@ Base.:^(left::AbstractExpr, right::Union{AbstractExpr, Number}) = _call(PowerOp(
 Base.:^(left::Number, right::AbstractExpr) = _call(PowerOp(), left, right)
 Base.:-(arg::AbstractExpr) = _call(NegateOp(), arg)
 Base.abs2(arg::AbstractExpr) = _call(Abs2Op(), arg)
+Base.abs(arg::AbstractExpr) = _call(AbsOp(), arg)
+Base.log(arg::AbstractExpr) = _call(LogOp(), arg)
 Base.log10(arg::AbstractExpr) = _call(Log10Op(), arg)
 Base.sign(arg::AbstractExpr) = _call(SignOp(), arg)
 
@@ -123,6 +127,8 @@ _evaluate_op(::DivideOp, args, _) = args[1] / args[2]
 _evaluate_op(::PowerOp, args, _) = args[1]^args[2]
 _evaluate_op(::NegateOp, args, _) = -args[1]
 _evaluate_op(::Abs2Op, args, _) = abs2(args[1])
+_evaluate_op(::AbsOp, args, _) = abs(args[1])
+_evaluate_op(::LogOp, args, _) = log(args[1])
 _evaluate_op(::Log10Op, args, _) = log10(args[1])
 _evaluate_op(::SignOp, args, _) = sign(args[1])
 
@@ -133,6 +139,8 @@ _op_name(::DivideOp) = "divide"
 _op_name(::PowerOp) = "power"
 _op_name(::NegateOp) = "negate"
 _op_name(::Abs2Op) = "abs2"
+_op_name(::AbsOp) = "abs"
+_op_name(::LogOp) = "log"
 _op_name(::Log10Op) = "log10"
 _op_name(::SignOp) = "sign"
 
@@ -143,6 +151,8 @@ _op_from_val(::Val{:divide}) = DivideOp()
 _op_from_val(::Val{:power}) = PowerOp()
 _op_from_val(::Val{:negate}) = NegateOp()
 _op_from_val(::Val{:abs2}) = Abs2Op()
+_op_from_val(::Val{:abs}) = AbsOp()
+_op_from_val(::Val{:log}) = LogOp()
 _op_from_val(::Val{:log10}) = Log10Op()
 _op_from_val(::Val{:sign}) = SignOp()
 _op_from_val(::Val{name}) where {name} = throw(ArgumentError("unknown expression operator: $name"))

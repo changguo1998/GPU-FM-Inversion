@@ -33,3 +33,26 @@ end
     @test out[:relative_offset][1, 1] ≈ std([1.0, 3.0])
     @test out[:relative_offset][1, 2] ≈ std([2.0, 4.0])
 end
+
+@testset "PSR residual" begin
+    obs_p = [4.0, 9.0]
+    obs_s = [16.0, 9.0]
+    samples_p = [4, 9]
+    samples_s = [4, 9]
+    syn_p = [1.0 4.0; 9.0 0.0]
+    syn_s = [4.0 4.0; 9.0 1.0]
+    result = Aggregate.psr_residual(obs_p, samples_p, syn_p, obs_s, samples_s, syn_s)
+    @test result[1, 1] == 0.0
+    @test result[1, 2] ≈ log(2.0)^2
+    @test result[2, 1] == 0.0
+    @test isinf(result[2, 2])
+end
+
+@testset "Normalized polarity residual" begin
+    observed = [-3.0, 4.0]
+    amplitude = [3.0 6.0; 4.0 8.0]
+    sign = Int8[-1 1; 1 1]
+    result = Aggregate.normalized_polarity_residual(observed, amplitude, sign)
+    @test result[:, 1] ≈ zeros(2)
+    @test result[:, 2] ≈ [1.2, 0.0]
+end

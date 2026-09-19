@@ -91,9 +91,12 @@ remove backup. Startup validates final and recovers a valid backup when needed;
 orphan temporary groups are removed. Failed preflight or compute never changes final.
 
 | Dataset | Type | Shape (HDF5) | Description |
-|------------|---------|-------------------------|--------------------------------------------------|
+|--------------|---------|-------------------------|--------------------------------------------------------|
 | `cc_max` | Float64 | `[N_phases × N_trials]` | max normalized CC per (phase, trial) |
 | `best_lag` | Int32 | `[N_phases × N_trials]` | best-lag offset in samples (∈ [−maxlag, maxlag]) |
+| `syn_energy` | Float64 | `[N_phases × N_trials]` | center-lag synthetic energy; conditional on PSR |
+| `amp_scale` | Float64 | `[N_P × N_trials]` | half peak-to-peak P amplitude; conditional on polarity |
+| `sign_scale` | Int8 | `[N_P × N_trials]` | sign of earlier P extremum; conditional on polarity |
 
 Storage is C-order `[N_phases × N_trials]`; `HDF5.jl` reads it as
 `(N_trials, N_phases)` (reversed dims) — account for this in consumers.
@@ -102,10 +105,8 @@ Storage is C-order `[N_phases × N_trials]`; `HDF5.jl` reads it as
 
 - `H5Lexists` probes of optional groups (`/XcorrP/...`) are silenced with
   `H5E_BEGIN_TRY`; forward produces no `HDF5-DIAG` noise on stderr.
-- `station_idx` is normalized from 1-based (HDF5) to 0-based immediately after
-  reading; the result is consumed only by the (deferred) Polarity path.
-- Polarity/PSR kernels remain compiled but are **deferred**；当前基线只注册
-  XcorrP/XcorrS。
+- PSR reuses the center-lag XCorr Gram matrix. Polarity evaluates the retained
+  XCorr P-window GF waveform; neither restores a separate preprocessing path.
 - Active XcorrP/XcorrS modules must use identical band, trim, max-lag, dt and
   window length. Mismatch is a preflight error.
 
@@ -117,6 +118,10 @@ CUDA allocates maximum-combo `cc/synamp/obs_norm2` buffers once, then calls
 ```
 6*sizeof(Float64) + N_phases*sizeof(Float64) + N_phases*sizeof(Int32)
 ```
+
+When active, PSR adds one Float64 energy per phase/trial; normalized polarity
+adds one Float64 amplitude and one Int8 sign per phase/trial. Static retained
+GF buffers are allocated before batch capacity is planned.
 
 Automatic capacity is available bytes divided by this cost, capped by total
 trials and `INT_MAX/N_phases`; explicit `--cuda-batch-trials` is an additional

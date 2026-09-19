@@ -41,6 +41,12 @@ struct XCorrCache {
     int maxlag = 0;              // half-width of the lag scan
 };
 
+struct WaveformCache {
+    double *gf = nullptr; // [n_phases × n_samples × 6] column-major
+    int n_phases = 0;
+    int n_samples = 0;
+};
+
 struct PolarityCache {
     double *pol_vec = nullptr; // [n_phases × 6]  (pol_vec[phase + comp * n_phases])
     double *obs_pol = nullptr; // [n_phases]
@@ -65,6 +71,7 @@ struct CacheEntry {
     int n_stations;
 
     XCorrCache xcorr;
+    WaveformCache waveform;
     PolarityCache polarity;
     PSRCache psr;
 
@@ -79,12 +86,14 @@ struct CacheEntry {
         delete[] xcorr.cc;
         delete[] xcorr.synamp;
         delete[] xcorr.obs_norm2;
+        delete[] waveform.gf;
         delete[] polarity.pol_vec;
         delete[] polarity.obs_pol;
         delete[] psr.amp_P;
         delete[] psr.amp_S;
         delete[] psr.obs_psr;
         xcorr = XCorrCache();
+        waveform = WaveformCache();
         polarity = PolarityCache();
         psr = PSRCache();
     }
@@ -95,7 +104,7 @@ struct CacheEntry {
 class DataCache {
   public:
     /// Construct with a maxlag value for XCorr precomputation.
-    explicit DataCache(int maxlag);
+    explicit DataCache(int maxlag, bool retain_waveforms = false);
 
     /// Load all (freq_idx, depth_idx, duration_idx) combos referenced by trials from
     /// database.h5.
@@ -131,6 +140,7 @@ class DataCache {
     std::unordered_map<CacheKey, CacheEntry, CacheKeyHash> cache_;
 
     int maxlag_;
+    bool retain_waveforms_;
 
     // ── Internal helpers ──────────────────────────────────────────────────
 
