@@ -49,7 +49,7 @@ Waveforms, Green's functions, and other large intermediate arrays are omitted.
 
 - All active objectives currently have equal weight after min-max normalization.
 - `freq_test_misfit_curve` is `NaN` (not implemented).
-- `convergence_reason` is fixed to `"single iteration (refinement pending)"`.
+- `convergence_reason` is fixed to `"single iteration"`.
 - `per_station_summary.misfit_total` is zero-filled (pending).
 
 ## Notes

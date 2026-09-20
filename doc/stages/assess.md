@@ -57,9 +57,8 @@ into it (converged). Exit code 0 on success.
    remains signed.
 
 1. **Convergence decision**: current implementation converges on the first
-   iteration (writes an empty `.decision.txt`). Configurable weights and grid
-   refinement (multi-iteration loop) are the next planned features — see
-   `doc/roadmap.md`.
+   iteration (writes an empty `.decision.txt`). The multi-iteration strategy
+   is pending redesign; see `doc/roadmap.md`.
 
 ## Outputs
 
@@ -83,7 +82,7 @@ contains the equal-weight mean across active objectives.
 - `read_intermediate` uses the (N_trials, N_entries) heuristic on the read
   shape to normalize the C++ C-order storage into `[entries × trials]`.
 - 当前基线注册 XcorrP/S、LagP/S、Psr、PolarityP。Lag 保留方向符号。
-- assess does NOT modify `/strategy` or `/trials` (grid refinement is pending).
+- assess does NOT modify `/strategy` or `/trials`.
 - Baseline (2026-09-18): P+S best trial = (210, 30, 90) @ 10 km,
   σ=0.2 s, misfit ≈ 6.993e-5；该解与真值 (30, 60, 90) 的 moment
   tensor 相同。

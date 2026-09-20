@@ -2,7 +2,7 @@
 
 ## Project identity
 
-震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。目标函数 DSL 已支持现有数学原语的通用组合编译；XCorr、signed lag、PSR、归一化极性已完成**单迭代全管道贯通**；多迭代细化（assess 权重聚合/网格细化）待开发。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。目标函数 DSL 已支持现有数学原语的通用组合编译；XCorr、signed lag、PSR、归一化极性已完成**单迭代全管道贯通**；多迭代策略待重新设计。
 
 ## Project layout
 
@@ -18,7 +18,7 @@ config_sample.jl   Template pipeline configuration
 |-----------|------------------------------|----------------------------------------------|
 | IO | `shared/io/AGENTS.md` | HDF5 I/O, type structs, geophysics utilities |
 | MT | `shared/mt/AGENTS.md` | SDR ↔ MT conversion |
-| Grid | `shared/grid/AGENTS.md` | Trial generation + grid refinement |
+| Grid | `shared/grid/AGENTS.md` | Trial generation |
 | Signal | `shared/signal/AGENTS.md` | Waveform preprocessing |
 | Aggregate | `shared/aggregate/AGENTS.md` | Misfit aggregation, uncertainty |
 | Config | `shared/config/AGENTS.md` | Pipeline configuration interface |
@@ -36,7 +36,7 @@ config_sample.jl   Template pipeline configuration
 
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与 Layer 0 预处理、目标函数 DSL、XCorr/lag/PSR/归一化极性、trials 全参数索引化、Gaussian STF duration 搜索、`assess.jl` 单轮收敛与等权聚合、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：配置化权重、网格细化（多迭代闭环）。
+已完成：`input.jl` 数据接入与 Layer 0 预处理、目标函数 DSL、XCorr/lag/PSR/归一化极性、trials 全参数索引化、Gaussian STF duration 搜索、`assess.jl` 单轮收敛与等权聚合、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：配置化权重；多迭代策略待重新设计。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5

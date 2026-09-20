@@ -2,7 +2,7 @@
 
 ## Overview
 
-Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通。待开发：配置化权重/网格细化（多迭代闭环）。
+Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通。待开发：配置化权重；多迭代策略待重新设计。
 
 ## Project Layout
 
@@ -11,7 +11,7 @@ scripts/        Flat stage scripts (input/preprocess/assess/output/report — �
 shared/         Julia packages by function (not stage)
   io/           (IO)       HDF5 I/O abstractions
   mt/           (MT)       SDR ↔ MT conversion
-  grid/         (Grid)     Trial generation + grid refinement
+  grid/         (Grid)     Trial generation
   signal/       (Signal)   Waveform preprocessing (filtering, trimming)
   config/       (Config)   Pipeline configuration interface
   misfit/       (Misfit)   目标函数 DSL、数学原语与编译目标
@@ -28,11 +28,11 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 ```
 
 | Stage | Role | Status |
-|---------------------------|---------------------------------------------------------------------------|-------------------------------|
+|---------------------------|---------------------------------------------------------------------------|----------------------------|
 | `input.jl` | 数据接入 → `database.h5`；初始 strategy → `status_0.h5` | 已完成 |
 | `preprocess.jl` | 从 strategy 生成 trials（全参数 paraspace 索引化）→ `status_{N}.h5:/trials` | 已完成 |
 | forward (C++ OpenMP/CUDA) | kernel 重计算，产出**中间产物** → `status_{N}.h5:/intermediates/` | 已实现 |
-| `assess.jl` | extractor + composer → `/misfits/`；归一化聚合；收敛决策 | 已完成（配置化权重/网格细化待做） |
+| `assess.jl` | extractor + composer → `/misfits/`；归一化聚合；收敛决策 | 已完成（配置化权重待做） |
 | `output.jl` | 编译最终结果 → `output.h5` | 已完成（多轮结果汇总待完善） |
 | `report.jl` | 读取 `result.toml` → 人工可读 `report.md` | 已完成 |
 | 编排层 (`driver.sh`) | 状态检测、阶段调用、循环控制 | 已实现（单迭代闭环） |

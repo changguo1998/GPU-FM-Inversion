@@ -22,7 +22,7 @@ bash driver.sh --data-dir <dir>
 - `preprocess.jl` 在最新 status 中生成 trials。
 - forward 写 `/intermediates`，`assess.jl` 写 `/misfits` 和 `.decision.txt`。
 - `.decision.txt` 为空表示收敛；非空表示继续下一轮。
-- 当前 assess 第一轮即收敛；driver 的多轮编排已就绪，等待网格细化落地。
+- 当前 assess 第一轮即收敛；多迭代策略待重新设计。
 
 ## Backend selection
 

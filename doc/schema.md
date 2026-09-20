@@ -38,8 +38,6 @@ Values correspond directly to Julia array indexing. Zero is not a valid index.
 | `depth_idx` | `/trials` | GF depth index per trial (1..N_depths) |
 | `freq_idx` | `/trials` | Frequency band index per trial (1..N_bands) |
 | `duration_idx` | `/trials` | STF duration index per trial (1..N_durations) |
-| `depth_idx` | `Grid.TrialResult` | Best depth index (1..N_depths) |
-| `freq_idx` | `Grid.TrialResult` | Best frequency index (1..N_bands) |
 
 This applies to all HDF5 files (`database.h5`, `status_N.h5`, `output.h5`).
 
@@ -252,8 +250,7 @@ Plus the iteration counter.
 
 The full-space 5° grid (initial iteration) is the single source of truth
 `IO.DEFAULT_GRID` / `Grid.default_grid()`. Current `assess.jl` converges after
-the first iteration and does not yet write `status_{N+1}.h5`; refined-grid
-helpers are reserved for the pending multi-iteration integration.
+the first iteration and does not write `status_{N+1}.h5`.
 
 ### `/trials`
 
@@ -313,7 +310,7 @@ ______________________________________________________________________
 ### `/solution`
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|------------------------------------------------|
+|-----------------|---------|--------|--------------------------------------------------------------------|
 | `strike` | Float64 | scalar | Best-fit strike (deg) |
 | `dip` | Float64 | scalar | Best-fit dip (deg) |
 | `rake` | Float64 | scalar | Best-fit rake (deg) |

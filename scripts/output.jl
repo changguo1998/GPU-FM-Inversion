@@ -9,7 +9,7 @@
 # 简化说明 (TODO):
 #   - assess 已将各目标按 trial min-max 映射到 [0,1] 并等权平均;
 #   - /uncertainty.freq_test_misfit_curve 填 NaN (未实现);
-#   - /summary.convergence_reason 固定 "single iteration (refinement pending)"。
+#   - /summary.convergence_reason 固定 "single iteration"。
 #
 # Usage:
 #   DATA_DIR=<dir> julia scripts/output.jl
@@ -209,7 +209,7 @@ per_station_summary = Dict{String, Any}(
 summary = Dict{String, Any}(
     "total_iterations" => Int32(iter_n + 1),
     "total_trials" => Int32(n_trials),
-    "convergence_reason" => "single iteration (refinement pending)",
+    "convergence_reason" => "single iteration",
 )
 
 # === 8. 写 output.h5 ===

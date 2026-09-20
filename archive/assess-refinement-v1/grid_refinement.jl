@@ -1,4 +1,4 @@
-# Grid Refinement
+# Archived Grid Refinement
 
 """
     TrialResult — best-trial info to build the next iteration's search grid.
