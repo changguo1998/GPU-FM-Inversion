@@ -433,12 +433,15 @@ end
 for m_name in misfit_modules
     sym = Symbol(m_name)
     Config.is_composed(sym) || continue
-    db_config[m_name] = Dict{String, Any}(
+    cfg_entry = Dict{String, Any}(
         "operator" => string(nameof(Config.operator_module(sym))),
         "output" => string(Config.output_field(sym)),
         "is_composed" => Int8(1),
         "bases" => String.(Config.bases_of(sym)),
     )
+    primitives = Config.primitive_requirements(sym)
+    isempty(primitives) || (cfg_entry["primitives"] = String.(primitives))
+    db_config[m_name] = cfg_entry
 end
 
 # Dict -> IO.ModuleData 转换

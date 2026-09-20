@@ -36,6 +36,7 @@ struct ModuleConfig {
     std::string phase;   // "P" / "S"
     std::string channel; // "" or "H"/"V"
     bool is_composed;
+    std::vector<std::string> primitives;
 };
 
 struct XCorrConfigContract {
@@ -300,6 +301,8 @@ int main(int argc, char *argv[]) {
             if (!mc.is_composed) {
                 mc.phase = db_reader.read_string_scalar((base + "phase").c_str());
                 mc.channel = db_reader.read_string_scalar((base + "channel").c_str());
+            } else if (db_reader.group_exists((base + "primitives").c_str())) {
+                mc.primitives = db_reader.read_string_1d((base + "primitives").c_str());
             }
             modules.push_back(mc);
         }
@@ -309,6 +312,11 @@ int main(int argc, char *argv[]) {
         for (const auto &module : modules) {
             need_psr = need_psr || (module.is_composed && module.op == "Psr");
             need_polarity = need_polarity || (module.is_composed && module.op == "Polarity");
+            for (const auto &primitive : module.primitives) {
+                need_psr = need_psr || primitive == "energy" || primitive == "rms";
+                need_polarity =
+                    need_polarity || primitive == "amp_scale" || primitive == "sign_scale";
+            }
         }
 
         bool has_xcorr_config = false;
@@ -353,18 +361,29 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Read P/S station indices (data partitioned by XcorrP/XcorrS groups)
+        // Read P/S station indices from the first base XCorr module per phase.
+        std::string p_data_module, s_data_module;
+        for (const auto &module : modules) {
+            if (module.is_composed || module.op != "Xcorr")
+                continue;
+            if (module.phase == "P" && p_data_module.empty())
+                p_data_module = module.name;
+            if (module.phase == "S" && s_data_module.empty())
+                s_data_module = module.name;
+        }
         int n_p = 0, n_s = 0;
         std::vector<int> st_idx_vec;
-        if (db_reader.group_exists("/XcorrP/station_idx")) {
-            auto p_si = db_reader.read_int_1d("/XcorrP/station_idx");
+        const std::string p_station_path = "/" + p_data_module + "/station_idx";
+        const std::string s_station_path = "/" + s_data_module + "/station_idx";
+        if (!p_data_module.empty() && db_reader.group_exists(p_station_path.c_str())) {
+            auto p_si = db_reader.read_int_1d(p_station_path.c_str());
             for (auto &v : p_si)
                 --v; // 1-based in HDF5 -> 0-based vector index
             n_p = static_cast<int>(p_si.size());
             st_idx_vec.insert(st_idx_vec.end(), p_si.begin(), p_si.end());
         }
-        if (db_reader.group_exists("/XcorrS/station_idx")) {
-            auto s_si = db_reader.read_int_1d("/XcorrS/station_idx");
+        if (!s_data_module.empty() && db_reader.group_exists(s_station_path.c_str())) {
+            auto s_si = db_reader.read_int_1d(s_station_path.c_str());
             for (auto &v : s_si)
                 --v; // 1-based in HDF5 -> 0-based vector index
             n_s = static_cast<int>(s_si.size());
@@ -429,7 +448,7 @@ int main(int argc, char *argv[]) {
         db_reader.close();
 
         // 4. Initialize DataCache, load preprocessed data
-        DataCache cache(maxlag, need_polarity);
+        DataCache cache(maxlag, need_polarity, p_data_module, s_data_module);
         cache.load_from_database(database_path, trials);
 
         // Collect unique (freq_idx, depth_idx, duration_idx) combos from trials

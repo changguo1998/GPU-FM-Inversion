@@ -20,6 +20,12 @@ include("test_util.jl")
     mktempdir() do dir
         make_synthetic(dir; nsta = 3)
         config = write_test_config(dir)
+        open(config, "a") do io
+            println(
+                io,
+                "Config.@objective CombinedP = abs(1 - maxCC(p_observed, p_synthetic; maxlag = 3)) + 0.01 * abs(lagCC(p_observed, p_synthetic; maxlag = 3))",
+            )
+        end
 
         r = run_stage_script(joinpath("scripts", "input.jl"), [config])
         @test r.ok
@@ -92,6 +98,10 @@ include("test_util.jl")
                     @test size(m, 2) == N_trials
                     @test all(m .>= 0.0)
                 end
+                combined = read(f["/misfits/CombinedP"])
+                cc = permutedims(read(f["/intermediates/XcorrP/cc_max"]))
+                lag = permutedims(read(f["/intermediates/XcorrP/best_lag"])) .* 0.01
+                @test combined ≈ abs.(1.0 .- cc) .+ 0.01 .* abs.(lag) atol = 1e-12
                 @test haskey(f, "/intermediates/XcorrP/syn_energy")
                 @test haskey(f, "/intermediates/XcorrS/syn_energy")
                 @test haskey(f, "/intermediates/XcorrP/amp_scale")
@@ -99,7 +109,7 @@ include("test_util.jl")
             end
             h5open(db, "r") do f
                 @test string.(read(f["/config/misfit_modules"])) ==
-                      ["XcorrP", "XcorrS", "LagP", "LagS", "Psr", "PolarityP"]
+                      ["XcorrP", "XcorrS", "LagP", "LagS", "Psr", "PolarityP", "CombinedP"]
             end
         end
 

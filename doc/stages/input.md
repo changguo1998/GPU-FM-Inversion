@@ -9,7 +9,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ```
 1. 引导配置
    └─ include(config.jl) → Config.@objective 注册目标函数
-   └─ Config.compile_objectives!() → XCorr/Lag 基础实例 + PSR/极性组合目标
+   └─ Config.compile_objectives!() → XCorr/Lag 基础实例 + 通用 Expression 目标
    └─ Config.misfit_modules() (auto), freq_bands(), depths(), durations()
    └─ Config.phase_fields()/polarity_fields() 定义震相→字段映射
    └─ 插件可声明 phase_type="P"/"S", 通过 Config.phase_type() 查询
@@ -38,7 +38,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
    │    再与 obs 一起执行 Signal.preprocess_waveform!（duration 为 σ，单位秒）
    ├─ 算子 process(): XcorrP/XcorrS 分别输出 obs/obs_norm2 + per-lag
    │    synamp_lag[depth][band][duration] + dot_obs_gf_lag[band][duration]
-   └─ 各深度独立预处理 GF；PSR/极性复用 XCorr 窗口，不产生独立预处理数据
+   └─ 各深度独立预处理 GF；Expression 复用 XCorr 窗口，不产生独立预处理数据
 
 
 7. 组装字典

@@ -77,11 +77,11 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 Misfit = **Operator × Phase × Output**，完整设计见 `doc/misfit-decomposition.md`。
 
 - **Level 1（Base）**：XCorr 波形窗产出 `cc_max`、signed `best_lag`，并按需产出 `syn_energy`、`amp_scale`、`sign_scale`。
-- **Level 2（Composed）**：PSR/极性用基础 XCorr 中间量组合；StdDev 等通用 composer 消费基础 misfit。
+- **Level 2（Composed）**：`Expression` 根据持久化 DSL 从基础 XCorr 中间量求值；StdDev 等通用 composer 消费基础 misfit。
 
 **C++/Julia 边界**：C++ 只重计算 → `/intermediates/`；Julia 做语义解释 → `/misfits/`。
 
-`shared/misfit/` 为正式 Julia package，每个算子是 `module`（输出字段常量 + 模板桩 + 预处理）；`using Misfit` 后 `Misfit.Xcorr.CC_MAX` 形式指定输出，注册时校验 `output ∈ operator.outputs()`。
+`shared/misfit/` 提供表达式节点、六个数学原语和管道求值器。根 `maxCC`/`lagCC` 目标形成 XCorr 基础计算；其他表达式编译为 `Expression`，记录依赖的基础波形与原语。
 
 Config DSL（当前 XCorr P+S）：
 
@@ -91,7 +91,7 @@ p_syn = synthetic(P; band = (0.5, 2.0), window = (-2, 8), filter_order = 4)
 Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
 ```
 
-`input.jl` 将该语法编译到现有 XCorr 模块 IR；forward CPU/CUDA 公式不变。
+`input.jl` 将表达式编译为基础 XCorr 计算和通用 `Expression` 依赖；forward 按原语需求产出中间量，assess 解释完整表达式。
 
 多实例/多输出扩展见 `doc/misfit-decomposition.md`。
 

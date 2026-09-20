@@ -96,6 +96,34 @@ end
     @test_throws ArgumentError Misfit.decode_expression(Dict("kind" => "unknown"))
 end
 
+@testset "Pipeline expression evaluation" begin
+    p_observed = Misfit.observed(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    p_synthetic = Misfit.synthetic(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    observed_signed = Misfit.ampScale(p_observed) * Misfit.signScale(p_observed)
+    synthetic_signed = Misfit.ampScale(p_synthetic) * Misfit.signScale(p_synthetic)
+    expr = abs(
+        observed_signed / Misfit.energy(observed_signed)^0.5 -
+        synthetic_signed / Misfit.energy(synthetic_signed)^0.5,
+    )
+
+    observed_amp = repeat([2.0, 1.0], 1, 3)
+    observed_sign = repeat([1.0, -1.0], 1, 3)
+    synthetic_amp = [2.0 1.0 2.0; 1.0 2.0 1.0]
+    synthetic_sign = [1.0 1.0 -1.0; -1.0 -1.0 1.0]
+    resolver = function (call)
+        node = only(call.args)
+        if call.op isa Misfit.AmpScaleOp
+            return node.role == :observed ? observed_amp : synthetic_amp
+        end
+        return node.role == :observed ? observed_sign : synthetic_sign
+    end
+
+    result = Misfit.evaluate_pipeline(expr, resolver)
+    @test size(result) == (2, 3)
+    @test result[:, 1] ≈ zeros(2)
+    @test all(isfinite, result)
+end
+
 @testset "Waveform source nodes" begin
     observed = Misfit.observed(
         Misfit.P;

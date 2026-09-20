@@ -1,7 +1,7 @@
 # Design: Misfit 三层分解（Operator × Phase × Output）
 
-> **当前状态**: XcorrP/S、LagP/S、Psr 和 PolarityP 已注册；
-> PSR/极性作为 XCorr 基础中间量上的组合目标运行。
+> **当前状态**：XCorr/lag 作为基础计算；PSR、极性及其他合法 DSL 组合
+> 编译为通用 `Expression`，在 XCorr 基础中间量上运行。
 
 ## 1. 动机
 
@@ -24,7 +24,7 @@ kernel 只输出单一 misfit 值，`best_lag`（时间偏移）被丢弃；组�
 Misfit = Operator × Phase × Output
 
   Level 1（Base）:    Operator（C++ kernel）× Phase（P/S）× Output → extractor 变换为 misfit
-  Level 2（Composed）: Aggregate Operator（StdDev/...）× Base misfit 集合 × Output（纯 Julia）
+  Level 2（Composed）: Expression 或 Aggregate Operator × Base 集合 × Output（纯 Julia）
 ```
 
 同一 (Operator, Phase) 派生多个 Base misfit，共享一次 kernel 运行，各取不同字段。
@@ -49,6 +49,7 @@ C++ forward：按 (operator, phase, channel) 去重跑 kernel → /intermediates
    ▼
 Julia assess：
    Output Extractor:  cc_max → 1.0-cc_max；best_lag → best_lag*dt
+   Expression:        解释持久化 DSL 表达式 → /misfits/
    Composer:          std(shift_Z, shift_N, shift_E) per station → /misfits/
 ```
 
@@ -70,11 +71,11 @@ kernel 同时记录 signed CC 最大值的 `best_k`，输出 `cc_max_out` 与
 
 ## 6. /config 元数据（database.h5）
 
-`/config/{ModuleName}/`：`operator`（"Xcorr"/"Polarity"/"StdDev"）、`phase`（P/S，
-Level 1）、`output`（"cc_max"/"best_lag"/"relative_offset"...）、`channel`（Z/N/E/""，
-Level 1 可选）、`bases`（[k]，Level 2）、`is_composed`（0/1）。
+`/config/{ModuleName}/`：`operator`（`"Xcorr"`/`"Expression"`/`"StdDev"`）、
+`phase`（P/S，Level 1）、`output`、`channel`（Level 1 可选）、`bases`（Level 2）、
+`primitives`（Expression 所需数学原语）、`is_composed`（0/1）。
 
-## 7. Extractor 与 Composer 注册表
+## 7. Legacy Extractor 与 Composer 注册表
 
 ```julia
 # shared/aggregate/src/extractors.jl（按 (operator, output) 查找变换）
@@ -103,7 +104,8 @@ end
 1. 读 status_N.h5:/intermediates/  2. 读 database.h5:/config/{Module}/（operator/phase/output/bases/is_composed）
 3. 读 database.h5:/station, /{Module}/station_idx
 4. Level 1 实例: misfit = EXTRACTORS[(operator, output)](intermediate, ctx) → /misfits/{name}
-5. Level 2 实例（拓扑排序，bases 先算）: misfit = COMPOSERS[operator](...) → /misfits/{name}
+5. DSL Expression：对齐 bases 后，把中间量代入表达式树 → /misfits/{name}
+6. Legacy Level 2（拓扑排序）: misfit = COMPOSERS[operator](...) → /misfits/{name}
 ```
 
 ## 9. use_misfit! 后端接口（shared/config）

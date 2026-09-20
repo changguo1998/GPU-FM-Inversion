@@ -15,8 +15,10 @@ Active objectives: Xcorr P/S, signed Lag P/S, PSR and normalized polarity. PSR a
 | `src/Misfit.jl` | Misfit | Package entry, wraps Xcorr/Polarity/Psr as sub-modules |
 | `src/Expressions.jl` | Misfit | 目标函数表达式节点与 Julia 基础运算构图 |
 | `src/Operators.jl` | Misfit | 六个目标函数算子的 CPU 参考实现 |
+| `src/PipelineEvaluator.jl` | Misfit | 从 forward 原语矩阵通用解释表达式；基础运算逐元素，派生 `energy`/`rms` 按 trial 跨 entry 归约 |
+| `src/Expression.jl` | Expression | 通用组合目标的编译标记 |
 | `src/Xcorr.jl` | XCorr | Cross-correlation misfit - bandpass + trim + outputs() |
-| `src/Psr.jl` | Psr | PSR composed-objective output declaration |
+| `src/Psr.jl` | Psr | Legacy PSR plugin compatibility code |
 
 ## 目标函数算子
 
@@ -33,8 +35,7 @@ Active objectives: Xcorr P/S, signed Lag P/S, PSR and normalized polarity. PSR a
 `encode_expression` / `decode_expression` 在表达式节点与递归字典之间转换，供
 HDF5 `/config/objectives` 持久化。
 
-编译器识别 XCorr、signed lag、PSR 平方残差和归一化极性表达式。数值版
-`maxCC`/`lagCC` 的 lag 单位为采样点；波形 DSL 的 `maxlag` 单位为主频周期数。
+编译器将根 `maxCC`/`lagCC` 目标注册为 XCorr 基础计算，其余合法表达式编译为通用 `Expression`。数值版 `maxCC`/`lagCC` 的 lag 单位为采样点；波形 DSL 的 `maxlag` 单位为主频周期数，管道内 `lagCC` 求值为秒。
 
 ## `process()` return format
 

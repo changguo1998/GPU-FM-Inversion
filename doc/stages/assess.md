@@ -41,9 +41,12 @@ into it (converged). Exit code 0 on success.
    Intermediate rows are transposed to `[entries × trials]` (the C++ writes
    C-order `[N_phases × N_trials]`, which HDF5.jl reads reversed).
 
-1. **Level 2 — compose**: composed modules (`is_composed == 1`) resolve
-   topologically over `bases`. PSR and polarity use their mathematical
-   primitive evaluators; generic aggregates use `Aggregate.COMPOSERS[op]`.
+1. **DSL objectives**：从 `/config/objectives` 恢复表达式树；根据 `bases`
+   对齐 channel，直接把 `cc_max`、signed lag、能量、振幅和符号中间量代入表达式。
+   基础运算逐元素执行；派生 `energy`/`rms` 按 trial 跨 entry 归约。
+
+1. **Legacy compose**：未使用 DSL 注册的 composed modules 仍按 `bases`
+   拓扑执行 `Aggregate.COMPOSERS`，保留兼容接口。
 
 1. **Write `/misfits/`**: one dataset per module, shape `[N_entries × N_trials]`,
    replacing any previous value (idempotent).

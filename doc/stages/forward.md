@@ -105,8 +105,8 @@ Storage is C-order `[N_phases × N_trials]`; `HDF5.jl` reads it as
 
 - `H5Lexists` probes of optional groups (`/XcorrP/...`) are silenced with
   `H5E_BEGIN_TRY`; forward produces no `HDF5-DIAG` noise on stderr.
-- PSR reuses the center-lag XCorr Gram matrix. Polarity evaluates the retained
-  XCorr P-window GF waveform; neither restores a separate preprocessing path.
+- `Expression.primitives` 含 `energy`/`rms` 时输出中心 lag 能量；含
+  `amp_scale`/`sign_scale` 时保留并计算 XCorr P 窗口波形。组合目标不恢复独立预处理路径。
 - Active XcorrP/XcorrS modules must use identical band, trim, max-lag, dt and
   window length. Mismatch is a preflight error.
 

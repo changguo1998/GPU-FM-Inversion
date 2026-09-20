@@ -7,9 +7,10 @@
 | 范围 | 实现 |
 |--------------|---------------------------------------------------------------------------------------------|
 | 数据与预处理 | `input.jl`、Layer 0 共享预处理、XCorr P/S reductions、Gaussian STF duration 候选 |
+| 目标函数 DSL | 六个数学原语、表达式序列化、基础 XCorr 编译、通用 Expression 编译与 assess 求值 |
 | 搜索空间 | strike/dip/rake/depth/frequency/duration 全参数索引化与 trials 笛卡尔积 |
 | Forward | OpenMP CPU/CUDA 共用 XCorr/能量/振幅/符号公式；CUDA 显存复用、分批、preflight 与 HDF5 事务提交 |
-| Assess | XCorr、signed lag、PSR、归一化极性、composer 框架与单轮收敛决策 |
+| Assess | DSL 通用表达式求值、XCorr、signed lag、PSR、归一化极性、composer 框架与单轮收敛决策 |
 | 输出 | `output.h5`、机器可读 `result.toml`、人工可读 `report.md` |
 | 编排 | `driver.sh` 贯通 input → preprocess → forward → assess → output → report |
 | 验证 | package/stage 测试、CPU/GPU parity、CUDA e2e、compute-sanitizer 与失败恢复 |

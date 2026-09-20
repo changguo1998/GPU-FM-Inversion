@@ -2,7 +2,7 @@
 
 ## Project identity
 
-震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR、归一化极性已完成**单迭代全管道贯通**；多迭代细化（assess 权重聚合/网格细化）待开发。
+震源机制反演管道。Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。目标函数 DSL 已支持现有数学原语的通用组合编译；XCorr、signed lag、PSR、归一化极性已完成**单迭代全管道贯通**；多迭代细化（assess 权重聚合/网格细化）待开发。
 
 ## Project layout
 
@@ -32,7 +32,7 @@ config_sample.jl   Template pipeline configuration
 - 当前所有开发决策以 `examples/synthetic` 为准：改动必须保持 XCorr 全流程在该事例上端到端可跑，best 结果可复现。
   - **当前验收基线（2026-09-18）**：候选 σ = `[0.1, 0.2, 0.3] s`，455,544 trials；P+S best = **(210,30,90) @ 10 km, σ=0.2 s, misfit ≈ 6.993e-5**。该 SDR 是真值 `(30,60,90)` 的辅助节面，moment tensor 完全相同；P/S 全部 best lag = 0。
   - **历史警告**：2026-08-10 前所有 e2e 的 best #29522 (65,90,85, 0.15518) 均由 XCorr kernel 的 **MT 布局 bug**（kernel 列主读 `mt[trial + c*N]`、main 行主写 `mt[trial*6+c]`）产生，已作废。该 bug 与 trial 规模耦合（n_sub=1 时行列主等价掩盖），在 strike 72 网格（n_sub=50616）暴露为"misfit 错乱"；修复后 71/72 网格结果完全一致。
-- 基线 config 注册 XcorrP/S、LagP/S、Psr、PolarityP。output 选最优解仍只用 XcorrP/S，跨目标加权属 assess 待开发工作。
+- 基线 config 注册 XcorrP/S、LagP/S、Psr、PolarityP。XCorr/Lag 是基础计算目标；其余表达式编译为 `Expression`，从共享中间量通用求值。output 选最优解仍只用 XcorrP/S，跨目标加权属 assess 待开发工作。
 
 ## 当前阶段
 

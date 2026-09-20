@@ -17,7 +17,7 @@ Used by: `scripts/assess.jl`.
 | `src/Aggregate.jl` | Package entry and exports |
 | `src/extractors.jl` | `EXTRACTORS` registry — keyed by `(operator, output)`, maps intermediates → Level 1 misfit matrices |
 | `src/composers.jl` | `COMPOSERS` registry — keyed by aggregate operator, aggregates base misfits → Level 2 misfit matrices |
-| `src/objective_primitives.jl` | PSR and normalized-polarity matrix evaluators |
+| `src/objective_primitives.jl` | Legacy PSR and normalized-polarity matrix evaluators；DSL 目标改由 `Misfit.evaluate_pipeline` 通用求值 |
 | `src/StdDev.jl` | StdDev operator — `RELATIVE_OFFSET`/`MEAN` outputs, per-station std/mean across base misfits |
 
 ## Extractors (`EXTRACTORS[(operator, output)]`)

@@ -104,7 +104,8 @@ struct CacheEntry {
 class DataCache {
   public:
     /// Construct with a maxlag value for XCorr precomputation.
-    explicit DataCache(int maxlag, bool retain_waveforms = false);
+    explicit DataCache(int maxlag, bool retain_waveforms = false, std::string p_module = "XcorrP",
+                       std::string s_module = "XcorrS");
 
     /// Load all (freq_idx, depth_idx, duration_idx) combos referenced by trials from
     /// database.h5.
@@ -141,6 +142,8 @@ class DataCache {
 
     int maxlag_;
     bool retain_waveforms_;
+    std::string p_module_;
+    std::string s_module_;
 
     // ── Internal helpers ──────────────────────────────────────────────────
 

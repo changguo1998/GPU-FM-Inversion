@@ -67,6 +67,98 @@ function intermediate_key(mcfg)
     return key
 end
 
+function evaluate_dsl_objective(name)
+    mcfg = cfg[name]
+    expr = Misfit.decode_expression(cfg["objectives"][name])
+    bases = Int8(mcfg["is_composed"]) == 1 ? String.(mcfg["bases"]) : [name]
+    isempty(bases) && error("assess: objective $name has no waveform bases")
+
+    base_ids = Dict(base => String.(read_database_dataset("/$base/channel_id")) for base in bases)
+    target_ids = copy(base_ids[first(bases)])
+    for base in Iterators.drop(bases, 1)
+        available = Set(base_ids[base])
+        filter!(id -> id in available, target_ids)
+    end
+    isempty(target_ids) && error("assess: objective $name bases have no common channel_id")
+    base_rows = Dict(
+        base => begin
+            row_of = Dict(id => row for (row, id) in enumerate(base_ids[base]))
+            [row_of[id] for id in target_ids]
+        end for base in bases
+    )
+    intermediate_cache =
+        Dict(base => read_intermediate(status_path, intermediate_key(cfg[base])) for base in bases)
+    observation_cache = Dict(base => read_database_dataset("/$base/obs/1/obs") for base in bases)
+
+    function waveform_base(node)
+        candidates = filter(bases) do base
+            bcfg = cfg[base]
+            bcfg["phase"] == string(node.phase) &&
+                (bcfg["channel"] == "" || bcfg["channel"] == something(node.channel, ""))
+        end
+        length(candidates) == 1 ||
+            error("assess: objective $name cannot uniquely resolve $(node.phase) waveform base")
+        return only(candidates)
+    end
+
+    function repeated_column(values)
+        return repeat(reshape(Float64.(values), :, 1), 1, N_trials)
+    end
+
+    function resolve_primitive(call)
+        op = call.op
+        node = op isa Union{Misfit.MaxCCOp, Misfit.LagCCOp} ? call.args[1] : only(call.args)
+        base = waveform_base(node)
+        rows = base_rows[base]
+        inter = intermediate_cache[base]
+        if op isa Misfit.MaxCCOp
+            return Float64.(inter["cc_max"][rows, :])
+        elseif op isa Misfit.LagCCOp
+            return Float64.(inter["best_lag"][rows, :]) .* stations[1].dt
+        end
+
+        if node.role == :observed
+            obs = observation_cache[base][rows, :]
+            if op isa Misfit.EnergyOp
+                return repeated_column(vec(sum(abs2, obs; dims = 2)))
+            elseif op isa Misfit.RMSOp
+                return repeated_column(sqrt.(vec(sum(abs2, obs; dims = 2)) ./ size(obs, 2)))
+            elseif op isa Misfit.AmpScaleOp
+                return repeated_column([Misfit.ampScale(view(obs, row, :)) for row in axes(obs, 1)])
+            elseif op isa Misfit.SignScaleOp
+                return repeated_column([
+                    Misfit.signScale(view(obs, row, :)) for row in axes(obs, 1)
+                ])
+            end
+        else
+            if op isa Misfit.EnergyOp
+                return Float64.(inter["syn_energy"][rows, :])
+            elseif op isa Misfit.RMSOp
+                n_samples = size(observation_cache[base], 2)
+                return sqrt.(Float64.(inter["syn_energy"][rows, :]) ./ n_samples)
+            elseif op isa Misfit.AmpScaleOp
+                return Float64.(inter["amp_scale"][rows, :])
+            elseif op isa Misfit.SignScaleOp
+                return Float64.(inter["sign_scale"][rows, :])
+            end
+        end
+        error("assess: objective $name has unsupported primitive $(typeof(op))")
+    end
+
+    value = Misfit.evaluate_pipeline(expr, resolve_primitive)
+    result = if value isa Number
+        fill(Float64(value), 1, N_trials)
+    elseif value isa AbstractVector && length(value) == N_trials
+        reshape(Float64.(value), 1, N_trials)
+    elseif value isa AbstractMatrix && size(value, 2) == N_trials
+        Float64.(value)
+    else
+        error("assess: objective $name produced invalid shape $(size(value))")
+    end
+    all(isfinite, result) || error("assess: objective $name produced non-finite values")
+    return result
+end
+
 function evaluate_psr(bases)
     length(bases) == 2 || error("assess: PSR requires P and S bases")
     p_base = only(filter(base -> cfg[base]["phase"] == "P", bases))
@@ -120,7 +212,9 @@ end
 # === 3. Level 1: extract ===
 misfits = Dict{String, Matrix{Float64}}()
 level2 = String[]
+dsl_names = haskey(cfg, "objectives") ? Set(String.(keys(cfg["objectives"]))) : Set{String}()
 for m_name in modules
+    m_name in dsl_names && continue
     mcfg = cfg[m_name]
     is_composed = Int8(mcfg["is_composed"]) == 1
     if is_composed
@@ -186,6 +280,13 @@ while !isempty(remaining)
         end
     end
     progressed || error("assess: circular or unresolved bases in $remaining")
+end
+
+
+# === 4b. DSL objectives: evaluate stored expression trees from primitive intermediates ===
+for m_name in modules
+    m_name in dsl_names || continue
+    misfits[m_name] = evaluate_dsl_objective(m_name)
 end
 
 # === 5. 写 /misfits/ ===

@@ -49,11 +49,29 @@ end
     @test Config.output_field(:T_LagP) == Misfit.Xcorr.BEST_LAG
     @test Config.is_composed(:T_Psr)
     @test Config.bases_of(:T_Psr) == [:T_Objective, :T_XcorrS]
-    @test Config.operator_module(:T_Psr) === Misfit.Psr
+    @test Config.operator_module(:T_Psr) === Misfit.Expression
+    @test :rms in Config.primitive_requirements(:T_Psr)
     @test Config.is_composed(:T_Polarity)
     @test Config.bases_of(:T_Polarity) == [:T_Objective]
-    @test Config.output_field(:T_Polarity) == Misfit.Polarity.NORMALIZED_L1
+    @test Config.output_field(:T_Polarity) == Misfit.Expression.VALUE
+    @test all(
+        primitive in Config.primitive_requirements(:T_Polarity) for
+        primitive in (:amp_scale, :sign_scale, :energy)
+    )
     @test isnothing(Config.compile_objectives!())
+
+    p_observed = Misfit.observed(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    p_synthetic = Misfit.synthetic(Misfit.P; band = (0.5, 2.0), window = (-2, 8))
+    combined =
+        abs(1 - Misfit.maxCC(p_observed, p_synthetic; maxlag = 3)) +
+        0.1 * abs(Misfit.lagCC(p_observed, p_synthetic; maxlag = 3))
+    Config.objective!(:T_Combined, combined)
+    Config.compile_objectives!()
+    @test Config.operator_module(:T_Combined) === Misfit.Expression
+    @test Config.bases_of(:T_Combined) == [:T_Objective]
+    @test all(
+        primitive in Config.primitive_requirements(:T_Combined) for primitive in (:max_cc, :lag_cc)
+    )
 
     unsupported = Misfit.energy(Misfit.input(:waveform))
     @test_throws ArgumentError Config._compile_objective!(:T_Unsupported, unsupported)

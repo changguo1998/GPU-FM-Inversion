@@ -10,8 +10,9 @@
 
 // ─ DataCache construction ─
 
-DataCache::DataCache(int maxlag, bool retain_waveforms)
-    : maxlag_(maxlag), retain_waveforms_(retain_waveforms) {
+DataCache::DataCache(int maxlag, bool retain_waveforms, std::string p_module, std::string s_module)
+    : maxlag_(maxlag), retain_waveforms_(retain_waveforms), p_module_(std::move(p_module)),
+      s_module_(std::move(s_module)) {
 }
 
 // ─ Helper: extract unique (freq, depth, duration) combos ─
@@ -98,10 +99,12 @@ void DataCache::load_from_database(const std::string &database_path,
     int n_stations = 0;
     try {
         // Read channel_id from each group (P then S) -- each group optional
-        if (Hdf5Handle::link_exists(file_id, "/XcorrP/channel_id"))
-            p_ids = read_phase_ids(file_id, "/XcorrP/channel_id");
-        if (Hdf5Handle::link_exists(file_id, "/XcorrS/channel_id"))
-            s_ids = read_phase_ids(file_id, "/XcorrS/channel_id");
+        const std::string p_ids_path = "/" + p_module_ + "/channel_id";
+        const std::string s_ids_path = "/" + s_module_ + "/channel_id";
+        if (!p_module_.empty() && Hdf5Handle::link_exists(file_id, p_ids_path.c_str()))
+            p_ids = read_phase_ids(file_id, p_ids_path.c_str());
+        if (!s_module_.empty() && Hdf5Handle::link_exists(file_id, s_ids_path.c_str()))
+            s_ids = read_phase_ids(file_id, s_ids_path.c_str());
         // Combine: P first, S after (matches xcorr array convention)
         phase_ids.reserve(p_ids.size() + s_ids.size());
         phase_ids.insert(phase_ids.end(), p_ids.begin(), p_ids.end());
@@ -194,10 +197,12 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
     // Combined from XcorrP (P phases first) then xcorrS (S phases)
     std::vector<int> station_idx;
     std::vector<int> p_si, s_si;
-    if (Hdf5Handle::link_exists(h5.file_id, "/XcorrP/station_idx"))
-        p_si = h5.read_int_1d("/XcorrP/station_idx");
-    if (Hdf5Handle::link_exists(h5.file_id, "/XcorrS/station_idx"))
-        s_si = h5.read_int_1d("/XcorrS/station_idx");
+    const std::string p_station_path = "/" + p_module_ + "/station_idx";
+    const std::string s_station_path = "/" + s_module_ + "/station_idx";
+    if (!p_module_.empty() && Hdf5Handle::link_exists(h5.file_id, p_station_path.c_str()))
+        p_si = h5.read_int_1d(p_station_path.c_str());
+    if (!s_module_.empty() && Hdf5Handle::link_exists(h5.file_id, s_station_path.c_str()))
+        s_si = h5.read_int_1d(s_station_path.c_str());
     station_idx.reserve(p_si.size() + s_si.size());
     station_idx.insert(station_idx.end(), p_si.begin(), p_si.end());
     station_idx.insert(station_idx.end(), s_si.begin(), s_si.end());
@@ -215,7 +220,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
     // Process P phases
     if (n_p > 0) {
-        const std::string obs_path = "/XcorrP/obs/" + freq_str + "/obs";
+        const std::string obs_path = "/" + p_module_ + "/obs/" + freq_str + "/obs";
         if (!h5.group_exists(obs_path.c_str()))
             throw std::runtime_error("DataCache: missing " + obs_path);
         // Read obs: [N_samples, N_phases_P]
@@ -226,7 +231,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
         // Read GF: [N_samples, 6, N_phases_P]
         std::string gf_path =
-            "/XcorrP/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
+            "/" + p_module_ + "/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
         if (!h5.group_exists(gf_path.c_str()))
             throw std::runtime_error("DataCache: missing " + gf_path);
         int n_gf, n_comp, n_ph_gf;
@@ -257,7 +262,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
 
     // Process S phases (same approach)
     if (n_s > 0) {
-        const std::string obs_path = "/XcorrS/obs/" + freq_str + "/obs";
+        const std::string obs_path = "/" + s_module_ + "/obs/" + freq_str + "/obs";
         if (!h5.group_exists(obs_path.c_str()))
             throw std::runtime_error("DataCache: missing " + obs_path);
         int n_obs, n_ph_s;
@@ -266,7 +271,7 @@ CacheEntry DataCache::load_combo(const std::string &database_path, int freq_idx,
             throw std::runtime_error("DataCache: invalid shape for " + obs_path);
 
         std::string gf_path =
-            "/XcorrS/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
+            "/" + s_module_ + "/gf/" + depth_str + "/" + freq_str + "/" + duration_str + "/gf";
         if (!h5.group_exists(gf_path.c_str()))
             throw std::runtime_error("DataCache: missing " + gf_path);
         int n_gf, n_comp, n_ph_gf;

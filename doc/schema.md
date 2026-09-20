@@ -77,20 +77,21 @@ Per-module settings in sub-groups, named after each module instance as listed
 in `misfit_modules`. Present only when the module is active:
 
 - **`/config/{ModuleName}/`**: XCorr and Lag base instances have
-  `max_lag_periods`, `filter_order`, `trim`, `band_low`, `band_high`. Psr and
-  PolarityP are composed objectives carrying `bases` instead of preprocessing parameters.
+  `max_lag_periods`, `filter_order`, `trim`, `band_low`, `band_high`. Expression
+  objectives carry `bases` and `primitives` instead of preprocessing parameters.
 
 Each module group also carries misfit-decomposition metadata (see
 `doc/misfit-decomposition.md`):
 
 | Dataset | Type | Shape | Description |
 |---------------|--------|--------|--------------------------------------------------------------|
-| `operator` | String | scalar | Operator name (`"Xcorr"`/`"Psr"`/`"Polarity"`/`"StdDev"`) |
+| `operator` | String | scalar | Pipeline operator name (`"Xcorr"`/`"Expression"`/legacy composer) |
 | `output` | String | scalar | Selected output field (`"cc_max"`/`"best_lag"`/...) |
 | `is_composed` | Int8 | scalar | 0=Level 1 base, 1=Level 2 composed |
 | `phase` | String | scalar | Phase type (`"P"`/`"S"`) — Level 1 only |
 | `channel` | String | scalar | Channel filter (`""`=none, `"Z"`/`"N"`/`"E"`) - Level 1 only |
 | `bases` | String | `[k]` | Base misfit names — Level 2 only |
+| `primitives` | String | `[k]` | DSL primitive requirements (`max_cc`/`lag_cc`/`energy`/`rms`/`amp_scale`/`sign_scale`) — `Expression` only |
 
 DSL 目标函数注册后写入 `/config/objectives/{ObjectiveName}/`。表达式以递归节点组存储：
 
@@ -105,8 +106,7 @@ DSL 目标函数注册后写入 `/config/objectives/{ObjectiveName}/`。表达�
 | `args/{1..N}` | Group | 按位置编号的子表达式 |
 | `kwargs/{name}` | scalar | 算子关键字参数，例如 `maxlag` |
 
-DSL 编译器降低 XCorr、signed lag、PSR 和归一化极性表达式；
-`misfit_modules` 和每模块配置是编译产物，供后续阶段直接使用。
+DSL 编译器将根 XCorr/lag 目标降低为基础计算，将其余合法组合降低为通用 `Expression`；`misfit_modules` 和每模块配置是编译产物，供后续阶段直接使用。
 
 | Dataset | Type | Shape | Description |
 |-------------|-------|-------------|------------------------------------------------------|
@@ -166,7 +166,7 @@ group names never carry float-formatted depth strings.
 
 Each active misfit module instance gets its own group, named after the module
 instance as listed in `misfit_modules`. Level 1 XCorr/Lag instances own data
-groups; composed Psr/PolarityP objectives only reference their bases.
+groups; composed `Expression` objectives only reference their bases and primitive requirements.
 
 The internal structure follows a general schema:
 
@@ -217,7 +217,7 @@ XCorr reductions also carry the duration level:
 The Layer 0 `/preprocess` and `/gf_preprocessed` debug persistence is not part
 of the current schema.
 
-> Active PSR and polarity are composed objectives over XCorr data. Legacy
+> Active PSR and polarity are Expression objectives over XCorr data. Legacy
 > standalone `obs_psr`/`amp_P`/`amp_S` and Polarity preprocessing fields are not used.
 
 ______________________________________________________________________
