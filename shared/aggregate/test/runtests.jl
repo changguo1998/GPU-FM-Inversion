@@ -56,3 +56,17 @@ end
     @test result[:, 1] ≈ zeros(2)
     @test result[:, 2] ≈ [1.2, 0.0]
 end
+
+@testset "Objective aggregation" begin
+    values = [1.0 3.0 5.0; 3.0 5.0 7.0]
+    @test Aggregate.objective_trial_means(values) == [2.0, 4.0, 6.0]
+    @test Aggregate.normalize_objective([2.0, 4.0, 6.0]) == [0.0, 0.5, 1.0]
+
+    normalized, total = Aggregate.aggregate_objectives(
+        Dict(:A => values, :B => [2.0 -1.0 4.0; 2.0 -1.0 4.0]);
+        absolute_modules = Set([:B]),
+    )
+    @test normalized[:A] == [0.0, 0.5, 1.0]
+    @test normalized[:B] == [1 / 3, 0.0, 1.0]
+    @test total == [1 / 6, 0.25, 1.0]
+end

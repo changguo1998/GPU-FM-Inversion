@@ -7,8 +7,7 @@
 # /per_station_summary, /summary)。
 #
 # 简化说明 (TODO):
-#   - best trial 由 XcorrP 主 misfit 决定 (无量纲, 各模块量纲不同,
-#     跨模块加权聚合属 assess 未完成部分);
+#   - assess 已将各目标按 trial min-max 映射到 [0,1] 并等权平均;
 #   - /uncertainty.freq_test_misfit_curve 填 NaN (未实现);
 #   - /summary.convergence_reason 固定 "single iteration (refinement pending)"。
 #
@@ -21,7 +20,7 @@ using TOML
 
 using StageLog
 
-using IO, MT
+using IO, MT, Aggregate
 
 data_dir = ENV["DATA_DIR"]
 StageLog.setup_logger!("output", joinpath(data_dir, "output.log"))
@@ -48,26 +47,17 @@ paraspace_depth = Float64.(_ps["depth"])
 paraspace_duration = Float64.(_ps["duration"])
 
 n_trials = length(trials.strike_idx)
-xcorr_mods = [Symbol(m) for m in (:XcorrP, :XcorrS) if haskey(misfits, Symbol(m))]
-# 无 Xcorr → 退化为任意模块
-if isempty(xcorr_mods)
-    xcorr_mods = collect(keys(misfits))
-end
 
-# === 2. best trial: Xcorr 主 misfit 每 trial 取 entries 均值后 argmin ===
-"""对 misfit 矩阵 [entries × trials] 每列取均值 (NaN-safe)。"""
-function column_means(m::Matrix{Float64})::Vector{Float64}
-    out = fill(NaN, size(m, 2))
-    for t in axes(m, 2)
-        vals = m[:, t]
-        out[t] = mean(filter(!isnan, vals))
+# === 2. best trial: use assess's normalized equal-weight aggregate ===
+total = h5open(status_path, "r") do f
+    haskey(f, "/aggregate/total") ? Float64.(read(f["/aggregate/total"])) : nothing
+end
+if total === nothing
+    total = zeros(n_trials)
+    for matrix in values(misfits)
+        values_per_trial = [mean(filter(isfinite, matrix[:, t])) for t in axes(matrix, 2)]
+        total .+= Aggregate.normalize_objective(values_per_trial) ./ length(misfits)
     end
-    return out
-end
-
-total = zeros(n_trials)
-for m in xcorr_mods
-    total .+= column_means(misfits[m]) ./ length(xcorr_mods)
 end
 best_idx = argmin(total)
 best = (

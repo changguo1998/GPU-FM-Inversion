@@ -1,8 +1,8 @@
 # output_test.jl — Stage 5 (output) tests.
 #
 # Chains input → forward → assess on a small trial set, then runs output.jl
-# and checks `output.h5` against independent recomputation: `/solution` best
-# trial == argmin mean misfit, `/per_phase` cross_correlation == cc_max at
+# and checks `output.h5` against assess aggregation: `/solution` best
+# trial == argmin normalized aggregate, `/per_phase` cross_correlation == cc_max at
 # best, `/uncertainty` fields, `/summary` counts.
 #
 # Usage:
@@ -86,11 +86,9 @@ include("test_util.jl")
             global _CCMAX_P = read(f["/intermediates/XcorrP/cc_max"])  # [trials × entries]
             global _CCMAX_S = read(f["/intermediates/XcorrS/cc_max"])
             global _CCMAX = hcat(_CCMAX_P, _CCMAX_S)
+            global _TOTAL = read(f["/aggregate/total"])
         end
-        mean_p = vec(sum(_MISFIT_P, dims = 1) ./ size(_MISFIT_P, 1))
-        mean_s = vec(sum(_MISFIT_S, dims = 1) ./ size(_MISFIT_S, 1))
-        mean_m = (mean_p .+ mean_s) ./ 2
-        best_idx = argmin(mean_m)
+        best_idx = argmin(_TOTAL)
 
         @testset "output.h5 schema" begin
             h5open(joinpath(dir, "output.h5"), "r") do f
@@ -102,7 +100,7 @@ include("test_util.jl")
                     @test read(s["depth"]) ≈ _DEPTH[_TDEP[best_idx]]
                     @test read(s["duration"]) ≈ _DURATION[_TDURATION[best_idx]]
                     @test read(s["duration_idx"]) == _TDURATION[best_idx]
-                    @test read(s["misfit"]) ≈ mean_m[best_idx] atol = 1e-12
+                    @test read(s["misfit"]) ≈ _TOTAL[best_idx] atol = 1e-12
                     mt = read(s["moment_tensor"])
                     @test length(mt) == 6
                     @test all(isfinite, mt)

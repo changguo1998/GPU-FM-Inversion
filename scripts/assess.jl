@@ -298,13 +298,35 @@ h5open(status_path, "r+") do f
     end
 end
 
+# === 6. Cross-objective normalization and equal aggregation ===
+absolute_modules = Set{String}()
+for m_name in keys(misfits)
+    mcfg = cfg[m_name]
+    if Int8(mcfg["is_composed"]) == 0 &&
+       String(mcfg["operator"]) == "Xcorr" &&
+       String(mcfg["output"]) == "best_lag"
+        push!(absolute_modules, m_name)
+    end
+end
+normalized, total_misfit =
+    Aggregate.aggregate_objectives(misfits; absolute_modules = absolute_modules)
+h5open(status_path, "r+") do f
+    haskey(f, "aggregate") && delete_object(f["aggregate"])
+    aggregate_group = create_group(f, "aggregate")
+    normalized_group = create_group(aggregate_group, "normalized")
+    for (m_name, values) in normalized
+        write(normalized_group, m_name, values)
+    end
+    write(aggregate_group, "total", total_misfit)
+end
+
 @info "assess: wrote $(length(misfits)) misfit matrices to $status_path"
 for (m_name, m) in sort(collect(misfits), by = first)
     @info "  $m_name : $(size(m))"
 end
 
 # 收敛决策: 写 $DATA_DIR/.decision.txt (driver 读取)。
-# 空文件 = 收敛 → driver 停止循环。权重聚合/网格细化落地后,
+# 空文件 = 收敛 → driver 停止循环。网格细化落地后,
 # 在此用实际收敛判据决定写空或写 "continue"。
 if haskey(ENV, "DATA_DIR")
     decision_path = joinpath(ENV["DATA_DIR"], ".decision.txt")

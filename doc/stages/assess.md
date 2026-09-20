@@ -51,9 +51,14 @@ into it (converged). Exit code 0 on success.
 1. **Write `/misfits/`**: one dataset per module, shape `[N_entries × N_trials]`,
    replacing any previous value (idempotent).
 
+1. **Cross-objective aggregation**: average entries per trial, min-max normalize
+   each objective to `[0, 1]`, then average all objectives equally. Signed Lag
+   base modules use absolute lag only for this aggregate; raw `/misfits/Lag*`
+   remains signed.
+
 1. **Convergence decision**: current implementation converges on the first
-   iteration (writes an empty `.decision.txt`). Weighted aggregation and grid
-   refinement (multi-iteration loop) are the next planned feature — see
+   iteration (writes an empty `.decision.txt`). Configurable weights and grid
+   refinement (multi-iteration loop) are the next planned features — see
    `doc/roadmap.md`.
 
 ## Outputs
@@ -67,6 +72,11 @@ into it (converged). Exit code 0 on success.
 ### `{DATA_DIR}/.decision.txt`
 
 Empty file = converged (driver exits the loop). Non-empty = continue.
+
+### `status_N.h5:/aggregate`
+
+`normalized/{ModuleName}` contains one normalized value per trial; `total`
+contains the equal-weight mean across active objectives.
 
 ## Notes
 

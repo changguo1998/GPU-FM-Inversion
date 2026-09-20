@@ -84,7 +84,7 @@ Each module group also carries misfit-decomposition metadata (see
 `doc/misfit-decomposition.md`):
 
 | Dataset | Type | Shape | Description |
-|---------------|--------|--------|--------------------------------------------------------------|
+|---------------|--------|--------|------------------------------------------------------------------------------------------------------------|
 | `operator` | String | scalar | Pipeline operator name (`"Xcorr"`/`"Expression"`/legacy composer) |
 | `output` | String | scalar | Selected output field (`"cc_max"`/`"best_lag"`/...) |
 | `is_composed` | Int8 | scalar | 0=Level 1 base, 1=Level 2 composed |
@@ -294,6 +294,12 @@ Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
 
 Raw per-module misfits (unweighted, unaggregated). One dataset per module instance.
 
+### `/aggregate`
+
+Assess first averages entries per trial, min-max maps each objective to `[0, 1]`,
+then averages all objectives with equal weight. `/aggregate/normalized/{ModuleName}`
+stores each normalized trial vector; `/aggregate/total` stores the final trial score.
+
 | Dataset | Type | Shape | Description |
 |----------------|---------|--------------------------|--------------------------|
 | `{ModuleName}` | Float64 | `[N_entries x N_trials]` | per-module misfit matrix |
@@ -315,7 +321,7 @@ ______________________________________________________________________
 | `duration` | Float64 | scalar | Best-fit Gaussian STF σ (s) |
 | `duration_idx` | Float64 | scalar | Best-fit index into `/paraspace/duration` |
 | `moment_tensor` | Float64 | `[6]` | [Mxx, Myy, Mzz, Mxy, Mxz, Myz] |
-| `misfit` | Float64 | scalar | Current equal-weight XCorr P/S combined misfit |
+| `misfit` | Float64 | scalar | Current equal-weight normalized aggregate across active objectives |
 
 ### `/uncertainty`
 

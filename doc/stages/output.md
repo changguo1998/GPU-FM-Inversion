@@ -19,11 +19,8 @@ Files located via `ENV["DATA_DIR"]` (exported by driver.sh): `database.h5`,
 
 ## Best-trial selection
 
-1. For each XCorr module (`XcorrP`/`XcorrS` present in `/misfits`), take the
-   per-trial column mean of the `[entries × trials]` misfit matrix
-   (NaN-safe).
-1. Average those per-module means (equal weight — weighted aggregation is
-   pending).
+1. Read `/aggregate/total`, produced by assess after entry averaging and
+   per-objective min-max normalization to `[0, 1]`.
 1. `best_idx = argmin(total)`. Physical values are resolved exclusively
    through `/paraspace` and the trial index vectors.
 
@@ -50,8 +47,7 @@ Waveforms, Green's functions, and other large intermediate arrays are omitted.
 
 ## Simplifications / TODO (see `doc/roadmap.md`)
 
-- Best trial is driven by the XCorr misfit only; per-module weights and the
-  cross-module aggregation belong to the pending assess weighting work.
+- All active objectives currently have equal weight after min-max normalization.
 - `freq_test_misfit_curve` is `NaN` (not implemented).
 - `convergence_reason` is fixed to `"single iteration (refinement pending)"`.
 - `per_station_summary.misfit_total` is zero-filled (pending).

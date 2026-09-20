@@ -106,6 +106,11 @@ include("test_util.jl")
                 @test haskey(f, "/intermediates/XcorrS/syn_energy")
                 @test haskey(f, "/intermediates/XcorrP/amp_scale")
                 @test haskey(f, "/intermediates/XcorrP/sign_scale")
+                @test haskey(f, "/aggregate/total")
+                aggregate = read(f["/aggregate/total"])
+                @test size(aggregate) == (N_trials,)
+                @test all(0.0 .<= aggregate .<= 1.0)
+                @test haskey(f, "/aggregate/normalized/XcorrP")
             end
             h5open(db, "r") do f
                 @test string.(read(f["/config/misfit_modules"])) ==
