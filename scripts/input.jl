@@ -14,7 +14,7 @@ using Dates
 
 using StageLog
 
-using IO, Signal, Config, Grid, Misfit
+using IO, Signal, Config, Search, Misfit
 
 # === 2. 命令行参数 & 日志 ===
 config_jl = ARGS[1]
@@ -371,12 +371,12 @@ event_dict = Dict{String, Any}(
     "origintime" => event.origintime,
 )
 
-g0 = Grid.default_grid()
+g0 = Search.default_grid()
 # strike: 全圆周闭合采样 0:5:355 (72 点; 355+5=360≡0 无空洞), dip/rake 为区间采样。
 strike_vals = collect(g0.strike0:g0.dstrike:(360.0 - g0.dstrike))
 @assert length(strike_vals) == Int(g0.nstrike) "paraspace strike 与 strategy.nstrike 不一致"
-dip_vals = Grid.expand_axis(g0.dip0, g0.ddip, g0.ndip)
-rake_vals = Grid.expand_axis(g0.rake0, g0.drake, g0.nrake)
+dip_vals = Search.expand_axis(g0.dip0, g0.ddip, g0.ndip)
+rake_vals = Search.expand_axis(g0.rake0, g0.drake, g0.nrake)
 
 paraspace = Dict{String, Any}(
     "strike" => strike_vals,

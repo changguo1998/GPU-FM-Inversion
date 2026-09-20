@@ -249,7 +249,7 @@ Plus the iteration counter.
 | `iteration` | Int32 | scalar | Iteration number |
 
 The full-space 5° grid (initial iteration) is the single source of truth
-`IO.DEFAULT_GRID` / `Grid.default_grid()`. Current `assess.jl` converges after
+`IO.DEFAULT_GRID` / `Search.default_grid()`. Current `assess.jl` converges after
 the first iteration and does not write `status_{N+1}.h5`.
 
 ### `/trials`

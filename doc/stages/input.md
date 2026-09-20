@@ -56,7 +56,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
    └─ 每个模块的 channel_id + station_idx 由 ModuleData 携带, 自动写入
 
 9. 写入 status_0.h5
-   └─ IO.Strategy(Grid.default_grid() 全空间 5° SDR 网格,
+   └─ IO.Strategy(Search.default_grid() 全空间 5° SDR 网格,
                    depth_indices=[1..n_depths], freq_indices=[1..n_bands],
                    duration_indices=[1..n_durations], iteration=0)
    └─ IO.write_strategy(status0_path, strategy)
@@ -100,7 +100,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 1. **Preprocess raw data**: filter waveforms to frequency bands, trim XCorr windows and store them in `database.h5`
 1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
 1. **Write algorithm config**: load `config.jl`, write `db_config` (module list, module params) into `database.h5` — **no indices, no float parameter values**
-1. **Write expanded parameter space**: compute grid axis expansions (strike/dip/rake) via `Grid.expand_axis()`, build `frequency` from unique band edges, store all as `/paraspace` in `database.h5`
+1. **Write expanded parameter space**: compute grid axis expansions (strike/dip/rake) via `Search.expand_axis()`, build `frequency` from unique band edges, store all as `/paraspace` in `database.h5`
 1. **Write initial strategy**: build `IO.Strategy(depth_indices, freq_indices, iteration=0)` → `/strategy` in `status_0.h5`
 1. **Write phase metadata**: write `channel_id` + `station_idx` into each `/{ModuleName}` group in `database.h5` (carried by `ModuleData`)
 1. **Create file skeleton**: `status_0.h5` is created with `/strategy` populated.

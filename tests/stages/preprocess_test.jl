@@ -10,7 +10,7 @@
 using Test
 using HDF5
 
-using IO, Grid
+using IO, Search
 
 include("test_util.jl")
 
@@ -21,7 +21,7 @@ include("test_util.jl")
         status0 = joinpath(status_dir, "status_0.h5")
 
         # Full-space 5° grid (same as input.jl status_0), all depths/freqs.
-        g = Grid.default_grid()
+        g = Search.default_grid()
         strategy = IO.Strategy(
             g.strike0,
             g.dstrike,

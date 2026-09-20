@@ -8,7 +8,7 @@
 |--------------|---------------------------------------------------------------------------------------------|
 | 数据与预处理 | `input.jl`、Layer 0 共享预处理、XCorr P/S reductions、Gaussian STF duration 候选 |
 | 目标函数 DSL | 六个数学原语、表达式序列化、基础 XCorr 编译、通用 Expression 编译与 assess 求值 |
-| 搜索空间 | strike/dip/rake/depth/frequency/duration 全参数索引化与 trials 笛卡尔积 |
+| 搜索空间 | strike/dip/rake/depth/frequency/duration 全参数索引化、trials 笛卡尔积与预算约束初始采样规划 |
 | Forward | OpenMP CPU/CUDA 共用 XCorr/能量/振幅/符号公式；CUDA 显存复用、分批、preflight 与 HDF5 事务提交 |
 | Assess | DSL 通用表达式求值、XCorr、signed lag、PSR、归一化极性、composer 框架与单轮收敛决策 |
 | 输出 | `output.h5`、机器可读 `result.toml`、人工可读 `report.md` |
@@ -25,7 +25,7 @@
 ## 待开发
 
 1. **Assess 配置化权重**：当前仅支持等权归一化聚合。
-1. **多迭代处理**：旧策略已归档，整体方案待重新设计。
+1. **多迭代处理**：接入预算规划，设计基于 misfit 的区域保留、裁剪与下一轮调度。
 
 ## 长期文档
 

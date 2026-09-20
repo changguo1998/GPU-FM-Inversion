@@ -13,7 +13,7 @@ using HDF5
 using Statistics
 using TOML
 
-using IO, Grid
+using IO, Search
 
 include("test_util.jl")
 
@@ -47,7 +47,7 @@ include("test_util.jl")
             Int32[1, 2, 3],
             Int32(0),
         )
-        trials = Grid.generate_trials(strat)
+        trials = Search.generate_trials(strat)
         IO.write_trials(status0, trials)
         N_trials = length(trials.strike_idx)
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通。待开发：配置化权重；多迭代策略待重新设计。
+Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通。Search 已提供预算约束初始采样规划；待开发配置化权重、规划接入与多迭代区域裁剪。
 
 ## Project Layout
 
@@ -11,7 +11,7 @@ scripts/        Flat stage scripts (input/preprocess/assess/output/report — �
 shared/         Julia packages by function (not stage)
   io/           (IO)       HDF5 I/O abstractions
   mt/           (MT)       SDR ↔ MT conversion
-  grid/         (Grid)     Trial generation
+  search/       (Search)   Parameter-space definition + trial generation
   signal/       (Signal)   Waveform preprocessing (filtering, trimming)
   config/       (Config)   Pipeline configuration interface
   misfit/       (Misfit)   目标函数 DSL、数学原语与编译目标

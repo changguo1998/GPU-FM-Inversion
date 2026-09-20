@@ -67,7 +67,7 @@ No database.h5 read: physical axis values are not needed at this stage.
    `status_N.h5`. The file already exists from either `input.jl` (iteration 0)
    or the previous `assess.jl` (iteration N+1).
 1. **Read strategy**: load `/strategy` group via `IO.read_strategy()`.
-1. **Generate trials**: call `Grid.generate_trials(strategy)` — consumes the
+1. **Generate trials**: call `Search.generate_trials(strategy)` — consumes the
    full `IO.Strategy` (SDR grid dims + depth/freq/duration indices), produces per-axis
    1-based index vectors (no physical values).
 1. **Write trials**: replace `/trials` group via `IO.write_trials()`.
@@ -76,14 +76,14 @@ No database.h5 read: physical axis values are not needed at this stage.
 
 Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 
-- Shared modules via `using IO, Grid, StageLog`
+- Shared modules via `using IO, Search, StageLog`
 - Logger prefix: `"preprocess"`
 - Log file: `{DATA_DIR}/preprocess.log`
 
 ## Dependencies
 
 - `IO.jl` — read_strategy, write_trials, find_latest_status
-- `Grid.jl` — generate_trials
+- `Search.jl` — generate_trials
 - `StageLog.jl` — setup_logger!
 
 ## What It Does NOT Do
@@ -98,7 +98,7 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 
 ## Design Notes (from review)
 
-- `GridStrategy`/`Grid.TrialSet` duplicates were removed (2026-08-07): `Grid.generate_trials`
+- Legacy `GridStrategy`/`Grid.TrialSet` duplicates were removed (2026-08-07): `Search.generate_trials`
   consumes the full `IO.Strategy` and returns `IO.TrialSet` directly — no conversion step.
 - Trials are all-indices: `TrialSet` carries `strike_idx/dip_idx/rake_idx/depth_idx/freq_idx/duration_idx`; physical values stay in `/paraspace`.
 - Stage scripts take no CLI arguments; driver.sh exports `DATA_DIR` to locate data files.

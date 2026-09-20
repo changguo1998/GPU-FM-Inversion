@@ -158,12 +158,12 @@ include("test_util.jl")
                         @test String(read(x["phase"])) == phase
                         @test String(read(x["channel"])) == ""
                     end
-                    @test String(read(cf["Psr/operator"])) == "Psr"
-                    @test String(read(cf["Psr/output"])) == "psr_value"
+                    @test String(read(cf["Psr/operator"])) == "Expression"
+                    @test String(read(cf["Psr/output"])) == "value"
                     @test String.(read(cf["Psr/bases"])) == ["XcorrP", "XcorrS"]
                     @test read(cf["Psr/is_composed"]) == 1
-                    @test String(read(cf["PolarityP/operator"])) == "Polarity"
-                    @test String(read(cf["PolarityP/output"])) == "normalized_l1"
+                    @test String(read(cf["PolarityP/operator"])) == "Expression"
+                    @test String(read(cf["PolarityP/output"])) == "value"
                     @test String.(read(cf["PolarityP/bases"])) == ["XcorrP"]
                     @test read(cf["PolarityP/is_composed"]) == 1
                 end

@@ -17,7 +17,7 @@ using HDF5
 
 using StageLog
 
-using IO, Grid
+using IO, Search
 
 # === 1. 定位文件 ===
 data_dir = ENV["DATA_DIR"]
@@ -38,7 +38,7 @@ strategy = IO.read_strategy(status_path)
 # === 3. 生成试次 === (离散参数以整数索引表示; 物理值仅存于 /paraspace)
 @info "  grid: strike $(strategy.nstrike) × dip $(strategy.ndip) × rake $(strategy.nrake) @ $(strategy.dstrike)°, depth $(length(strategy.depth_indices)), freq $(length(strategy.freq_indices)), duration $(length(strategy.duration_indices))"
 t0 = time()
-trials = Grid.generate_trials(strategy)
+trials = Search.generate_trials(strategy)
 elapsed = time() - t0
 
 @info "  generated $(length(trials.strike_idx)) trials in $(round(elapsed, digits = 3)) s"

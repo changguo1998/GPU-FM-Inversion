@@ -1,4 +1,4 @@
-# Trial Generation
+# Search-space axis and trial generation
 
 """default_grid() -> NamedTuple (see IO.DEFAULT_GRID)
 
@@ -52,6 +52,17 @@ function generate_trials(strategy::H5IO.Strategy)::H5IO.TrialSet
         duration_idxs = strategy.duration_indices
     end
 
+    return _generate_trials(strike_idxs, dip_idxs, rake_idxs, depth_idxs, freq_idxs, duration_idxs)
+end
+
+function _generate_trials(
+    strike_idxs::Vector{Int32},
+    dip_idxs::Vector{Int32},
+    rake_idxs::Vector{Int32},
+    depth_idxs::Vector{Int32},
+    freq_idxs::Vector{Int32},
+    duration_idxs::Vector{Int32},
+)::H5IO.TrialSet
     n_strikes = length(strike_idxs)
     n_dips = length(dip_idxs)
     n_rakes = length(rake_idxs)

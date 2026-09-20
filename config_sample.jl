@@ -47,7 +47,7 @@ Config.phase_fields() = Dict("P" => :P_time, "S" => :S_time)
 Config.polarity_fields() = Dict("P" => :P_polarity)
 
 # ── Data interface ──
-# The initial search grid is automatically provided by the Grid module.
+# The initial search grid is automatically provided by the Search module.
 
 # Event information
 Config.load_event() = begin
