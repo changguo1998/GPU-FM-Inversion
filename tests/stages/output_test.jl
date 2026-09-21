@@ -2,7 +2,7 @@
 #
 # Chains input → forward → assess on a small trial set, then runs output.jl
 # and checks `output.h5` against assess aggregation: `/solution` best
-# trial == argmin normalized aggregate, `/per_phase` cross_correlation == cc_max at
+# trial == argmin hierarchical sum, `/per_phase` cross_correlation == cc_max at
 # best, `/uncertainty` fields, `/summary` counts.
 #
 # Usage:
@@ -87,6 +87,8 @@ include("test_util.jl")
             global _CCMAX_S = read(f["/intermediates/XcorrS/cc_max"])
             global _CCMAX = hcat(_CCMAX_P, _CCMAX_S)
             global _TOTAL = read(f["/aggregate/total"])
+            global _PSR_CHANNEL = String.(read(f["/misfit_index/Psr/channel_id"]))
+            global _STATION_TOTAL = read(f["/aggregate/station/total"])
         end
         best_idx = argmin(_TOTAL)
 
@@ -125,6 +127,32 @@ include("test_util.jl")
                     mpm = read(pp["misfit_per_module"])
                     @test size(mpm, 1) == 6
                     @test size(mpm, 2) == length(pids)
+                    for (pi, pid) in enumerate(pids)
+                        channel_id = join(split(pid, ".")[1:(end - 1)], ".")
+                        @test isfinite(mpm[4, pi]) == (channel_id in _PSR_CHANNEL)
+                    end
+                    @test all(isfinite, mpm[3, 1:length(_CH_P)])
+                    @test all(isnan, mpm[3, (length(_CH_P) + 1):end])
+                end
+
+                @testset "/per_station_summary" begin
+                    ps = f["/per_station_summary"]
+                    mpm = read(ps["misfit_per_module"])
+                    @test size(mpm) == (6, 3)
+                    for (ri, name) in
+                        enumerate(["LagP", "LagS", "PolarityP", "Psr", "XcorrP", "XcorrS"],)
+                        expected = zeros(3)
+                        h5open(status0, "r") do status
+                            values = read(status["/misfits/$name"])[:, best_idx]
+                            station_idx = read(status["/misfit_index/$name/station_idx"])
+                            name in ("LagP", "LagS") && (values = abs.(values))
+                            for (value, si) in zip(values, station_idx)
+                                expected[si] += value
+                            end
+                        end
+                        @test mpm[ri, :] ≈ expected
+                    end
+                    @test read(ps["misfit_total"]) ≈ _STATION_TOTAL[:, best_idx]
                 end
 
                 @testset "/summary" begin
@@ -145,6 +173,8 @@ include("test_util.jl")
             @test parsed["per_phase"]["misfit_modules"] ==
                   ["LagP", "LagS", "PolarityP", "Psr", "XcorrP", "XcorrS"]
             @test length(parsed["per_phase"]["cross_correlation"]) == length(_CH)
+            @test parsed["per_station_summary"]["misfit_modules"] ==
+                  ["LagP", "LagS", "PolarityP", "Psr", "XcorrP", "XcorrS"]
             @test parsed["summary"]["total_trials"] == N_trials
         end
     end

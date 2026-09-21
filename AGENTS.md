@@ -30,13 +30,13 @@ config_sample.jl   Template pipeline configuration
 `maxCC`/`lagCC`/`energy`/`rms`/`ampScale`/`signScale`。
 
 - 当前所有开发决策以 `examples/synthetic` 为准：改动必须保持 XCorr 全流程在该事例上端到端可跑，best 结果可复现。
-  - **当前验收基线（2026-09-18）**：候选 σ = `[0.1, 0.2, 0.3] s`，455,544 trials；P+S best = **(210,30,90) @ 10 km, σ=0.2 s, misfit ≈ 6.993e-5**。该 SDR 是真值 `(30,60,90)` 的辅助节面，moment tensor 完全相同；P/S 全部 best lag = 0。
+  - **当前验收基线（2026-09-21）**：候选 σ = `[0.1, 0.2, 0.3] s`，455,544 trials；分层求和 best = **(210,30,90) @ 10 km, σ=0.2 s, misfit ≈ 2.06561e-3**。该 SDR 是真值 `(30,60,90)` 的辅助节面，moment tensor 完全相同；P/S 全部 best lag = 0。
   - **历史警告**：2026-08-10 前所有 e2e 的 best #29522 (65,90,85, 0.15518) 均由 XCorr kernel 的 **MT 布局 bug**（kernel 列主读 `mt[trial + c*N]`、main 行主写 `mt[trial*6+c]`）产生，已作废。该 bug 与 trial 规模耦合（n_sub=1 时行列主等价掩盖），在 strike 72 网格（n_sub=50616）暴露为"misfit 错乱"；修复后 71/72 网格结果完全一致。
-- 基线 config 注册 XcorrP/S、LagP/S、Psr、PolarityP。XCorr/Lag 是基础计算目标；其余表达式编译为 `Expression`，从共享中间量通用求值。assess 当前对各目标做 trial 级 min-max 归一化后等权平均；配置化权重仍待开发。
+- 基线 config 注册 XcorrP/S、LagP/S、Psr、PolarityP。XCorr/Lag 是基础计算目标；其余表达式编译为 `Expression`，从共享中间量通用求值。assess 将目标值按 channel → station → trial 逐级求和；signed Lag 仅在汇总时取绝对值。
 
 ## 当前阶段
 
-已完成：`input.jl` 数据接入与 Layer 0 预处理、目标函数 DSL、XCorr/lag/PSR/归一化极性、trials 全参数索引化、预算约束初始采样规划、Gaussian STF duration 搜索、`assess.jl` 单轮收敛与等权聚合、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：配置化权重、预算规划接入及多迭代区域裁剪。
+已完成：`input.jl` 数据接入与 Layer 0 预处理、目标函数 DSL、XCorr/lag/PSR/归一化极性、trials 全参数索引化、预算约束初始采样规划、Gaussian STF duration 搜索、`assess.jl` 单轮收敛与分层求和、`output.jl`、`report.jl`、`driver.sh` 全管道、OpenMP/CUDA forward（显存复用、分批、preflight、HDF5 事务提交）。待开发：预算规划接入及多迭代区域裁剪。
 
 ```
 scripts/input.jl  (一次) → database.h5 + status_0.h5

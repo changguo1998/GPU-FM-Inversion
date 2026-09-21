@@ -47,6 +47,8 @@ include("test_util.jl")
                 "station_id" => ["NET.STA"],
                 "n_phases" => [2],
                 "mean_cross_correlation" => [0.97],
+                "misfit_modules" => ["XcorrP", "XcorrS"],
+                "misfit_per_module" => [[0.01], [0.02]],
                 "misfit_total" => [0.03],
             ),
         )
@@ -67,6 +69,7 @@ include("test_util.jl")
         @test occursin("30", report)
         @test occursin("NET.STA.Z.P", report)
         @test occursin("Misfit XcorrP", report)
+        @test occursin("未归一化、未加权", report)
         @test occursin("Total misfit", report)
         @test occursin("N/A", report)
     end

@@ -172,7 +172,10 @@ end
 station_ids = field(per_station, "station_id", Any[])
 n_station_phases = field(per_station, "n_phases", Any[])
 station_cc = field(per_station, "mean_cross_correlation", Any[])
+station_misfit_matrix = field(per_station, "misfit_per_module", Any[])
+station_misfit_modules = field(per_station, "misfit_modules", Any[])
 station_misfit = field(per_station, "misfit_total", Any[])
+station_module_count = station_misfit_matrix isa AbstractVector ? length(station_misfit_matrix) : 0
 n_stations = maximum((
     length(station_ids),
     length(n_station_phases),
@@ -186,15 +189,25 @@ if n_stations == 0
     println(io, "无台站汇总结果。")
     println(io)
 else
-    println(io, "| Station | Phases | Mean cross-correlation | Total misfit |")
-    println(io, "|---|---:|---:|---:|")
+    headers = ["Station", "Phases", "Mean cross-correlation"]
+    append!(
+        headers,
+        [
+            i <= length(station_misfit_modules) ? "Misfit $(station_misfit_modules[i])" :
+            "Misfit $(i)" for i in 1:station_module_count
+        ],
+    )
+    push!(headers, "Total misfit")
+    println(io, "| ", join(headers, " | "), " |")
+    println(io, "|", join(fill("---", length(headers)), "|"), "|")
     for i in 1:n_stations
         cells = [
             i <= length(station_ids) ? station_ids[i] : nothing,
             i <= length(n_station_phases) ? n_station_phases[i] : nothing,
             i <= length(station_cc) ? station_cc[i] : nothing,
-            i <= length(station_misfit) ? station_misfit[i] : nothing,
         ]
+        append!(cells, [matrix_cell(station_misfit_matrix, j, i) for j in 1:station_module_count])
+        push!(cells, i <= length(station_misfit) ? station_misfit[i] : nothing)
         println(io, "| ", join(markdown_cell.(cells), " | "), " |")
     end
     println(io)
@@ -203,6 +216,7 @@ end
 println(io, "## 说明")
 println(io, "- `N/A` 表示字段缺失、值为 NaN，或该统计量尚未实现。")
 println(io, "- Phase misfit 列按 `result.toml` 中的模块顺序排列。")
+println(io, "- 台站 misfit 列为未归一化、未加权的目标计算值。")
 
 report_path = joinpath(data_dir, "report.md")
 open(report_path, "w") do file

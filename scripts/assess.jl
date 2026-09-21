@@ -156,7 +156,8 @@ function evaluate_dsl_objective(name)
         error("assess: objective $name produced invalid shape $(size(value))")
     end
     all(isfinite, result) || error("assess: objective $name produced non-finite values")
-    return result
+    station_idx = Int32.(module_station_idx[first(bases)][base_rows[first(bases)]])
+    return (values = result, channel_id = target_ids, station_idx = station_idx)
 end
 
 function evaluate_psr(bases)
@@ -211,6 +212,8 @@ end
 
 # === 3. Level 1: extract ===
 misfits = Dict{String, Matrix{Float64}}()
+misfit_channel_id = Dict{String, Vector{String}}()
+misfit_station_idx = Dict{String, Vector{Int32}}()
 level2 = String[]
 dsl_names = haskey(cfg, "objectives") ? Set(String.(keys(cfg["objectives"]))) : Set{String}()
 for m_name in modules
@@ -252,6 +255,10 @@ for m_name in modules
         (;)
     end
     misfits[m_name] = EXTRACTORS[(op, out)](inter, ctx)
+    if haskey(module_station_idx, m_name)
+        misfit_channel_id[m_name] = String.(read_database_dataset("/$m_name/channel_id"))
+        misfit_station_idx[m_name] = module_station_idx[m_name]
+    end
 end
 
 # === 4. Level 2: compose (topological: bases must be computed first) ===
@@ -286,19 +293,37 @@ end
 # === 4b. DSL objectives: evaluate stored expression trees from primitive intermediates ===
 for m_name in modules
     m_name in dsl_names || continue
-    misfits[m_name] = evaluate_dsl_objective(m_name)
+    evaluated = evaluate_dsl_objective(m_name)
+    misfits[m_name] = evaluated.values
+    misfit_channel_id[m_name] = evaluated.channel_id
+    misfit_station_idx[m_name] = evaluated.station_idx
 end
 
-# === 5. 写 /misfits/ ===
+misfit_levels = Dict(
+    m_name =>
+        haskey(misfit_channel_id, m_name) ?
+        (Int8(cfg[m_name]["is_composed"]) == 1 ? :channel : :phase) : :station for
+    m_name in keys(misfits)
+)
+
+# === 5. 写 channel/native-entry misfits 与 channel index ===
 h5open(status_path, "r+") do f
     !haskey(f, "misfits") && create_group(f, "misfits")
     for (m_name, m) in misfits
         haskey(f["misfits"], m_name) && delete_object(f["misfits"], m_name)
         f["misfits"][m_name] = m
     end
+    haskey(f, "misfit_index") && delete_object(f["misfit_index"])
+    index_group = create_group(f, "misfit_index")
+    for m_name in sort(collect(keys(misfit_channel_id)))
+        module_group = create_group(index_group, m_name)
+        write(module_group, "channel_id", misfit_channel_id[m_name])
+        write(module_group, "station_idx", misfit_station_idx[m_name])
+        write(module_group, "level", string(misfit_levels[m_name]))
+    end
 end
 
-# === 6. Cross-objective normalization and equal aggregation ===
+# === 6. Hierarchical sum: channel → station → trial ===
 absolute_modules = Set{String}()
 for m_name in keys(misfits)
     mcfg = cfg[m_name]
@@ -308,21 +333,38 @@ for m_name in keys(misfits)
         push!(absolute_modules, m_name)
     end
 end
-normalized, total_misfit =
-    Aggregate.aggregate_objectives(misfits; absolute_modules = absolute_modules)
+hierarchy = Aggregate.hierarchical_sum(
+    misfits,
+    misfit_channel_id,
+    misfit_station_idx,
+    misfit_levels,
+    N_stations;
+    absolute_modules = absolute_modules,
+)
 h5open(status_path, "r+") do f
+    haskey(f, "station_misfits") && delete_object(f["station_misfits"])
     haskey(f, "aggregate") && delete_object(f["aggregate"])
     aggregate_group = create_group(f, "aggregate")
-    normalized_group = create_group(aggregate_group, "normalized")
-    for (m_name, values) in normalized
-        write(normalized_group, m_name, values)
-    end
-    write(aggregate_group, "total", total_misfit)
+
+    channel_group = create_group(aggregate_group, "channel")
+    write(channel_group, "channel_id", hierarchy.channel_id)
+    write(channel_group, "station_idx", hierarchy.channel_station_idx)
+    write(channel_group, "phase_sum", hierarchy.channel_phase_sum)
+    write(channel_group, "direct_sum", hierarchy.channel_direct_sum)
+    write(channel_group, "total", hierarchy.channel_total)
+
+    station_group = create_group(aggregate_group, "station")
+    write(station_group, "channel_sum", hierarchy.station_channel_sum)
+    write(station_group, "direct_sum", hierarchy.station_direct_sum)
+    write(station_group, "total", hierarchy.station_total)
+
+    write(aggregate_group, "total", hierarchy.total)
 end
 
 @info "assess: wrote $(length(misfits)) misfit matrices to $status_path"
 for (m_name, m) in sort(collect(misfits), by = first)
-    @info "  $m_name : $(size(m))"
+    level = haskey(misfit_channel_id, m_name) ? "channel" : "station"
+    @info "  $m_name : level=$level, shape=$(size(m))"
 end
 
 # 收敛决策: 写 $DATA_DIR/.decision.txt (driver 读取)。

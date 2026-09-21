@@ -5,8 +5,9 @@
 Runs once per iteration (preprocess → forward → **assess**). Reads the raw
 intermediates from `status_N.h5:/intermediates/`, transforms them into misfit
 matrices (Level 1 extractors), aggregates composed modules (Level 2 composers),
-and writes the final per-module misfits to `status_N.h5:/misfits/`. Also emits
-the iteration convergence decision consumed by `driver.sh`.
+and writes channel/native-entry objective values to `status_N.h5:/misfits/`.
+Aggregation is a separate channel → station → trial summation under `/aggregate/`.
+Also emits the iteration convergence decision consumed by `driver.sh`.
 
 ## Usage
 
@@ -51,10 +52,15 @@ into it (converged). Exit code 0 on success.
 1. **Write `/misfits/`**: one dataset per module, shape `[N_entries × N_trials]`,
    replacing any previous value (idempotent).
 
-1. **Cross-objective aggregation**: average entries per trial, min-max normalize
-   each objective to `[0, 1]`, then average all objectives equally. Signed Lag
-   base modules use absolute lag only for this aggregate; raw `/misfits/Lag*`
-   remains signed.
+1. **Persist indices**: `/misfit_index/{ModuleName}` records channel IDs, station
+   indices, and whether rows are phase- or channel-indexed, without reducing the
+   trial axis.
+
+1. **Hierarchical sum**: sum phase-indexed values within each physical channel, add
+   channel-indexed values, sum channels within each station, add native
+   station-indexed values, then sum stations into one value per trial. No mean,
+   min-max normalization, or objective weighting is applied. Signed Lag contributes
+   its absolute value; raw `/misfits/Lag*` remains signed.
 
 1. **Convergence decision**: current implementation converges on the first
    iteration (writes an empty `.decision.txt`). The multi-iteration strategy
@@ -74,8 +80,9 @@ Empty file = converged (driver exits the loop). Non-empty = continue.
 
 ### `status_N.h5:/aggregate`
 
-`normalized/{ModuleName}` contains one normalized value per trial; `total`
-contains the equal-weight mean across active objectives.
+`channel/{phase_sum,direct_sum,total}` contains the channel-level decomposition;
+`station/{channel_sum,direct_sum,total}` contains the station-level decomposition;
+`total` contains the final sum per trial.
 
 ## Notes
 
@@ -83,6 +90,6 @@ contains the equal-weight mean across active objectives.
   shape to normalize the C++ C-order storage into `[entries × trials]`.
 - 当前基线注册 XcorrP/S、LagP/S、Psr、PolarityP。Lag 保留方向符号。
 - assess does NOT modify `/strategy` or `/trials`.
-- Baseline (2026-09-18): P+S best trial = (210, 30, 90) @ 10 km,
-  σ=0.2 s, misfit ≈ 6.993e-5；该解与真值 (30, 60, 90) 的 moment
+- Baseline (2026-09-21): hierarchical-sum best trial = (210, 30, 90) @ 10 km,
+  σ=0.2 s, misfit ≈ 2.06561e-3；该解与真值 (30, 60, 90) 的 moment
   tensor 相同。

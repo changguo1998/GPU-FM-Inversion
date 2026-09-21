@@ -24,7 +24,8 @@ The input is `<dir>/result.toml`; the output is `<dir>/report.md`. The normal
   moment tensor.
 - Uncertainty: available SDR/depth statistics and frequency test curve.
 - Phase quality: cross-correlation and per-module misfit by phase.
-- Station summary: phase count, mean cross-correlation, and total misfit.
+- Station summary: phase count, mean cross-correlation, raw per-module misfit,
+  and total misfit.
 
 Missing, NaN, or not-yet-implemented values are shown as `N/A`. Misfit
 columns use the module names and order recorded in `result.toml`.

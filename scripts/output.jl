@@ -7,7 +7,7 @@
 # /per_station_summary, /summary)。
 #
 # 简化说明 (TODO):
-#   - assess 已将各目标按 trial min-max 映射到 [0,1] 并等权平均;
+#   - assess 按 channel → station → trial 逐级求和；
 #   - /uncertainty.freq_test_misfit_curve 填 NaN (未实现);
 #   - /summary.convergence_reason 固定 "single iteration"。
 #
@@ -20,7 +20,7 @@ using TOML
 
 using StageLog
 
-using IO, MT, Aggregate
+using IO, MT
 
 data_dir = ENV["DATA_DIR"]
 StageLog.setup_logger!("output", joinpath(data_dir, "output.log"))
@@ -48,16 +48,10 @@ paraspace_duration = Float64.(_ps["duration"])
 
 n_trials = length(trials.strike_idx)
 
-# === 2. best trial: use assess's normalized equal-weight aggregate ===
+# === 2. best trial: use assess's hierarchical sum ===
 total = h5open(status_path, "r") do f
-    haskey(f, "/aggregate/total") ? Float64.(read(f["/aggregate/total"])) : nothing
-end
-if total === nothing
-    total = zeros(n_trials)
-    for matrix in values(misfits)
-        values_per_trial = [mean(filter(isfinite, matrix[:, t])) for t in axes(matrix, 2)]
-        total .+= Aggregate.normalize_objective(values_per_trial) ./ length(misfits)
-    end
+    haskey(f, "/aggregate/total") || error("output: missing /aggregate/total")
+    return Float64.(read(f["/aggregate/total"]))
 end
 best_idx = argmin(total)
 best = (
@@ -126,18 +120,39 @@ n_phases = length(phase_ids)
 
 misfit_per_module = zeros(length(modules), n_phases)
 stations = IO.read_stations(db_path)
+
+function module_phase_types(module_name::String)::Vector{String}
+    mcfg = cfg[module_name]
+    haskey(mcfg, "phase") && return [String(mcfg["phase"])]
+    phases = String[]
+    for base in String.(get(mcfg, "bases", String[]))
+        haskey(cfg[base], "phase") && push!(phases, String(cfg[base]["phase"]))
+    end
+    return unique(phases)
+end
+
 for (ri, m) in enumerate(modules)
     if haskey(misfits, m)
         misfit_per_module[ri, :] .= NaN
-        module_has(string(m), "channel_id") || continue
-        mids = read_module_field(string(m), "channel_id")
+        index_path = "/misfit_index/$(string(m))"
+        mids, phase_types_for_module = h5open(status_path, "r") do f
+            if haskey(f, "$index_path/channel_id")
+                return String.(read(f["$index_path/channel_id"])), module_phase_types(string(m))
+            elseif module_has(string(m), "channel_id")
+                return String.(read_module_field(string(m), "channel_id")),
+                module_phase_types(string(m))
+            end
+            return String[], String[]
+        end
+        isempty(mids) && continue
         if length(mids) == size(misfits[m], 1)
-            # Channel rows align to phase keys (channel plus P/S suffix).
-            ptype = haskey(cfg[string(m)], "phase") ? String(cfg[string(m)]["phase"]) : ""
-            mids_phase = [isempty(ptype) ? c : string(c, ".", ptype) for c in mids]
-            for (pi, pid) in enumerate(phase_ids)
-                ei = findfirst(==(pid), mids_phase)
-                ei !== nothing && (misfit_per_module[ri, pi] = misfits[m][ei, best_idx])
+            # A composed channel objective may apply to more than one phase (for example PSR).
+            for ptype in phase_types_for_module
+                mids_phase = [string(c, ".", ptype) for c in mids]
+                for (pi, pid) in enumerate(phase_ids)
+                    ei = findfirst(==(pid), mids_phase)
+                    ei !== nothing && (misfit_per_module[ri, pi] = misfits[m][ei, best_idx])
+                end
             end
         else
             # 行 = station (如 Polarity/RelShift)。unique 台站顺序与
@@ -198,11 +213,41 @@ for (si, st) in enumerate(uniq_stations)
     isempty(phis) || (mean_cc[si] = mean(cross_corr[phis]))
 end
 
+station_misfit_per_module = zeros(length(modules), length(uniq_stations))
+for (ri, module_name) in enumerate(modules)
+    name = string(module_name)
+    values = misfits[module_name][:, best_idx]
+    mcfg = cfg[name]
+    make_absolute =
+        Int8(mcfg["is_composed"]) == 0 &&
+        String(mcfg["operator"]) == "Xcorr" &&
+        String(mcfg["output"]) == "best_lag"
+    station_idx = h5open(status_path, "r") do f
+        path = "/misfit_index/$name/station_idx"
+        return haskey(f, path) ? Int32.(read(f[path])) : nothing
+    end
+    if station_idx === nothing
+        length(values) == length(uniq_stations) || continue
+        station_idx = Int32.(1:length(uniq_stations))
+    end
+    for (value, si) in zip(values, station_idx)
+        isfinite(value) || continue
+        station_misfit_per_module[ri, si] += make_absolute ? abs(value) : value
+    end
+end
+station_misfit_total = h5open(status_path, "r") do f
+    dataset = f["/aggregate/station/total"]
+    size(dataset, 1) == length(uniq_stations) ||
+        error("output: station aggregate does not match station table")
+    return Float64.(dataset[:, best_idx])
+end
+
 per_station_summary = Dict{String, Any}(
     "station_id" => uniq_stations,
     "n_phases" => Int32.(n_st_cross),
     "mean_cross_correlation" => mean_cc,
-    "misfit_total" => zeros(length(uniq_stations)),
+    "misfit_per_module" => station_misfit_per_module,
+    "misfit_total" => station_misfit_total,
 )
 
 # === 7. summary ===
@@ -236,7 +281,13 @@ text_result = Dict{String, Any}(
             "misfit_per_module" => toml_rows(per_phase["misfit_per_module"]),
         ),
     ),
-    "per_station_summary" => per_station_summary,
+    "per_station_summary" => merge(
+        per_station_summary,
+        Dict(
+            "misfit_modules" => String.(modules),
+            "misfit_per_module" => toml_rows(per_station_summary["misfit_per_module"]),
+        ),
+    ),
 )
 text_path = joinpath(data_dir, "result.toml")
 open(text_path, "w") do io

@@ -83,7 +83,7 @@ include("test_util.jl")
                 @test depth == 10.0
                 @test duration == 0.2
                 @test duration_idx == 2
-                @test 0.0 <= misfit <= 1.0
+                @test misfit ≈ 0.0020656105281897795 rtol = 1.0e-9
 
                 smry = f["/summary"]
                 @test read(smry["total_trials"]) == 455544

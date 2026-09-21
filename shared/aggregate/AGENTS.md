@@ -18,6 +18,7 @@ Used by: `scripts/assess.jl`.
 | `src/extractors.jl` | `EXTRACTORS` registry — keyed by `(operator, output)`, maps intermediates → Level 1 misfit matrices |
 | `src/composers.jl` | `COMPOSERS` registry — keyed by aggregate operator, aggregates base misfits → Level 2 misfit matrices |
 | `src/objective_primitives.jl` | Legacy PSR and normalized-polarity matrix evaluators；DSL 目标改由 `Misfit.evaluate_pipeline` 通用求值 |
+| `src/hierarchical_sum.jl` | Channel → station → trial summation, with station-native objective support |
 | `src/StdDev.jl` | StdDev operator — `RELATIVE_OFFSET`/`MEAN` outputs, per-station std/mean across base misfits |
 
 ## Extractors (`EXTRACTORS[(operator, output)]`)
@@ -37,6 +38,13 @@ Used by: `scripts/assess.jl`.
 
 RelShift is registered in sample configs as `Aggregate.StdDev` with
 `bases = [:AbsShiftP, :AbsShiftS]` and `output = RELATIVE_OFFSET`.
+
+## Hierarchical sum
+
+`hierarchical_sum` applies no averaging, normalization, or weights. It sums
+phase-indexed values per physical channel, adds channel-indexed values, sums channels
+by station, adds native station-indexed values, then sums stations into one value per
+trial. Signed Lag modules pass through `absolute_modules` for aggregation only.
 
 ## Coding conventions
 

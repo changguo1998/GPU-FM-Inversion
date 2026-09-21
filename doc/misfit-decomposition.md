@@ -106,6 +106,7 @@ end
 4. Level 1 实例: misfit = EXTRACTORS[(operator, output)](intermediate, ctx) → /misfits/{name}
 5. DSL Expression：对齐 bases 后，把中间量代入表达式树 → /misfits/{name}
 6. Legacy Level 2（拓扑排序）: misfit = COMPOSERS[operator](...) → /misfits/{name}
+7. 汇总：同 channel 的 phase 目标求和 → 加 channel 目标 → 同 station channels 求和 → 加 station 目标 → stations 求和
 ```
 
 ## 9. use_misfit! 后端接口（shared/config）

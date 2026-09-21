@@ -289,17 +289,30 @@ Julia `assess.jl`). Grouped by canonical key `{Operator}{Phase}[_{channel}]`
 
 ### `/misfits`
 
-Raw per-module misfits (unweighted, unaggregated). One dataset per module instance.
+Raw per-module channel/native-entry misfits (unweighted, unaggregated). One dataset per
+module instance. `/misfit_index/{ModuleName}` records `channel_id`, 1-based
+`station_idx`, and aggregation `level` (`phase` or `channel`) for channel-indexed
+matrices, including composed DSL objectives.
 
 ### `/aggregate`
 
-Assess first averages entries per trial, min-max maps each objective to `[0, 1]`,
-then averages all objectives with equal weight. `/aggregate/normalized/{ModuleName}`
-stores each normalized trial vector; `/aggregate/total` stores the final trial score.
+Aggregation uses sums only. Channel-indexed objective values are aligned by physical
+channel and summed once; channel totals are summed within each station; native
+station-indexed objective values are then added; station totals are summed into the
+final trial misfit. Signed Lag remains raw under `/misfits` but contributes its
+absolute value to aggregation.
 
 | Dataset | Type | Shape | Description |
-|----------------|---------|--------------------------|--------------------------|
-| `{ModuleName}` | Float64 | `[N_entries x N_trials]` | per-module misfit matrix |
+|-----------------------|---------|---------------------------|---------------------------------------------|
+| `channel/channel_id` | String | `[N_channels]` | Union of physical channel IDs |
+| `channel/station_idx` | Int32 | `[N_channels]` | Channel row → `/station` row |
+| `channel/phase_sum` | Float64 | `[N_channels x N_trials]` | Sum of phase-indexed objectives per channel |
+| `channel/direct_sum` | Float64 | `[N_channels x N_trials]` | Sum of channel-indexed objectives |
+| `channel/total` | Float64 | `[N_channels x N_trials]` | Phase sum + direct channel sum |
+| `station/channel_sum` | Float64 | `[N_stations x N_trials]` | Sum of channel totals by station |
+| `station/direct_sum` | Float64 | `[N_stations x N_trials]` | Sum of native station objectives |
+| `station/total` | Float64 | `[N_stations x N_trials]` | Channel sum + direct station sum |
+| `total` | Float64 | `[N_trials]` | Sum of all station totals |
 
 ______________________________________________________________________
 
@@ -310,7 +323,7 @@ ______________________________________________________________________
 ### `/solution`
 
 | Dataset | Type | Shape | Description |
-|-----------------|---------|--------|--------------------------------------------------------------------|
+|-----------------|---------|--------|------------------------------------------------------------|
 | `strike` | Float64 | scalar | Best-fit strike (deg) |
 | `dip` | Float64 | scalar | Best-fit dip (deg) |
 | `rake` | Float64 | scalar | Best-fit rake (deg) |
@@ -318,7 +331,7 @@ ______________________________________________________________________
 | `duration` | Float64 | scalar | Best-fit Gaussian STF σ (s) |
 | `duration_idx` | Float64 | scalar | Best-fit index into `/paraspace/duration` |
 | `moment_tensor` | Float64 | `[6]` | [Mxx, Myy, Mzz, Mxy, Mxz, Myz] |
-| `misfit` | Float64 | scalar | Current equal-weight normalized aggregate across active objectives |
+| `misfit` | Float64 | scalar | Hierarchical sum across objectives, channels, and stations |
 
 ### `/uncertainty`
 
@@ -346,10 +359,11 @@ Phase-level misfit breakdown for the best trial.
 ### `/per_station_summary`
 
 | Dataset | Type | Shape | Description |
-|--------------------------|---------|----------------|----------------------------------|
+|--------------------------|---------|----------------------------|----------------------------------------------------------|
 | `station_id` | String | `[N_stations]` | Station identifiers |
 | `n_phases` | Int32 | `[N_stations]` | Number of phases per station |
 | `mean_cross_correlation` | Float64 | `[N_stations]` | Mean XCorr across station phases |
+| `misfit_per_module` | Float64 | `[N_modules x N_stations]` | Summed module contribution per station at the best trial |
 | `misfit_total` | Float64 | `[N_stations]` | Aggregate misfit per station |
 
 ### `/summary`

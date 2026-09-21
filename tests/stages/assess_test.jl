@@ -3,6 +3,7 @@
 # Chains input → forward on a small trial set, then runs assess.jl and checks:
 #   - `/misfits/XcorrP|S` == 1 − cc_max (extract correct)
 #   - misfit matrix shape [N_entries × N_trials]
+#   - channel indices and station-level matrices are written independently
 #   - empty `.decision.txt` = converged when DATA_DIR set
 #   - `/strategy` and `/trials` untouched
 #
@@ -109,8 +110,41 @@ include("test_util.jl")
                 @test haskey(f, "/aggregate/total")
                 aggregate = read(f["/aggregate/total"])
                 @test size(aggregate) == (N_trials,)
-                @test all(0.0 .<= aggregate .<= 1.0)
-                @test haskey(f, "/aggregate/normalized/XcorrP")
+                @test all(aggregate .>= 0.0)
+                aggregate_channels = String.(read(f["/aggregate/channel/channel_id"]))
+                aggregate_station_idx = read(f["/aggregate/channel/station_idx"])
+                channel_phase_sum = read(f["/aggregate/channel/phase_sum"])
+                channel_direct_sum = read(f["/aggregate/channel/direct_sum"])
+                channel_total = read(f["/aggregate/channel/total"])
+                expected_phase = zeros(size(channel_total))
+                expected_direct = zeros(size(channel_total))
+                for name in ("XcorrP", "XcorrS", "LagP", "LagS", "Psr", "PolarityP", "CombinedP")
+                    @test haskey(f, "/misfit_index/$name/channel_id")
+                    ids = String.(read(f["/misfit_index/$name/channel_id"]))
+                    values = read(f["/misfits/$name"])
+                    @test length(ids) == size(values, 1)
+                    name in ("LagP", "LagS") && (values = abs.(values))
+                    target_matrix =
+                        name in ("XcorrP", "XcorrS", "LagP", "LagS") ? expected_phase :
+                        expected_direct
+                    for (row, channel_id) in enumerate(ids)
+                        target = only(findall(==(channel_id), aggregate_channels))
+                        target_matrix[target, :] .+= values[row, :]
+                    end
+                end
+                @test channel_phase_sum ≈ expected_phase
+                @test channel_direct_sum ≈ expected_direct
+                @test channel_total ≈ expected_phase .+ expected_direct
+
+                station_channel = read(f["/aggregate/station/channel_sum"])
+                expected_station = zeros(size(station_channel))
+                for row in axes(channel_total, 1)
+                    expected_station[aggregate_station_idx[row], :] .+= channel_total[row, :]
+                end
+                @test station_channel ≈ expected_station
+                @test all(iszero, read(f["/aggregate/station/direct_sum"]))
+                @test read(f["/aggregate/station/total"]) ≈ expected_station
+                @test aggregate ≈ vec(sum(expected_station; dims = 1))
             end
             h5open(db, "r") do f
                 @test string.(read(f["/config/misfit_modules"])) ==

@@ -57,16 +57,32 @@ end
     @test result[:, 2] ≈ [1.2, 0.0]
 end
 
-@testset "Objective aggregation" begin
-    values = [1.0 3.0 5.0; 3.0 5.0 7.0]
-    @test Aggregate.objective_trial_means(values) == [2.0, 4.0, 6.0]
-    @test Aggregate.normalize_objective([2.0, 4.0, 6.0]) == [0.0, 0.5, 1.0]
-
-    normalized, total = Aggregate.aggregate_objectives(
-        Dict(:A => values, :B => [2.0 -1.0 4.0; 2.0 -1.0 4.0]);
-        absolute_modules = Set([:B]),
+@testset "Hierarchical misfit sum" begin
+    objective_values = Dict(
+        :PhaseA => [1.0 -2.0; 3.0 4.0],
+        :PhaseB => [10.0 20.0],
+        :Channel => [100.0 200.0],
+        :Station => [1000.0 2000.0; NaN 3000.0],
     )
-    @test normalized[:A] == [0.0, 0.5, 1.0]
-    @test normalized[:B] == [1 / 3, 0.0, 1.0]
-    @test total == [1 / 6, 0.25, 1.0]
+    channel_ids =
+        Dict(:PhaseA => ["NET.A.Z", "NET.B.Z"], :PhaseB => ["NET.A.Z"], :Channel => ["NET.A.Z"])
+    station_indices = Dict(:PhaseA => Int32[1, 2], :PhaseB => Int32[1], :Channel => Int32[1])
+    levels = Dict(:PhaseA => :phase, :PhaseB => :phase, :Channel => :channel, :Station => :station)
+    result = Aggregate.hierarchical_sum(
+        objective_values,
+        channel_ids,
+        station_indices,
+        levels,
+        2;
+        absolute_modules = Set([:PhaseA]),
+    )
+
+    @test result.channel_id == ["NET.A.Z", "NET.B.Z"]
+    @test result.channel_phase_sum == [11.0 22.0; 3.0 4.0]
+    @test result.channel_direct_sum == [100.0 200.0; 0.0 0.0]
+    @test result.channel_total == [111.0 222.0; 3.0 4.0]
+    @test result.station_channel_sum == result.channel_total
+    @test result.station_direct_sum == [1000.0 2000.0; 0.0 3000.0]
+    @test result.station_total == [1111.0 2222.0; 3.0 3004.0]
+    @test result.total == [1114.0, 5226.0]
 end
