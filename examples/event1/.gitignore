@@ -4,3 +4,14 @@
 *.SEED
 *.seed
 *.txt
+database.h5
+output.h5
+result.toml
+report.md
+driver.log
+input.log
+preprocess.log
+output.log
+report.log
+.decision.txt
+status/

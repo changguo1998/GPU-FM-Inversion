@@ -18,6 +18,9 @@ bash driver.sh --data-dir <dir> [--trial-budget <N>]
 `status/`，并将 `input.jl` 生成的 `status_0.h5` 移入该目录。
 `--trial-budget <N>` 设置每轮 Cartesian trial 数上限；省略时使用完整搜索空间。
 
+如果 `<dir>/Project.toml` 存在，driver 会优先使用该数据目录的 Julia 环境；
+否则使用仓库根环境。这允许不同事例声明自己的 SAC、Green's function 等依赖。
+
 ## Loop contract
 
 - `preprocess.jl` 在最新 status 中生成 trials。

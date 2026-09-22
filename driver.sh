@@ -14,13 +14,7 @@ help() {
 
 # Defaults
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-CMD_CALL_JULIA="julia --project=$SCRIPT_DIR"
-CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
-CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
 CALL_FORWARD="${FM_FORWARD_EXE:-$SCRIPT_DIR/forward/build/forward}"
-CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
-CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
-CALL_REPORT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/report.jl"
 
 # Parse CLI
 while [[ $# -gt 0 ]]; do
@@ -105,6 +99,17 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     error "config file not found: $CONFIG_FILE"
     exit 1
 fi
+
+JULIA_PROJECT="$SCRIPT_DIR"
+if [[ -f "$DATA_DIR/Project.toml" ]]; then
+    JULIA_PROJECT="$DATA_DIR"
+fi
+CMD_CALL_JULIA="julia --project=$JULIA_PROJECT"
+CALL_INPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/input.jl"
+CALL_PREPROCESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/preprocess.jl"
+CALL_ASSESS="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/assess.jl"
+CALL_OUTPUT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/output.jl"
+CALL_REPORT="$CMD_CALL_JULIA $SCRIPT_DIR/scripts/report.jl"
 
 if [[ -f "$DATABASE_H5" ]]; then
     warn "database.h5 already exists"
