@@ -11,11 +11,12 @@ input → [preprocess → forward → assess] → output → report
 ## Usage
 
 ```bash
-bash driver.sh --data-dir <dir>
+bash driver.sh --data-dir <dir> [--trial-budget <N>]
 ```
 
 `<dir>/config.jl` 必须存在。`driver.sh` 导出 `DATA_DIR`，创建
 `status/`，并将 `input.jl` 生成的 `status_0.h5` 移入该目录。
+`--trial-budget <N>` 设置每轮 Cartesian trial 数上限；省略时使用完整搜索空间。
 
 ## Loop contract
 

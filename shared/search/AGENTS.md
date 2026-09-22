@@ -13,7 +13,7 @@ The previous Grid-based assess refinement strategy is archived under
 | Function | Used by | Role |
 | `generate_trials(strategy::IO.Strategy)` | `preprocess.jl` | Cartesian product of strike × dip × rake × depth × frequency × duration |
 | `default_grid()` | `input.jl` | Return the canonical full-space SDR grid |
-| `budgeted_plan(strategy, budget)` | assess/search planning | Select a deterministic coarse trial set within a budget |
+| `budgeted_plan(strategy, budget)` | `preprocess.jl` | Select a deterministic coarse trial set within a budget |
 | `generate_trials(plan::SearchPlan)` | search planning | Materialize selected global indices as `IO.TrialSet` |
 
 ## Axis expansion

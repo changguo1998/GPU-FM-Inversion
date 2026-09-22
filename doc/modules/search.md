@@ -31,6 +31,6 @@ opposite samples on periodic strike, then greedily bisects the axis with the
 largest normalized resolution improvement. A refinement is accepted only when
 the resulting Cartesian product remains within `budget`.
 
-`generate_trials(plan)` materializes the selected global indices. The current
-pipeline still calls `generate_trials(strategy)` and therefore retains its
-full-search behavior until assess integration is designed.
+`generate_trials(plan)` materializes the selected global indices. The preprocess
+stage now uses this path; without `FM_TRIAL_BUDGET` it passes the full Cartesian
+product count and therefore retains full-search behavior.

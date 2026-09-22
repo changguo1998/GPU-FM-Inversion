@@ -110,5 +110,23 @@ include("test_util.jl")
                 @test read(st["iteration"]) == 0
             end
         end
+
+        @testset "budgeted planning" begin
+            r_budget = run_stage_script(
+                joinpath("scripts", "preprocess.jl"),
+                String[];
+                env = Dict("DATA_DIR" => dir, "FM_TRIAL_BUDGET" => "96"),
+            )
+            @test r_budget.ok
+            h5open(status0, "r") do f
+                tr = f["/trials"]
+                n_trials = read(tr["N_trials"])
+                @test n_trials <= 96
+                @test n_trials >= 32
+                @test all(1 .<= read(tr["strike_idx"]) .<= 72)
+                @test all(1 .<= read(tr["dip_idx"]) .<= 19)
+                @test all(1 .<= read(tr["rake_idx"]) .<= 37)
+            end
+        end
     end
 end

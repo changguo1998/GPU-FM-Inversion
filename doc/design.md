@@ -2,7 +2,7 @@
 
 ## Overview
 
-Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通，目标值按 channel → station → trial 逐级求和。Search 已提供预算约束初始采样规划；待开发规划接入与多迭代区域裁剪。
+Julia 数据接入 + 预处理（Layer 0 共享预处理 + 算子 reductions），HDF5 数据交换，C++ OpenMP/CUDA forward。XCorr、signed lag、PSR 和归一化极性的单迭代全管道已贯通，目标值按 channel → station → trial 逐级求和。Search 预算约束初始采样规划已接入 preprocess；待开发多迭代区域裁剪。
 
 ## Project Layout
 

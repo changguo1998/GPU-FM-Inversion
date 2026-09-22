@@ -3,8 +3,8 @@
 ## Role
 
 Runs once per iteration in the main pipeline loop (preprocess → forward → assess).
-Reads the current strategy from `status_N.h5`, generates the full set of trial
-parameters as a Cartesian product of per-axis **indices**
+Reads the current strategy from `status_N.h5`, plans a deterministic set of trial
+parameters within the configured budget, and generates their Cartesian product of per-axis **indices**
 (strike × dip × rake × depth × freq × duration — all 1-based indices into `/paraspace`),
 and writes them into `/trials` in the same `status_N.h5`. The forward stage
 then reads `/trials` and resolves physical values from `/paraspace`.
@@ -24,6 +24,10 @@ No CLI arguments. Files are located via `ENV["DATA_DIR"]` (exported by driver.sh
 | File | Path (relative to `DATA_DIR`) | Access |
 |---------------|-------------------------------|---------------------------------------|
 | latest status | `status/status_N.h5` | Read (`/strategy`), Write (`/trials`) |
+
+`FM_TRIAL_BUDGET` optionally limits the number of trials. When unset, the full
+Cartesian-product count is used, preserving existing full-search behavior. The
+driver exposes this as `--trial-budget <N>`.
 
 ## Inputs
 
@@ -67,9 +71,9 @@ No database.h5 read: physical axis values are not needed at this stage.
    `status_N.h5`. The file already exists from either `input.jl` (iteration 0)
    or the previous `assess.jl` (iteration N+1).
 1. **Read strategy**: load `/strategy` group via `IO.read_strategy()`.
-1. **Generate trials**: call `Search.generate_trials(strategy)` — consumes the
-   full `IO.Strategy` (SDR grid dims + depth/freq/duration indices), produces per-axis
-   1-based index vectors (no physical values).
+1. **Plan and generate trials**: call `Search.budgeted_plan(strategy, budget)`
+   followed by `Search.generate_trials(plan)`. The planner preserves global
+   1-based indices while selecting a deterministic coarse-to-fine subset.
 1. **Write trials**: replace `/trials` group via `IO.write_trials()`.
 
 ## Script Style
@@ -83,7 +87,7 @@ Flat, straight-line script — no `main()` wrapper. Runs top-down when executed.
 ## Dependencies
 
 - `IO.jl` — read_strategy, write_trials, find_latest_status
-- `Search.jl` — generate_trials
+- `Search.jl` — budgeted_plan, generate_trials
 - `StageLog.jl` — setup_logger!
 
 ## What It Does NOT Do

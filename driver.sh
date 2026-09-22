@@ -9,7 +9,7 @@ set -euo pipefail
 # Usage: bash driver.sh --data-dir <dir>
 
 help() {
-    echo "Usage: bash driver.sh --data-dir <dir>"
+    echo "Usage: bash driver.sh --data-dir <dir> [--trial-budget <N>]"
 }
 
 # Defaults
@@ -27,6 +27,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --data-dir)
             DATA_DIR="$2"
+            shift 2
+            ;;
+        --trial-budget)
+            TRIAL_BUDGET="$2"
             shift 2
             ;;
         -h | --help)
@@ -109,6 +113,10 @@ fi
 # Main pipeline
 
 export DATA_DIR
+if [[ -n "${TRIAL_BUDGET:-}" ]]; then
+    export FM_TRIAL_BUDGET="$TRIAL_BUDGET"
+    info "trial budget: $TRIAL_BUDGET"
+fi
 
 # Stage 1: input (once)
 mkdir -p "$STATUS_DIR"
