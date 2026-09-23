@@ -45,3 +45,17 @@ bash plot.sh --data-dir examples/event1 --backend gnuplot
 
 The default output is `examples/event1/figures/event_stations.png`. Use
 `--output <file>` to choose another output path.
+
+To compare observed and best-trial synthetic waveforms after cross-correlation
+alignment, run:
+
+```bash
+bash plot_waveforms.sh --data-dir examples/event1 --backend gnuplot
+```
+
+The waveform figure uses one row per station and six phase-component columns:
+P-Z, P-N, P-E, S-Z, S-N, and S-E. Observed traces are black and synthetic
+traces are red solid lines. Synthetic traces are aligned on the full
+preprocessed waveform before the plotting window is trimmed. Axes and grids
+are omitted. P/S panel widths are proportional to their actual time spans. The default output is
+`examples/event1/figures/waveform_comparison.png`.
