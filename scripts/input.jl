@@ -1,13 +1,13 @@
 #!/usr/bin/env julia
 #
-# input.jl - 数据接入与初始化阶段
-# 加载用户配置, 读外部数据 (事件/台站/波形/格林函数), 预处理波形
-# (带通滤波 + 裁窗), 写 database.h5 与 status_0.h5 (初始策略, 无 trial)。
+# input.jl - Data ingestion and initialization stage.
+# Loads event/station/waveform/Green's-function data from the user config,
+# preprocesses waveforms, and writes database.h5 plus the initial strategy.
 #
 # Usage:
 #   julia scripts/input.jl <config.jl>
 
-# === 1. 导入依赖 ===
+# === 1. Import dependencies ===
 using HDF5
 using LinearAlgebra
 using Dates
@@ -16,7 +16,7 @@ using StageLog
 
 using IO, Signal, Config, Search, Misfit
 
-# === 2. 命令行参数 & 日志 ===
+# === 2. Parse arguments and configure logging ===
 config_jl = ARGS[1]
 data_dir = dirname(abspath(config_jl))
 
@@ -27,12 +27,12 @@ StageLog.setup_logger!("input", joinpath(data_dir, "input.log"))
 @info "  config   = $config_jl"
 @info "  data dir = $data_dir"
 
-# === 3. 加载用户配置 (config.jl) ===
-# include config.jl, 用户在此注册插件和定义数据接口
+# === 3. Load user configuration (config.jl) ===
+# The config registers objectives and defines the external data interface.
 include(abspath(config_jl))
 Config.compile_objectives!()
 
-# 读取配置中的管道参数
+# Read pipeline parameters from the configuration.
 misfit_modules = Config.misfit_modules()
 freq_bands = Config.freq_bands()
 depths = Config.depths()
@@ -44,7 +44,7 @@ n_durations = length(durations)
 isempty(durations) && error("Config.durations() must contain at least one STF duration")
 all(durations .>= 0.0) || error("Config.durations() values must be non-negative")
 
-# 从频带边界构造频率数组
+# Build the frequency axis from unique band boundaries.
 freq_vals = sort(unique(Float64[v for (low, high) in freq_bands for v in (low, high)]))
 
 @info "Config loaded"
@@ -53,23 +53,23 @@ freq_vals = sort(unique(Float64[v for (low, high) in freq_bands for v in (low, h
 @info "  depths         = $depths"
 @info "  durations      = $durations s (Gaussian σ)"
 
-# === 4. 读取外部数据 (via Config.load_*()) ===
+# === 4. Read external data (via Config.load_*()) ===
 @info "Reading external data via Config.load_*() ..."
 
-event = Config.load_event()          # 事件信息: 经纬度/深度/震级/发震时刻
-picks = Config.load_phase_picks()    # P/S 到时 + P 波极性
-stations = Config.load_stations()    # 台站元数据
+event = Config.load_event()          # Event location, depth, magnitude, and origin time.
+picks = Config.load_phase_picks()    # P/S arrivals and P-wave polarity.
+stations = Config.load_stations()    # Station metadata.
 
 station_to_idx = Dict(pick.station_id => i for (i, pick) in enumerate(picks))
 
 n_stations = length(stations)
 n_picks = length(picks)
 
-# === 5. 构建相位列表 ===
-# 震相字段映射由 config.jl 定义 (Config.phase_fields/polarity_fields)
+# === 5. Build the phase list ===
+# Phase-field mappings are defined by config.jl.
 pf = Config.phase_fields()
 
-ch_map = Dict("N" => 1, "E" => 2, "Z" => 3)  # GF 通道顺序 [N, E, D]
+ch_map = Dict("N" => 1, "E" => 2, "Z" => 3)  # GF channel order [N, E, D].
 
 
 phase_list = Tuple{String, String, Int}[]
@@ -88,7 +88,7 @@ end
 
 n_phases = length(phase_list)
 
-# 从震相数据提取唯一震相类型
+# Extract the unique phase types present in the picks.
 phase_types = sort(unique([pt for (_, pt, _) in phase_list]))
 
 
@@ -96,9 +96,9 @@ phase_types = sort(unique([pt for (_, pt, _) in phase_list]))
 @info "  stations = $n_stations"
 @info "  phases   = $n_phases"
 
-# === 6. 构建 /station (物理台站, 去重) ===
+# === 6. Build /station (deduplicated physical stations) ===
 
-# 按 station.id 去重, 保持原始顺序
+# Deduplicate by station.id while preserving input order.
 seen_ids = Set{String}()
 phys_stations = IO.StationInfo[]
 phys_id_to_idx = Dict{String, Int}()
@@ -112,10 +112,10 @@ for s in stations
 end
 n_phys_stations = length(phys_stations)
 
-# 全量 station_idx -> 物理 station_idx 映射
+# Map every input station row to its physical-station index.
 full_to_phys = Int32[phys_id_to_idx[s.id] for s in stations]
 
-# /station 表 (N_phys_stations 行)
+# /station table (N_phys_stations rows).
 phys_station_dict = Dict{String, Vector}()
 phys_station_dict["id"] = [s.id for s in phys_stations]
 phys_station_dict["network"] = [s.network for s in phys_stations]
@@ -143,8 +143,8 @@ phys_station_dict["P_polarity"] =
 
 @info "  station dict built ($n_stations channels, $n_phys_stations physical stations)"
 
-# === 7. 加载原始波形 -> /channel ===
-# 原始波形, 写入 /channel 并作为预处理输入
+# === 7. Load raw waveforms -> /channel ===
+# Raw waveforms are persisted and then used as preprocessing inputs.
 @info "Building /channel - raw waveforms ..."
 
 channel_data = Dict{String, Vector{Float64}}()
@@ -162,11 +162,11 @@ end
 
 @info "  $(length(channel_data)) channels loaded"
 
-# === 8. 加载格林函数 -> /gf/{depth}/{channel_id} ===
-# Config.load_gf() 读 GF, 取第 3 维对应分量
+# === 8. Load Green's functions -> /gf/{depth}/{channel_id} ===
+# Config.load_gf() returns the requested component from the third dimension.
 @info "Loading Green's functions via Config.load_gf() ..."
 
-"""加载所有 (station, depth) 的格林函数, 取指定通道分量。"""
+"""Load Green's functions for every station/depth pair and select each channel."""
 function load_greens_functions(stations, ch_map, event, depths)
     gf_data = Dict{Float64, Dict{String, Matrix{Float64}}}()
     n_skip = 0
@@ -196,20 +196,20 @@ end
 
 gf_data = load_greens_functions(stations, ch_map, event, depths)
 
-# === 9. 预处理波形 (核心) ===
-# 逐模块/频带/相位: 带通滤波 + 裁窗 + GF 预处理
+# === 9. Preprocess waveforms ===
+# Apply bandpass filtering, trimming, and GF preprocessing per module/band/phase.
 @info "Preprocessing waveforms ..."
 
-# 构建统一模块注册表
+# Build the unified module registry.
 module_instances = Dict{String, Module}()
 for m_name in misfit_modules
     sym = Symbol(m_name)
-    Config.is_composed(sym) && continue   # Level 2 无 instance module
+    Config.is_composed(sym) && continue   # Level 2 objectives have no instance module.
     module_instances[m_name] = Config._instance_module(sym)
 end
 
 # === 9a. Layer 0: shared full-waveform preprocessing ===
-# 完整波形 demean/detrend/taper/bandpass (per band); 独立于算子
+# Full-waveform demean/detrend/taper/bandpass per band, independent of operators.
 @info "Layer 0: shared preprocessing (demean/detrend/taper/bandpass) per band ..."
 ch_dt = Dict{String, Float64}()
 for s in stations
@@ -252,10 +252,10 @@ for (lo, hi) in all_bands
     end
 end
 
-# TODO(deferred): prepro_gf_basic (Polarity input) removed — XCorr-only mode, restore from git HEAD 0a9ad69.
+# Polarity and PSR expressions reuse XCorr's preprocessed windows and reductions.
 @info "  Layer 0 complete: $(length(prepro_obs)) bands x $n_durations durations x $(length(channel_data)) channels"
 
-# 预处理共享上下文 (NamedTuple 避免长参数列表)
+# Shared preprocessing context (NamedTuple keeps helper signatures compact).
 ctx = (
     stations = stations,
     picks = picks,
@@ -307,9 +307,9 @@ function merge_duration_result(prev, r, duration_idx)
     return prev
 end
 
-"""对单模块执行预处理, 返回累积 result (nothing 表示无有效数据)。
+"""Preprocess one module and merge its result; return nothing when no data is valid.
 
-freq-dependent 模块跨频带合并; 非 freq 模块单次 process。"""
+Frequency-dependent modules are merged across bands; other modules run once."""
 function preprocess_module(mod, phases_pt, ptype, ctx, prev)
     if mod.is_freq_dependent()
         band_low = mod.band_low()
@@ -338,11 +338,11 @@ function preprocess_module(mod, phases_pt, ptype, ctx, prev)
         end
         return result
     else
-        error("non-freq-dependent operator deferred (XCorr-only mode): $(nameof(mod))")
+        error("standalone non-frequency-dependent preprocessing is not supported: $(nameof(mod))")
     end
 end
 
-# 预处理结果暂存, 最终组装 ModuleData
+# Hold preprocessing results before assembling ModuleData.
 module_data = Dict{String, IO.ModuleData}()
 module_results = Dict{String, Dict}()
 
@@ -357,12 +357,10 @@ for ptype in phase_types
     end
 end
 
-# TODO(deferred): preprocess_psr + Psr wiring removed — XCorr-only mode, restore from git HEAD 0a9ad69.
-
 @info "  preprocessing complete ($(length(misfit_modules)) modules, $(length(freq_vals)) discrete frequencies)"
 
-# === 10. 构建 /event, /paraspace, /config ===
-# /paraspace: 浮点数组; /config: 元数据 (无索引)
+# === 10. Build /event, /paraspace, and /config ===
+# /paraspace stores physical values; /config stores metadata and module references.
 event_dict = Dict{String, Any}(
     "longitude" => event.longitude,
     "latitude" => event.latitude,
@@ -372,9 +370,9 @@ event_dict = Dict{String, Any}(
 )
 
 g0 = Search.default_grid()
-# strike: 全圆周闭合采样 0:5:355 (72 点; 355+5=360≡0 无空洞), dip/rake 为区间采样。
+# Strike samples cover the full circle at 5° (0:5:355); dip/rake cover closed intervals.
 strike_vals = collect(g0.strike0:g0.dstrike:(360.0 - g0.dstrike))
-@assert length(strike_vals) == Int(g0.nstrike) "paraspace strike 与 strategy.nstrike 不一致"
+@assert length(strike_vals) == Int(g0.nstrike) "paraspace strike and strategy.nstrike differ"
 dip_vals = Search.expand_axis(g0.dip0, g0.ddip, g0.ndip)
 rake_vals = Search.expand_axis(g0.rake0, g0.drake, g0.nrake)
 
@@ -395,8 +393,8 @@ if !isempty(objective_exprs)
     )
 end
 
-# 写入 /config/{ModuleName}/
-# Level 1: 有 instance module 的实例（含预处理参数）
+# Write /config/{ModuleName}/.
+# Level 1 instances have an inner module and preprocessing parameters.
 for (m_name, mod) in module_instances
     sym = Symbol(m_name)
     cfg_entry = Dict{String, Any}()
@@ -429,7 +427,7 @@ for (m_name, mod) in module_instances
     db_config[m_name] = cfg_entry
 end
 
-# Level 2: composed 实例（无 instance module、无预处理参数）
+# Level 2 composed instances have no inner module or preprocessing parameters.
 for m_name in misfit_modules
     sym = Symbol(m_name)
     Config.is_composed(sym) || continue
@@ -444,7 +442,7 @@ for m_name in misfit_modules
     db_config[m_name] = cfg_entry
 end
 
-# Dict -> IO.ModuleData 转换
+# Convert the result dictionary to IO.ModuleData.
 function result_to_moduledata(result::Dict)::IO.ModuleData
     obs_str = Dict{String, Matrix{Float64}}()
     obs_n2_str = Dict{String, Vector{Float64}}()
@@ -514,7 +512,7 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         synamp = syn_str,
         synamp_lag = synamp_lag_str,
         dot_obs_gf_lag = dog_lag_str,
-        # TODO(deferred): PSR regions stay empty in XCorr-only mode — restore when Psr re-enabled.
+        # Legacy standalone PSR fields remain empty; active PSR is an expression over XCorr data.
         amp_P = Dict{Float64, Dict{String, Array{Float64, 3}}}(),
         amp_S = Dict{Float64, Dict{String, Array{Float64, 3}}}(),
         obs_psr = Dict{String, Vector{Float64}}(),
@@ -522,10 +520,10 @@ function result_to_moduledata(result::Dict)::IO.ModuleData
         station_idx = full_to_phys[result["station_idx"]],
     )
 end
-# === 11. 写入 database.h5 ===
+# === 11. Write database.h5 ===
 @info "Writing database.h5 ..."
 db_path = joinpath(data_dir, "database.h5")
-# 组装 ModuleData -> /{ModuleName}/obs + /gf
+# Assemble ModuleData -> /{ModuleName}/obs + /gf.
 for (m_name, result) in module_results
     module_data[m_name] = result_to_moduledata(result)
 end
@@ -541,7 +539,6 @@ IO.write_database(
     paraspace = paraspace,
 )
 
-# TODO(deferred): /preprocess + /gf_preprocessed debug persistence removed — XCorr-only mode, restore from git HEAD 0a9ad69.
 mod_summary = join(
     [
         "$(length(module_results[mn]["channel_id"])) $mn" for
@@ -551,8 +548,8 @@ mod_summary = join(
 )
 @info "  phase metadata written ($mod_summary)"
 
-# === 12. 写入 status_0.h5 (初始策略) ===
-# /strategy: 全空间 5° 默认网格 (SDR) + 全 depth/freq/duration 索引, iteration 0
+# === 12. Write status_0.h5 (initial strategy) ===
+# /strategy: full-space 5° SDR grid plus all depth/frequency/duration indices, iteration 0.
 @info "Writing status_0.h5 ..."
 
 strategy = IO.Strategy(
@@ -577,7 +574,7 @@ end
 IO.write_strategy(status0_path, strategy)
 @info "  $status0_path written"
 
-# === 13. 输出摘要 ===
+# === 13. Print summary ===
 @info ""
 @info "Stage complete:"
 @info "  $(basename(db_path)) : /station ($n_phys_stations rows)"

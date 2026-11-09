@@ -88,9 +88,9 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 ## 三层分离设计
 
 | 位置 | 存什么 | 示例 |
-|--------------|-----------------------------------------|--------------------------------------------------------------------------------|
+|--------------|--------------------------------------------------------|--------------------------------------------------------------------------------|
 | `/paraspace` | 展开的浮点值 (`Float64[N]`) | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]`, `duration[3]` |
-| `/config` | 算法参数和元数据，**无索引无浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods`, `band_low/high` |
+| `/config` | 算法参数和元数据，可含模块参数引用，不含物理浮点参数值 | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods`, `band_low/high` |
 | `/strategy` | 整数索引 (`Int32[N]`) 指向 `/paraspace` | `depth_indices`, `freq_indices`, `duration_indices`, `iteration` |
 
 关于频率：`Config.freq_bands()` 返回 `[(low, high), ...]`，input.jl 提取所有唯一边界、排序后写入 `/paraspace/frequency`。Freq-dependent 模块（XCorr/Psr）通过 `band_low()`/`band_high()` 指向该数组；`/strategy` 保存 `freq_indices`（1..N_bands）作为迭代搜索范围。
@@ -99,7 +99,7 @@ Runs once at the start of the pipeline (before the main loop). Reads `config.jl`
 
 1. **Preprocess raw data**: filter waveforms to frequency bands, trim XCorr windows and store them in `database.h5`
 1. **Load Green's functions**: read external GF files, store by phase × depth in `database.h5`
-1. **Write algorithm config**: load `config.jl`, write `db_config` (module list, module params) into `database.h5` — **no indices, no float parameter values**
+1. **Write algorithm config**: load `config.jl`, write `db_config` (module list, module params, and module parameter references) into `database.h5` — **no physical parameter values**
 1. **Write expanded parameter space**: compute grid axis expansions (strike/dip/rake) via `Search.expand_axis()`, build `frequency` from unique band edges, store all as `/paraspace` in `database.h5`
 1. **Write initial strategy**: build `IO.Strategy(depth_indices, freq_indices, iteration=0)` → `/strategy` in `status_0.h5`
 1. **Write phase metadata**: write `channel_id` + `station_idx` into each `/{ModuleName}` group in `database.h5` (carried by `ModuleData`)

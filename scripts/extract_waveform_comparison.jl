@@ -99,11 +99,9 @@ h5open(database_path, "r") do database
             length(station_indices) == channel_count ||
                 error("$module_name channel and station indices differ in length")
 
-            saved_observed =
-                Float64.(read(database["$module_path/obs/$frequency_index/obs"]))
-            size(saved_observed, 1) == channel_count || error(
-                "unexpected $module_name observation shape: $(size(saved_observed))",
-            )
+            saved_observed = Float64.(read(database["$module_path/obs/$frequency_index/obs"]))
+            size(saved_observed, 1) == channel_count ||
+                error("unexpected $module_name observation shape: $(size(saved_observed))")
 
             lag_path = "/intermediates/$module_name/best_lag"
             cc_path = "/intermediates/$module_name/cc_max"
@@ -160,8 +158,9 @@ h5open(database_path, "r") do database
                     channel_id = channel_ids[channel]
                     observed_full = Float64.(read(database["/channel/$channel_id"]))
                     greens_full = Float64.(read(database["/gf/$depth_index/$channel_id"]))
-                    size(greens_full, 2) == 6 ||
-                        error("unexpected Green function shape for $channel_id: $(size(greens_full))")
+                    size(greens_full, 2) == 6 || error(
+                        "unexpected Green function shape for $channel_id: $(size(greens_full))",
+                    )
                     observed_full = Signal.preprocess_waveform!(
                         observed_full,
                         dt,
@@ -170,11 +169,8 @@ h5open(database_path, "r") do database
                         order = filter_order,
                     )
                     for column in axes(greens_full, 2)
-                        greens_full[:, column] = Signal.convolve_gaussian_stf(
-                            greens_full[:, column],
-                            duration,
-                            dt,
-                        )
+                        greens_full[:, column] =
+                            Signal.convolve_gaussian_stf(greens_full[:, column], duration, dt)
                         greens_full[:, column] = Signal.preprocess_waveform!(
                             greens_full[:, column],
                             dt,
@@ -189,11 +185,7 @@ h5open(database_path, "r") do database
                     arrival_sample = if isnan(begin_time) || isnan(pick_time)
                         length(observed_full) ÷ 2
                     else
-                        clamp(
-                            round(Int, (pick_time - begin_time) / dt) + 1,
-                            1,
-                            length(observed_full),
-                        )
+                        clamp(round(Int, (pick_time - begin_time) / dt) + 1, 1, length(observed_full))
                     end
                     obs, aligned = trim_aligned_waveforms(
                         observed_full,

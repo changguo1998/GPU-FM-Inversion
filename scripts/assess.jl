@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# assess.jl - 读 intermediates -> extract -> compose -> 写 misfits
+# assess.jl - Extract/combine intermediates and write misfits.
 #
 # Usage: julia scripts/assess.jl <database.h5> <status_N.h5>
 #
@@ -16,11 +16,11 @@ using IO, Config, Aggregate, Misfit
 db_path = ARGS[1]
 status_path = ARGS[2]
 
-# === 1. 读 /config 元数据 ===
+# === 1. Read /config metadata ===
 cfg = IO.read_config(db_path)
 modules = cfg["misfit_modules"]
 
-# === 2. 读对齐上下文 ===
+# === 2. Read alignment context ===
 stations = IO.read_stations(db_path)
 N_stations = length(stations)
 trials = IO.read_trials(status_path)
@@ -306,7 +306,7 @@ misfit_levels = Dict(
     m_name in keys(misfits)
 )
 
-# === 5. 写 channel/native-entry misfits 与 channel index ===
+# === 5. Write channel/native-entry misfits and their indices ===
 h5open(status_path, "r+") do f
     !haskey(f, "misfits") && create_group(f, "misfits")
     for (m_name, m) in misfits
@@ -367,8 +367,8 @@ for (m_name, m) in sort(collect(misfits), by = first)
     @info "  $m_name : level=$level, shape=$(size(m))"
 end
 
-# 收敛决策: 写 $DATA_DIR/.decision.txt (driver 读取)。
-# 空文件 = 收敛 → driver 停止循环。当前仅支持单轮决策。
+# Convergence decision: write $DATA_DIR/.decision.txt for driver.sh.
+# An empty file means convergence; multi-iteration refinement is not active yet.
 if haskey(ENV, "DATA_DIR")
     decision_path = joinpath(ENV["DATA_DIR"], ".decision.txt")
     write(decision_path, "")

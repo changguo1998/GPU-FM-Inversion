@@ -51,7 +51,7 @@ Config.@objective XcorrP = 1 - maxCC(p_obs, p_syn; maxlag = 3)
 Each loaded plugin creates a `Config.{name}` inner module. Functions depend on the plugin:
 
 | Plugin | Functions |
-|------------------------------------|----------------------------------------------------------|
+|------------------------------------|----------------------------------------------------------------------|
 | `XcorrP`, `XcorrS`, `LagP`, `LagS` | Inherited from `Misfit.Xcorr` template |
 | `Psr`, `PolarityP` | Generic `Expression` objectives; no independent preprocessing module |
 

@@ -11,7 +11,7 @@ Active objectives: Xcorr P/S, signed Lag P/S, PSR and normalized polarity. PSR a
 ## Files
 
 | File | Module | Role |
-|----------------------|--------|--------------------------------------------------------|
+|----------------------------|------------|-----------------------------------------------------------------------------------------------|
 | `src/Misfit.jl` | Misfit | Package entry, wraps Xcorr/Polarity/Psr as sub-modules |
 | `src/Expressions.jl` | Misfit | 目标函数表达式节点与 Julia 基础运算构图 |
 | `src/Operators.jl` | Misfit | 六个目标函数算子的 CPU 参考实现 |

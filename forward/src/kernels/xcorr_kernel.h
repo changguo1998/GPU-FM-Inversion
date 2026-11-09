@@ -14,10 +14,11 @@
 /// Misfit (cc_misfit) is derived in Julia assess: 1.0 - cc_max.
 /// AbsShift is derived in Julia assess: best_lag * dt.
 ///
-/// Data layout (all flat arrays, column-major):
+/// Data layout uses explicit strides; the host MT buffer is row-major while
+/// the remaining flat matrices use column-major indexing:
 ///   mt           [N_trials × 6]       mt[trial * 6 + comp] (row-major)
-///   cc_data      [N_phases·cc_pp × 6] column-major
-///   synamp_data  [N_phases × 36]      synamp_data[phase + (i*6+j) * N_phases]
+///   cc_data      [N_phases·cc_pp × 6] cc_data[phase*cc_pp + lag + comp*N_phases*cc_pp]
+///   synamp_data  [N_phases × 36 × cc_pp] synamp_data[phase + comp_pair*N_phases + lag*N_phases*36]
 ///   obs_norm2    [N_phases]           obs_norm2[phase]
 ///   cc_max_out   [N_phases × N_trials] column-major
 ///   best_lag_out [N_phases × N_trials] column-major

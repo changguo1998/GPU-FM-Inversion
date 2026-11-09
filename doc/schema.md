@@ -65,8 +65,9 @@ in `status_{N}.h5` provides integer indices into these arrays.
 
 ### `/config`
 
-Algorithm metadata and module-specific parameters. No float parameter-space
-values or integer indices — those live in `/paraspace` and `/strategy` respectively.
+Algorithm metadata and module-specific parameters. Physical parameter values live in
+`/paraspace`; search-axis indices live in `/strategy` and `/trials`. Module metadata
+may contain integer references such as `band_low` and `band_high`.
 
 | Dataset | Type | Shape | Description |
 |------------------|--------|---------------|----------------------------------------------------------------|

@@ -8,7 +8,7 @@
 
 const PSR_VALUE = :psr_value
 
-# ── Operator 元数据 ──
+# ── Operator metadata ──
 outputs() = [PSR_VALUE]
 
 export pre_P, post_P, pre_S, post_S, preprocess, process, outputs, is_freq_dependent, PSR_VALUE

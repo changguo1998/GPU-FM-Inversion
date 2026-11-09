@@ -28,7 +28,7 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 ```
 
 | Stage | Role | Status |
-|---------------------------|---------------------------------------------------------------------------|----------------------------|
+|---------------------------|-----------------------------------------------------------------------------|------------------------------|
 | `input.jl` | 数据接入 → `database.h5`；初始 strategy → `status_0.h5` | 已完成 |
 | `preprocess.jl` | 从 strategy 生成 trials（全参数 paraspace 索引化）→ `status_{N}.h5:/trials` | 已完成 |
 | forward (C++ OpenMP/CUDA) | kernel 重计算，产出**中间产物** → `status_{N}.h5:/intermediates/` | 已实现 |
@@ -40,7 +40,7 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 ## Data Files
 
 | File | Lifetime | Contents |
-|-----------------|---------------|------------------------------------------------------------------------------------------------------------------|
+|-----------------|---------------|---------------------------------------------------------------------------------------------------------------------------|
 | `database.h5` | Static | 预处理波形、格林函数各深度变体、模块预处理结果、**`/paraspace`**（展开的参数空间浮点数组）、`/config`（算法参数，无索引） |
 | `status_{N}.h5` | Per-iteration | `/strategy`（整数索引指向 `/paraspace`）、trials、`/intermediates`（kernel 中间产物）、`/misfits`（最终 misfit 值） |
 | `output.h5` | Final | 最佳拟合参数、不确定性、逐阶段/台站分解 |
@@ -51,12 +51,12 @@ input.jl (once) → loop: [preprocess → forward → assess → [repeat]] → o
 ## HDF5 三层分离：值 / 索引 / 参数
 
 | 文件 | 组 | 职责 | 示例 |
-|-----------------|--------------|---------------------------------------------------------|--------------------------------------------------------------------------|
+|-----------------|--------------|------------------------------------------------------------------|--------------------------------------------------------------------------|
 | `database.h5` | `/paraspace` | **存值**：展开的浮点数组 | `strike[72]`, `dip[19]`, `rake[37]`, `depth[3]`, `frequency[2]` |
-| `database.h5` | `/config` | **参数**：模块设置、算法元数据，**不含索引或浮点参数值** | `misfit_modules`, `{ModuleName}/trim`, `max_lag_periods` |
+| `database.h5` | `/config` | **参数**：模块设置和算法元数据；可含模块参数引用，不存物理参数值 | `misfit_modules`, `{ModuleName}/trim`, `band_low/high` |
 | `status_{N}.h5` | `/strategy` | **网格定义**：SDR 展开轴参数 + 整数索引指向 `/paraspace` | `strike0/dstrike/nstrike…`, `depth_indices`, `freq_indices`, `iteration` |
 
-规则：`/paraspace` 只存浮点值；`/config` 只存参数；`/strategy` 只存整数索引。三者永不混杂。`freq_indices` 选搜索频带（1..N_bands），模块经 `/config/{ModuleName}/{band_low,band_high}` 指向 `/paraspace/frequency`；`depth_indices` 选搜索深度。
+规则：`/paraspace` 只存物理浮点值；`/strategy` 和 `/trials` 存搜索轴索引；`/config` 存算法参数及模块参数引用。`freq_indices` 选搜索频带（1..N_bands），模块经 `/config/{ModuleName}/{band_low,band_high}` 指向 `/paraspace/frequency`；`depth_indices` 选搜索深度。
 
 ## Key Design Rules
 

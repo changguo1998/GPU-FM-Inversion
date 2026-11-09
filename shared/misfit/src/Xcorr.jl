@@ -7,11 +7,11 @@
 #   filter_order()    - Butterworth filter order (Layer 0 bandpass)
 #   band_low()/band_high() - freq-band indices into /paraspace/frequency
 
-# ── 输出字段常量（IDE 可补全，注册时校验）──
+# ── Output-field constants (used for completion and registration validation). ──
 const CC_MAX = :cc_max
 const BEST_LAG = :best_lag
 
-# ── Operator 元数据 ──
+# ── Operator metadata ──
 outputs() = [CC_MAX, BEST_LAG]
 
 export trim, max_lag_periods, filter_order, outputs

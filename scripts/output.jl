@@ -1,15 +1,14 @@
 #!/usr/bin/env julia
 #
-# output.jl - 输出编译
+# output.jl - Compile final output.
 #
-# 读最新 status_N.h5 的 /misfits + /trials 与 database.h5 元数据,
-# 选择 best trial 并写 output.h5 (/solution, /uncertainty, /per_phase,
-# /per_station_summary, /summary)。
+# Reads /misfits and /trials from the latest status_N.h5 plus database metadata,
+# selects the best trial, and writes output.h5 groups.
 #
-# 简化说明 (TODO):
-#   - assess 按 channel → station → trial 逐级求和；
-#   - /uncertainty.freq_test_misfit_curve 填 NaN (未实现);
-#   - /summary.convergence_reason 固定 "single iteration"。
+# Current limitations:
+#   - assess sums objectives channel → station → trial;
+#   - /uncertainty.freq_test_misfit_curve is NaN (not implemented);
+#   - /summary/convergence_reason is fixed to "single iteration".
 #
 # Usage:
 #   DATA_DIR=<dir> julia scripts/output.jl
@@ -33,7 +32,7 @@ status_path, iter_n = IO.find_latest_status(status_dir)
 
 @info "output stage started (status $status_path, iteration $iter_n)"
 
-# === 1. 读 trials + misfits ===
+# === 1. Read trials and misfits ===
 trials = IO.read_trials(status_path)
 misfits = IO.read_misfits(status_path)  # Dict{Symbol, Matrix{Float64}} [entries × trials]
 modules = sort(collect(keys(misfits)))
@@ -81,7 +80,7 @@ solution = Dict{String, Any}(
     "misfit" => best.misfit,
 )
 
-# === 4. uncertainty: best 邻域 (misfit ≤ 1.05×best) SDR std ===
+# === 4. Uncertainty: SDR standard deviation in the best neighborhood ===
 thr = best.misfit * 1.05
 nb = findall(total .<= thr)
 nb2 = length(nb) >= 2 ? nb : [best_idx]
@@ -96,7 +95,7 @@ uncertainty = Dict{String, Any}(
     "freq_test_misfit_curve" => fill(NaN, 1, 1),
 )
 
-# === 5. per_phase: XcorrP/XcorrS 通道 (best trial 各模块 entry misfit) ===
+# === 5. per_phase: XcorrP/XcorrS entries at the best trial ===
 function module_has(mod_name::String, field::String)::Bool
     return h5open(f -> haskey(f, "/$mod_name/$field"), db_path, "r")
 end
@@ -155,9 +154,9 @@ for (ri, m) in enumerate(modules)
                 end
             end
         else
-            # 行 = station (如 Polarity/RelShift)。unique 台站顺序与
-            # forward kernel 的 station 轴一致; Polarity 行 1 是 C++ 0-based
-            # dummy, 后续行 1:1 对应物理台站。
+            # Rows represent stations (for example Polarity/RelShift). The unique
+            # station order matches the forward kernel; Polarity row 1 is the
+            # C++ 0-based dummy row, followed by physical stations.
             uids = sort(unique(stations_phase))
             nrows = size(misfits[m], 1)
             for (pi, st) in enumerate(stations_phase)
@@ -170,9 +169,9 @@ for (ri, m) in enumerate(modules)
     end
 end
 
-# cross_correlation: 从 /intermediates 读 XcorrP/S cc_max 在 best trial 的值
+# Cross-correlation: read XcorrP/S cc_max at the best trial.
 function read_cc_column(key::String, idx::Int)::Vector{Float64}
-    # cc_max 读取为 [N_trials × N_phases] (C-order written); 取 best trial 行
+    # cc_max is read as [N_trials × N_phases] from C-order output; select one row.
     return h5open(f -> Float64.(read(f["/intermediates/$key/cc_max"])[idx, :]), status_path, "r")
 end
 
@@ -181,7 +180,7 @@ for (mod_name, ptype) in ((:XcorrP, "P"), (:XcorrS, "S"))
     if haskey(misfits, mod_name)
         chs = read_module_field(string(mod_name), "channel_id")
         col = read_cc_column(string(mod_name), best_idx)
-        # cc_max 每列对应 channel rows; 当行列数与 channel_id 一致时按通道对齐
+        # Each cc_max column corresponds to a channel row.
         if length(col) == length(chs)
             for (i, c) in enumerate(chs)
                 pi = findfirst(==(string(c, ".", ptype)), phase_ids)
@@ -257,11 +256,11 @@ summary = Dict{String, Any}(
     "convergence_reason" => "single iteration",
 )
 
-# === 8. 写 output.h5 ===
+# === 8. Write output.h5 ===
 IO.write_output(out_path, solution, uncertainty, per_phase, per_station_summary, summary)
 @info "wrote $out_path"
 
-# === 9. 写机器可读文本结果 (TOML) ===
+# === 9. Write the machine-readable TOML result ===
 function toml_rows(a::AbstractMatrix)
     return [collect(a[i, :]) for i in axes(a, 1)]
 end

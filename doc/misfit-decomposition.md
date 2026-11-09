@@ -59,7 +59,7 @@ Julia assess：
 组名：`{Operator}{Phase}[_{channel}]`（如 `XcorrP`、`XcorrS_N`）。
 
 | 组 | 字段 | 类型 | 形状 | 含义 |
-|--------------|--------------|---------|-------------------------|---------------------------------------------|
+|--------------|--------------|---------|-------------------------|------------------------------------------------|
 | `Xcorr{P,S}` | `cc_max` | Float64 | `[N_phases × N_trials]` | 最大归一化 CC 值 |
 | `Xcorr{P,S}` | `best_lag` | Int32 | `[N_phases × N_trials]` | 相对 maxlag 偏移（采样点；extractor ×dt 转秒） |
 | `Xcorr{P,S}` | `syn_energy` | Float64 | `[N_phases × N_trials]` | 中心 lag 二次型能量（PSR 按需） |

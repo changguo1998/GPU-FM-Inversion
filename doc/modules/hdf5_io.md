@@ -20,8 +20,9 @@
 
 ## Main interfaces
 
-- Database: `write_database`, `read_config`, `read_event`, `read_stations`,
-  `read_waveform`, `read_greens`.
+- Pipeline database: `write_database`, `read_config`, `read_event`, `read_stations`,
+  `read_greens`. Raw-input readers `read_phase_picks` and `read_waveform` consume
+  the corresponding `/phase_picks` and `/waveforms` groups from an input HDF5 file.
 - Search state: `write_strategy`, `read_strategy`, `write_trials`, `read_trials`.
 - Results: `write_misfits`, `read_misfits`, `write_output`.
 - Parameter space: `write_paraspace`, `read_paraspace`.

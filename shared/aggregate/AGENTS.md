@@ -13,7 +13,7 @@ Used by: `scripts/assess.jl`.
 ## Files
 
 | File | Role |
-|-------------------------------|-------------------------------------------------------------------------------------------------------|
+|-------------------------------|--------------------------------------------------------------------------------------------------------|
 | `src/Aggregate.jl` | Package entry and exports |
 | `src/extractors.jl` | `EXTRACTORS` registry — keyed by `(operator, output)`, maps intermediates → Level 1 misfit matrices |
 | `src/composers.jl` | `COMPOSERS` registry — keyed by aggregate operator, aggregates base misfits → Level 2 misfit matrices |

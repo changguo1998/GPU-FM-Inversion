@@ -15,6 +15,7 @@ function maxCC(
     return value
 end
 
+"""Build a deferred maximum-correlation expression for waveform nodes."""
 function maxCC(observed::AbstractExpr, synthetic::AbstractExpr; maxlag::Real)
     maxlag >= 0 || throw(ArgumentError("maxlag must be non-negative"))
     return _call(MaxCCOp(), observed, synthetic; maxlag = maxlag)
@@ -30,6 +31,7 @@ function lagCC(
     return lag
 end
 
+"""Build a deferred lag-of-maximum-correlation expression for waveform nodes."""
 function lagCC(observed::AbstractExpr, synthetic::AbstractExpr; maxlag::Real)
     maxlag >= 0 || throw(ArgumentError("maxlag must be non-negative"))
     return _call(LagCCOp(), observed, synthetic; maxlag = maxlag)

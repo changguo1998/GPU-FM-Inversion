@@ -29,9 +29,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-source ~/.bashrc
-echo "spack setup file: $SPACK_SETUP_ENV"
-source "$SPACK_SETUP_ENV"
+if [[ -f "${HOME:-}/.bashrc" ]]; then
+    # Load user-installed formatter paths when an interactive shell provides them.
+    source "${HOME}/.bashrc" || echo "WARN: unable to source ${HOME}/.bashrc"
+fi
+
+if [[ -n "${SPACK_SETUP_ENV:-}" && -f "$SPACK_SETUP_ENV" ]]; then
+    echo "spack setup file: $SPACK_SETUP_ENV"
+    source "$SPACK_SETUP_ENV" || echo "WARN: unable to source $SPACK_SETUP_ENV"
+fi
 
 checkexe() {
     local e
@@ -47,8 +53,10 @@ checkexe mdformat
 checkexe fnm
 checkexe markdown-table-formatter
 
-if ! command -v clang-format > /dev/null 2>&1; then
-    spack load llvm
+if ! command -v clang-format > /dev/null 2>&1 && command -v spack > /dev/null 2>&1; then
+    if ! spack load llvm > /dev/null 2>&1; then
+        echo "WARN: unable to load clang-format from Spack"
+    fi
 fi
 checkexe clang-format
 

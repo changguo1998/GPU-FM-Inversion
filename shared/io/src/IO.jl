@@ -256,6 +256,7 @@ end
 
 # Readers
 
+"""Read event metadata from an input HDF5 `/event` group."""
 function read_event(h5file)::EventInfo
     h5open(
         f -> begin
@@ -273,6 +274,7 @@ function read_event(h5file)::EventInfo
     )
 end
 
+"""Read phase picks from an input HDF5 `/phase_picks` group."""
 function read_phase_picks(h5file)::Vector{PhasePick}
     h5open(f -> begin
         gr = f["phase_picks"]
@@ -284,6 +286,7 @@ function read_phase_picks(h5file)::Vector{PhasePick}
     end, h5file, "r")
 end
 
+"""Read station and channel metadata from an input HDF5 `/station` group."""
 function read_stations(h5file)::Vector{StationInfo}
     h5open(
         f -> begin
@@ -318,10 +321,12 @@ function read_stations(h5file)::Vector{StationInfo}
     )
 end
 
+"""Read one raw waveform from `/waveforms/{phase_id}` in an input HDF5 file."""
 function read_waveform(h5file, phase_id)::Vector{Float64}
     h5open(f -> read(f["waveforms/$(phase_id)"]), h5file, "r")
 end
 
+"""Read trial index vectors from a status HDF5 `/trials` group."""
 function read_trials(h5file)::TrialSet
     h5open(
         f -> begin
@@ -342,6 +347,7 @@ function read_trials(h5file)::TrialSet
     )
 end
 
+"""Read the search strategy from a status HDF5 `/strategy` group."""
 function read_strategy(h5file)::Strategy
     h5open(
         f -> begin
@@ -397,6 +403,7 @@ function read_strategy(h5file)::Strategy
     )
 end
 
+"""Read all per-objective misfit matrices from a status HDF5 `/misfits` group."""
 function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
     mis = Dict{Symbol, Matrix{Float64}}()
     h5open(f -> begin
@@ -408,6 +415,7 @@ function read_misfits(h5file)::Dict{Symbol, Matrix{Float64}}
     return mis
 end
 
+"""Read raw Green's functions for a phase and 1-based depth index."""
 function read_greens(h5file, phase_id, depth_idx)::Matrix{Float64}
     # /gf/{idx}/{ch}: idx = 1-based /paraspace/depth index; ch from phase_id
     # (e.g. "NET.ST1.Z.P" -> "NET.ST1.Z")
@@ -445,6 +453,11 @@ function _gf_depth_index(paraspace_depth::Vector{Float64}, depth::Float64)::Int
     return idx
 end
 
+"""
+    write_database(h5file, config, event, station, channel_data, gf_data, module_data; paraspace)
+
+Create a pipeline `database.h5` with metadata, raw data, parameter space, and module data.
+"""
 function write_database(
     h5file,
     config,
@@ -592,6 +605,7 @@ function write_database(
     end
 end
 
+"""Replace the status HDF5 `/trials` group with a complete trial set."""
 function write_trials(h5file, trials::TrialSet)
     h5open(h5file, "r+") do f
         if haskey(f, "trials")
@@ -653,6 +667,7 @@ function write_strategy(h5file, strategy::Strategy)
     end
 end
 
+"""Write the final solution, uncertainty, phase, station, and summary groups."""
 function write_output(h5file, solution, uncertainty, per_phase, per_station_summary, summary)
     h5open(h5file, "w") do f
         # /solution

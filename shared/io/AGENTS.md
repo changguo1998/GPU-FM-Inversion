@@ -5,7 +5,7 @@
 | Struct | Export | Fields | Notes |
 |---------------|-------------|------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
 | `EventInfo` | Yes | `longitude`, `latitude`, `depth`, `magnitude`, `origintime` | Event location and magnitude |
-| `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `lat`, `lon`, `elev`, `dt`, `begin_time` | Station metadata |
+| `StationInfo` | Yes | `id`, `network`, `station`, `channel`, `latitude`, `longitude`, `elevation`, `dt`, `begin_time` | Station metadata |
 | `ModuleData` | Yes | `obs`, `obs_norm2`, `gf`, `synamp`, `synamp_lag`, `dot_obs_gf_lag`, `amp_P`, `amp_S`, `obs_psr`, `channel_id`, `station_idx` | Unified per-module preprocessing output |
 | `PhasePick` | Yes | `station_id`, `P_time`, `S_time`, `P_polarity` | Phase arrival picks |
 | `TrialSet` | Yes | `strike_idx`, `dip_idx`, `rake_idx`, `depth_idx`, `freq_idx`, `duration_idx` | Search trial generation output (indices only; physical values live in `/paraspace`) |
@@ -37,8 +37,8 @@ per-operator reduction fields populated depending on module type:
 - `read_config(h5file) -> Dict` — recursive read of `/config`
 - `read_event(h5file) -> EventInfo`
 - `read_stations(h5file) -> Vector{StationInfo}`
-- `read_phase_picks(h5file) -> Vector{PhasePick}`
-- `read_waveform(h5file, phase_id) -> Vector{Float64}`
+- `read_phase_picks(h5file) -> Vector{PhasePick}` — reads the raw-input `/phase_picks` group
+- `read_waveform(h5file, phase_id) -> Vector{Float64}` — reads raw-input `/waveforms/{phase_id}`
 - `read_trials(h5file) -> TrialSet`
 - `read_strategy(h5file) -> Strategy`
 - `read_misfits(h5file) -> Dict{Symbol, Matrix{Float64}}` — reads all misfit matrices from `/misfits`

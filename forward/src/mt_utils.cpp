@@ -1,14 +1,14 @@
 #include "mt_utils.h"
 #include <cmath>
 
-// Verify that the formula matches Julia's dc2ts() exactly.
-// Julia (degrees → radians):
-//   m[1] = -1 * (sin(2*s)*sin(d)*cos(r) + sin(s)^2 * sin(2*d) * sin(r))  // Mxx
-//   m[2] =  sin(2*s)*sin(d)*cos(r) - cos(s)^2 * sin(2*d) * sin(r)        // Myy
-//   m[3] =  sin(2*d)*sin(r)                                                //
-//   Mzz m[4] =  cos(2*s)*sin(d)*cos(r) + 0.5 * sin(2*s)*sin(2*d)*sin(r)      //
-//   Mxy m[5] = -1 * (cos(s)*cos(d)*cos(r) + sin(s)*cos(2*d)*sin(r)) // Mxz m[6]
-//   = -1 * (sin(s)*cos(d)*cos(r) - cos(s)*cos(2*d)*sin(r))           // Myz
+// Verify that the formula matches Julia's sdr_to_mt() exactly.
+// Julia converts degrees to radians and returns [Mxx, Myy, Mzz, Mxy, Mxz, Myz]:
+//   Mxx = -(sin(2s)*sin(d)*cos(r) + sin(s)^2*sin(2d)*sin(r))
+//   Myy =   sin(2s)*sin(d)*cos(r) - cos(s)^2*sin(2d)*sin(r)
+//   Mzz =   sin(2d)*sin(r)
+//   Mxy =   cos(2s)*sin(d)*cos(r) + 0.5*sin(2s)*sin(2d)*sin(r)
+//   Mxz = -(cos(s)*cos(d)*cos(r) + sin(s)*cos(2d)*sin(r))
+//   Myz = -(sin(s)*cos(d)*cos(r) - cos(s)*cos(2d)*sin(r))
 
 MomentTensor sdr_to_mt(double strike_rad, double dip_rad, double rake_rad) {
     return sdr_to_mt_device(strike_rad, dip_rad, rake_rad);

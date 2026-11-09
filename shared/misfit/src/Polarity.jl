@@ -2,12 +2,12 @@
 # Config function stubs + preprocessing.
 # GF cleaned by Layer 0 (demean/detrend/taper, no bandpass — not freq-dependent).
 
-# ── 输出字段常量（IDE 可补全，注册时校验）──
+# ── Output-field constants (used for completion and registration validation). ──
 const SYN_SIGN = :syn_sign
 const DOT_VALUE = :dot_value
 const NORMALIZED_L1 = :normalized_l1
 
-# ── Operator 元数据 ──
+# ── Operator metadata ──
 outputs() = [SYN_SIGN, DOT_VALUE, NORMALIZED_L1]
 
 export source_duration, preprocess, process, is_freq_dependent, outputs

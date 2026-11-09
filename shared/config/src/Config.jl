@@ -343,7 +343,7 @@ function phase_type(name::Symbol)::Union{String, Nothing}
     return get(_PHASE_TYPE, name, nothing)
 end
 
-# ===== 震相字段映射 (由用户 config.jl 定义) =====
+# ===== Phase-field mapping (defined by the user config.jl) =====
 
 """
     phase_fields() -> Dict{String, Symbol}
